@@ -13,10 +13,10 @@
     "chrome-extension",
     "webextension"
   ],
-  "author": "",
+  "author": "euxx",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/euxx/github-notifier-pro"
   }
 }
