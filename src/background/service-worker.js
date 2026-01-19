@@ -1,0 +1,360 @@
+/**
+ * Background Service Worker for GitHub Notifier
+ */
+
+import github from '../lib/github-api.js';
+import * as storage from '../lib/storage.js';
+import { action, alarms, runtime, storage as browserStorage, tabs } from '../lib/chrome-api.js';
+import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib/constants.js';
+
+/**
+ * Initialize extension state from storage
+ */
+async function initialize() {
+  const token = await storage.getToken();
+  if (token) {
+    github.token = token;
+    const username = await storage.getUsername();
+    if (username) {
+      github.username = username;
+    }
+    await startPolling();
+    await checkNotifications();
+  } else {
+    await updateBadge(null);
+  }
+}
+
+/**
+ * Update badge with notification count
+ */
+async function updateBadge(count) {
+  if (count === null) {
+    // Not authenticated
+    await action.setBadgeText({ text: '?' });
+    await action.setBadgeBackgroundColor({ color: '#6B7280' });
+  } else if (count === 0) {
+    await action.setBadgeText({ text: '' });
+  } else {
+    await action.setBadgeText({ text: count.toString() });
+    await action.setBadgeBackgroundColor({ color: '#2563EB' });
+  }
+}
+
+/**
+ * Check for new notifications
+ */
+async function checkNotifications() {
+  if (!github.isAuthenticated) {
+    return;
+  }
+
+  try {
+    const notifications = await github.getNotifications();
+
+    if (notifications) {
+      // Get existing notifications to check for new ones
+      const existingNotifications = await storage.getNotifications();
+      const existingIds = new Set(existingNotifications.map(n => n.id));
+      const existingMap = new Map(existingNotifications.map(n => [n.id, n]));
+
+      // Process notifications - add normalized type and icon
+      const processed = await Promise.all(notifications.map(async (n) => {
+        const baseData = {
+          id: n.id,
+          title: n.subject.title,
+          type: n.subject.type,
+          reason: n.reason,
+          unread: n.unread,
+          updated_at: n.updated_at,
+          url: n.subject.url,
+          repository: {
+            name: n.repository.name,
+            full_name: n.repository.full_name,
+            html_url: n.repository.html_url,
+          },
+          icon: getIconForType(n.subject.type),
+          isNew: !existingIds.has(n.id), // Mark as new if not in existing set
+        };
+
+        // For PRs and Issues, fetch state information
+        // Only fetch if it's a new notification or updated_at changed
+        const existing = existingMap.get(n.id);
+        const needsUpdate = !existing || existing.updated_at !== n.updated_at;
+
+        if ((n.subject.type === 'PullRequest' || n.subject.type === 'Issue') && needsUpdate) {
+          try {
+            const details = await github.getNotificationDetails(n);
+            baseData.state = details.state; // 'open' or 'closed'
+            if (n.subject.type === 'PullRequest' && details.merged) {
+              baseData.merged = true;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch details for notification ${n.id}:`, error);
+            // Fallback to default state if fetch fails
+            baseData.state = 'open';
+            baseData.detailsFailed = true; // Mark that details fetch failed
+          }
+        } else if (existing && (existing.state || existing.merged)) {
+          // Reuse existing state if we didn't fetch new details
+          baseData.state = existing.state;
+          baseData.merged = existing.merged;
+          baseData.detailsFailed = existing.detailsFailed;
+        }
+
+        return baseData;
+      }));
+
+      await storage.setNotifications(processed);
+      await updateBadge(processed.length);
+    }
+  } catch (error) {
+    console.error('Failed to check notifications:', error);
+
+    // Handle different error types with appropriate UI feedback
+    if (error.message && error.message.includes('Rate limited')) {
+      // Rate limited - show timer badge with reset info
+      const rateLimitInfo = github.getRateLimitInfo();
+      await action.setBadgeText({ text: '⏱' });
+      await action.setBadgeBackgroundColor({ color: '#f59e0b' }); // Orange
+      await action.setTitle({
+        title: `Rate limited. Resets ${rateLimitInfo.resetIn || 'soon'}`
+      });
+    } else if (error.message && error.message.includes('timeout')) {
+      // Network timeout
+      await action.setBadgeText({ text: '⏱' });
+      await action.setBadgeBackgroundColor({ color: '#ef4444' }); // Red
+      await action.setTitle({ title: 'Request timeout - will retry' });
+    } else if (error.message && (error.message.includes('NetworkError') || error.message.includes('Failed to fetch'))) {
+      // Network error - keep last known state, update title only
+      await action.setTitle({ title: 'Offline - showing cached data' });
+    } else {
+      // Other errors
+      console.error('Unexpected error:', error);
+      await action.setTitle({ title: `Error: ${error.message}` });
+    }
+  }
+}
+
+/**
+ * Get icon name for notification type
+ */
+function getIconForType(type) {
+  const icons = {
+    Issue: 'issue',
+    PullRequest: 'pr',
+    Release: 'release',
+    Discussion: 'discussion',
+    Commit: 'commit',
+    CheckSuite: 'actions',
+    RepositoryVulnerabilityAlert: 'alert',
+    RepositoryInvitation: 'repo',
+  };
+  return icons[type] || 'notification';
+}
+
+/**
+ * Start polling for notifications
+ */
+async function startPolling() {
+  await alarms.create(ALARM_NAME, {
+    delayInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+    periodInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+  });
+}
+
+/**
+ * Stop polling
+ */
+async function stopPolling() {
+  await alarms.clear(ALARM_NAME);
+}
+
+/**
+ * Handle alarm events
+ */
+alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === ALARM_NAME) {
+    await checkNotifications();
+  }
+});
+
+/**
+ * Handle messages from popup
+ */
+runtime.onMessage.addListener((message, sender, sendResponse) => {
+  handleMessage(message).then(sendResponse).catch((error) => {
+    console.error('Message handling error:', error);
+    sendResponse({ error: error.message });
+  });
+  return true; // Keep channel open for async response
+});
+
+async function handleMessage(message) {
+  switch (message.action) {
+    case MESSAGE_TYPES.LOGIN:
+      return await handleLogin(message.authMethod, message.token);
+
+    case MESSAGE_TYPES.LOGOUT:
+      return await handleLogout();
+
+    case MESSAGE_TYPES.GET_STATE:
+      return await getState();
+
+    case MESSAGE_TYPES.GET_RATE_LIMIT:
+      return { rateLimit: github.getRateLimitInfo() };
+
+    case MESSAGE_TYPES.OPEN_NOTIFICATION:
+      return await openNotification(message.notificationId);
+
+    case MESSAGE_TYPES.MARK_AS_READ:
+      return await markAsRead(message.notificationId);
+
+    case MESSAGE_TYPES.MARK_ALL_AS_READ:
+      return await markAllAsRead();
+
+    case MESSAGE_TYPES.REFRESH:
+      await checkNotifications();
+      // Reset the alarm timer without recreating it
+      // This ensures the countdown shows the full period
+      if (github.isAuthenticated) {
+        // Clear and recreate to reset the timer
+        await alarms.clear(ALARM_NAME);
+        await alarms.create(ALARM_NAME, {
+          delayInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+          periodInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+        });
+      }
+      return { success: true };
+
+    default:
+      throw new Error(`Unknown action: ${message.action}`);
+  }
+}
+
+async function handleLogin(authMethod = 'oauth', token = null) {
+  try {
+    await github.login(authMethod, token);
+
+    // Save credentials
+    await storage.setToken(github.token);
+    await storage.setUsername(github.username);
+    await storage.setAuthMethod(authMethod);
+
+    // Start polling
+    await startPolling();
+    await checkNotifications();
+
+    return {
+      success: true,
+      username: github.username,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+async function handleLogout() {
+  github.logout();
+  await stopPolling();
+  await storage.clear();
+  await updateBadge(null);
+
+  return { success: true };
+}
+
+async function getState() {
+  const notifications = await storage.getNotifications();
+
+  // Ensure username is available
+  let username = github.username;
+  if (!username && github.isAuthenticated) {
+    username = await storage.getUsername();
+    if (username) {
+      github.username = username; // Update github object
+    }
+  }
+
+  return {
+    isAuthenticated: github.isAuthenticated,
+    username: username,
+    notifications: notifications,
+  };
+}
+
+async function openNotification(notificationId) {
+  const notifications = await storage.getNotifications();
+  const notification = notifications.find((n) => n.id === notificationId);
+
+  if (!notification) {
+    throw new Error('Notification not found');
+  }
+
+  // Get the URL to open
+  let url = notification.repository.html_url;
+
+  try {
+    // Try to get detailed URL (e.g., direct to issue/PR)
+    const rawNotifications = await github.getNotifications();
+    const rawNotif = rawNotifications?.find((n) => n.id === notificationId);
+    if (rawNotif) {
+      const details = await github.getNotificationDetails(rawNotif);
+      if (details?.html_url) {
+        url = details.html_url;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to get notification details:', error);
+  }
+
+  // Open tab
+  await tabs.create({ url });
+
+  // Mark as read
+  await markAsRead(notificationId);
+
+  return { success: true, url };
+}
+
+async function markAsRead(notificationId) {
+  try {
+    await github.markAsRead(notificationId);
+
+    // Update local storage
+    const notifications = await storage.getNotifications();
+    const updated = notifications.filter((n) => n.id !== notificationId);
+
+    await storage.setNotifications(updated);
+    await updateBadge(updated.length);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to mark as read:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function markAllAsRead() {
+  try {
+    await github.markAllAsRead();
+
+    // Clear local storage
+    await storage.setNotifications([]);
+    await updateBadge(0);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to mark all as read:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Initialize on startup
+initialize();
+
+// Also initialize when service worker wakes up
+runtime.onStartup.addListener(initialize);
+runtime.onInstalled.addListener(initialize);

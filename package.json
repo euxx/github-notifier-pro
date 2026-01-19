@@ -1,0 +1,22 @@
+{
+  "name": "github-notifier-pro",
+  "version": "1.0.0",
+  "description": "A Chrome extension that brings GitHub notifications right to your browser",
+  "scripts": {
+    "clean": "rm -rf dist/",
+    "build": "mkdir -p dist && cp -r src images manifest.json dist/",
+    "package": "npm run clean && npm run build && cd dist && zip -r ../github-notifier-pro.zip ."
+  },
+  "keywords": [
+    "github",
+    "notifications",
+    "chrome-extension",
+    "webextension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}

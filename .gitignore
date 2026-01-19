@@ -1,0 +1,22 @@
+# Config with secrets
+scripts/config.js
+src/config/config.js
+
+# Development
+.DS_Store
+*.log
+node_modules/
+
+# Build artifacts
+*.zip
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+2026-*.txt

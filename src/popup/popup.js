@@ -1,0 +1,762 @@
+/**
+ * Popup script for GitHub Notifier
+ */
+
+import * as storage from '../lib/storage.js';
+import { storage as browserStorage, alarms, runtime } from '../lib/chrome-api.js';
+import { ANIMATION_DURATION, TOKEN_PREFIXES, MESSAGE_TYPES } from '../lib/constants.js';
+
+// Elements
+const loginView = document.getElementById('login-view');
+const mainView = document.getElementById('main-view');
+const loading = document.getElementById('loading');
+
+// Cache for notifications to avoid unnecessary re-renders
+let cachedNotifications = null;
+let cachedNotificationsJSON = null;
+
+// Auth method selection
+const authMethods = document.getElementById('auth-methods');
+const oauthBtn = document.getElementById('oauth-btn');
+const patToggleBtn = document.getElementById('pat-toggle-btn');
+const patInputForm = document.getElementById('pat-input-form');
+const patInput = document.getElementById('pat-input');
+const patCancelBtn = document.getElementById('pat-cancel-btn');
+const patLoginBtn = document.getElementById('pat-login-btn');
+
+// Main view elements
+const settingsIconBtn = document.getElementById('settings-icon-btn');
+const refreshBtn = document.getElementById('refresh-btn');
+const markAllBtn = document.getElementById('mark-all-btn');
+const usernameEl = document.getElementById('username');
+const notificationsList = document.getElementById('notifications-list');
+const emptyState = document.getElementById('empty-state');
+
+// Settings view elements
+const settingsView = document.getElementById('settings-view');
+const settingsBackBtn = document.getElementById('settings-back-btn');
+const themeSelect = document.getElementById('theme-select');
+const settingsLogoutBtn = document.getElementById('settings-logout-btn');
+const settingsUsernameEl = document.getElementById('settings-username');
+const notificationsContainer = document.getElementById('notifications-container');
+const refreshCountdownEl = document.getElementById('refresh-countdown');
+
+/**
+ * Update countdown timer
+ */
+let countdownInterval = null;
+let lastAlarmTime = null;
+
+async function updateCountdown() {
+  try {
+    const allAlarms = await alarms.getAll();
+    const notificationAlarm = allAlarms.find(a => a.name === 'check-notifications');
+
+    if (!notificationAlarm || !notificationAlarm.scheduledTime) {
+      refreshCountdownEl.textContent = '';
+      lastAlarmTime = null;
+      return;
+    }
+
+    const now = Date.now();
+    const remaining = notificationAlarm.scheduledTime - now;
+
+    // Detect alarm reset (when scheduledTime jumps to a future time)
+    if (lastAlarmTime && notificationAlarm.scheduledTime > lastAlarmTime + 5000) {
+      // Alarm was reset, don't show the jump
+      // Just update to the new time smoothly
+    }
+    lastAlarmTime = notificationAlarm.scheduledTime;
+
+    if (remaining <= 0) {
+      refreshCountdownEl.textContent = '';
+      return;
+    }
+
+    const seconds = Math.ceil(remaining / 1000);
+    refreshCountdownEl.textContent = `${seconds}s`;
+  } catch (error) {
+    console.error('Error updating countdown:', error);
+    refreshCountdownEl.textContent = '';
+  }
+}
+
+function startCountdown() {
+  updateCountdown();
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+  }
+  countdownInterval = setInterval(updateCountdown, 1000);
+}
+
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  refreshCountdownEl.textContent = '';
+}
+
+/**
+ * Show settings view
+ */
+async function showSettings() {
+  // Load current theme
+  const theme = await storage.getTheme();
+  themeSelect.value = theme;
+
+  // Load and display username
+  const username = await storage.getUsername();
+  if (settingsUsernameEl && username) {
+    settingsUsernameEl.textContent = username;
+  }
+
+  // Hide header and footer
+  document.querySelector('.header').hidden = true;
+  document.querySelector('.footer').hidden = true;
+
+  // Show settings view
+  notificationsContainer.hidden = true;
+  settingsView.hidden = false;
+}
+
+/**
+ * Hide settings view
+ */
+function hideSettings() {
+  // Show header and footer
+  document.querySelector('.header').hidden = false;
+  document.querySelector('.footer').hidden = false;
+
+  settingsView.hidden = true;
+  notificationsContainer.hidden = false;
+}
+
+/**
+ * Handle theme change
+ */
+async function handleThemeChange() {
+  const theme = themeSelect.value;
+
+  // Save to storage
+  await storage.setTheme(theme);
+
+  // Apply theme immediately
+  applyTheme(theme);
+}
+
+/**
+ * Apply theme to body
+ */
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.body.classList.add('dark-theme');
+  } else if (theme === 'light') {
+    document.body.classList.remove('dark-theme');
+  } else if (theme === 'system') {
+    // Follow system preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+  }
+}
+
+/**
+ * Show
+ * Send message to background script
+ */
+async function sendMessage(action, data = {}) {
+  return runtime.sendMessage({ action, ...data });
+}
+
+/**
+ * Show a specific view
+ */
+function showView(view) {
+  loginView.hidden = view !== 'login';
+  mainView.hidden = view !== 'main';
+  loading.hidden = view !== 'loading';
+}
+
+/**
+ * Render notifications list (grouped by repository)
+ * Optimized with caching to avoid unnecessary re-renders
+ */
+function renderNotifications(notifications) {
+  // Check if notifications have actually changed
+  const notificationsJSON = JSON.stringify(notifications);
+  if (cachedNotificationsJSON === notificationsJSON) {
+    // Data hasn't changed, skip re-render
+    return;
+  }
+
+  // Update cache
+  cachedNotifications = notifications;
+  cachedNotificationsJSON = notificationsJSON;
+
+  notificationsList.innerHTML = '';
+
+  if (!notifications || notifications.length === 0) {
+    emptyState.hidden = false;
+    markAllBtn.disabled = true;
+    return;
+  }
+
+  emptyState.hidden = true;
+  markAllBtn.disabled = false;
+
+  // Group notifications by repository
+  const groupedByRepo = {};
+  for (const notif of notifications) {
+    const repoFullName = notif.repository.full_name;
+    if (!groupedByRepo[repoFullName]) {
+      groupedByRepo[repoFullName] = {
+        repo: notif.repository,
+        notifications: [],
+        firstNotifTime: notif.updated_at, // Use first notification's time
+      };
+    }
+    groupedByRepo[repoFullName].notifications.push(notif);
+  }
+
+  // Sort repos by first notification's time (most recent first)
+  const sortedRepos = Object.keys(groupedByRepo).sort((a, b) => {
+    const timeA = new Date(groupedByRepo[a].firstNotifTime);
+    const timeB = new Date(groupedByRepo[b].firstNotifTime);
+    return timeB - timeA; // Descending order (newest first)
+  });
+
+  // Render each repository group
+  for (const repoFullName of sortedRepos) {
+    const group = groupedByRepo[repoFullName];
+
+    // Create repo header (clickable)
+    const repoHeader = document.createElement('a');
+    repoHeader.className = 'repo-group-header';
+    repoHeader.href = group.repo.html_url;
+    repoHeader.target = '_blank';
+    repoHeader.rel = 'noopener noreferrer';
+    repoHeader.innerHTML = `
+      <div class="repo-info">
+        <svg viewBox="0 0 16 16" width="14" height="14" class="repo-icon">
+          <path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
+        </svg>
+        <span class="repo-name">${escapeHtml(repoFullName)}</span>
+      </div>
+      <span class="repo-count">${group.notifications.length}</span>
+    `;
+    notificationsList.appendChild(repoHeader);
+
+    // Render notifications in this group
+    for (const notif of group.notifications) {
+      const li = document.createElement('li');
+      li.className = 'notification-item';
+      li.dataset.id = notif.id;
+
+      // Build icon class with state information
+      let iconClass = notif.icon;
+      if (notif.icon === 'pr' || notif.icon === 'issue') {
+        if (notif.merged) {
+          iconClass += ' merged';
+        } else if (notif.state) {
+          iconClass += ` ${notif.state}`;
+        }
+      }
+
+      li.innerHTML = `
+        <div class="notification-icon ${iconClass}">
+          ${getIconSVG(notif.icon, notif.state, notif.merged)}
+        </div>
+        <div class="notification-content">
+          <div class="notification-title" title="${escapeHtml(notif.title)}">
+            ${escapeHtml(notif.title)}
+          </div>
+        </div>
+        <div class="notification-actions">
+          <button class="btn-mark-read" data-id="${notif.id}" title="Mark as read">
+            ✓
+          </button>
+        </div>
+      `;
+
+      // Click to open notification
+      li.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('btn-mark-read')) {
+          openNotification(notif.id);
+        }
+      });
+
+      // Mark as read button with optimistic update
+      const markReadBtn = li.querySelector('.btn-mark-read');
+      markReadBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+
+        // Prevent multiple clicks
+        if (li.classList.contains('marking-read')) {
+          return;
+        }
+
+        // Immediate animation - optimistic update
+        li.classList.add('marking-read');
+        markReadBtn.disabled = true;
+        markReadBtn.textContent = '✓';
+
+        // Start fade-out animation immediately (don't wait for API)
+        li.classList.add('fade-out');
+
+        // Store original state for potential rollback
+        const originalParent = li.parentElement;
+        const originalNextSibling = li.nextSibling;
+
+        // After fade-out, start slide-up animation
+        const slideUpTimeout = setTimeout(() => {
+          li.classList.add('slide-up');
+
+          // Remove element after slide-up completes
+          const removeTimeout = setTimeout(() => {
+            li.remove();
+
+            // Check if this was the last notification in the group
+            const groupItems = notificationsList.querySelectorAll(`.notification-item[data-id]`);
+            const groupHeader = repoHeader;
+            let hasNotificationsInGroup = false;
+
+            // Check if any notifications from this group remain
+            for (const item of groupItems) {
+              const itemId = item.dataset.id;
+              const itemNotif = notifications.find(n => n.id === itemId);
+              if (itemNotif && itemNotif.repository.full_name === repoFullName) {
+                hasNotificationsInGroup = true;
+                break;
+              }
+            }
+
+            // Remove group header if no notifications remain
+            if (!hasNotificationsInGroup && groupHeader) {
+              groupHeader.remove();
+            }
+
+            // Check if list is now empty
+            const remaining = notificationsList.querySelectorAll('.notification-item').length;
+            if (remaining === 0) {
+              emptyState.hidden = false;
+              markAllBtn.disabled = true;
+            }
+          }, ANIMATION_DURATION.SLIDE_UP); // Slide-up duration
+
+          // Store timeout ID for potential cancellation
+          li.dataset.removeTimeout = removeTimeout;
+        }, ANIMATION_DURATION.FADE_OUT); // Fade-out duration
+
+        // Store timeout ID for potential cancellation
+        li.dataset.slideUpTimeout = slideUpTimeout;
+
+        // Send API request in parallel with animation
+        try {
+          const result = await sendMessage(MESSAGE_TYPES.MARK_AS_READ, { notificationId: notif.id });
+
+          if (!result.success) {
+            // API failed - rollback the animation
+            clearTimeout(slideUpTimeout);
+            if (li.dataset.removeTimeout) {
+              clearTimeout(parseInt(li.dataset.removeTimeout));
+            }
+
+            // Restore the notification item
+            li.classList.remove('marking-read', 'fade-out', 'slide-up');
+            markReadBtn.disabled = false;
+            markReadBtn.textContent = '✓';
+
+            // Re-insert if already removed
+            if (!li.parentElement) {
+              if (originalNextSibling && originalNextSibling.parentElement) {
+                originalParent.insertBefore(li, originalNextSibling);
+              } else {
+                originalParent.appendChild(li);
+              }
+
+              // Show notification list if it was hidden
+              emptyState.hidden = true;
+              markAllBtn.disabled = false;
+            }
+
+            // Show error feedback
+            li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+            setTimeout(() => {
+              li.style.backgroundColor = '';
+            }, 1000);
+          }
+          // If success, animation continues naturally
+        } catch (error) {
+          // Network error - rollback the animation
+          console.error('Failed to mark as read:', error);
+
+          clearTimeout(slideUpTimeout);
+          if (li.dataset.removeTimeout) {
+            clearTimeout(parseInt(li.dataset.removeTimeout));
+          }
+
+          // Restore the notification item
+          li.classList.remove('marking-read', 'fade-out', 'slide-up');
+          markReadBtn.disabled = false;
+          markReadBtn.textContent = '✓';
+
+          // Re-insert if already removed
+          if (!li.parentElement) {
+            if (originalNextSibling && originalNextSibling.parentElement) {
+              originalParent.insertBefore(li, originalNextSibling);
+            } else {
+              originalParent.appendChild(li);
+            }
+
+            // Show notification list if it was hidden
+            emptyState.hidden = true;
+            markAllBtn.disabled = false;
+          }
+
+          // Show error feedback
+          li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+          setTimeout(() => {
+            li.style.backgroundColor = '';
+          }, 1000);
+        }
+      });
+
+      notificationsList.appendChild(li);
+    }
+  }
+}
+
+/**
+ * Get SVG icon for notification type
+ */
+function getIconSVG(type, state, merged) {
+  // Issue icons
+  if (type === 'issue') {
+    if (state === 'closed') {
+      // Closed issue - filled circle with check (like GitHub)
+      return `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16Zm3.78-9.72a.751.751 0 0 0-.018-1.042.751.751 0 0 0-1.042-.018L6.75 9.19 5.28 7.72a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042l2 2a.75.75 0 0 0 1.06 0Z"/></svg>`;
+    } else {
+      // Open issue - circle with dot (default)
+      return `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path fill="currentColor" d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>`;
+    }
+  }
+
+  // PR icons
+  if (type === 'pr') {
+    if (merged) {
+      // Merged PR - git merge icon (purple)
+      return `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM5 3.25a.75.75 0 1 0-.5.5.75.75 0 0 0 .5-.5Z"/></svg>`;
+    } else if (state === 'closed') {
+      // Closed PR - draft/closed
+      return `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l.97.97.97-.97a.748.748 0 0 1 1.265.332.75.75 0 0 1-.205.729l-.97.97.97.97a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-.97-.97-.97.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.716l.97-.97-.97-.97a.75.75 0 0 1 0-1.06ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>`;
+    } else {
+      // Open PR - default
+      return `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/></svg>`;
+    }
+  }
+
+  // Other icons (unchanged)
+  const icons = {
+    release: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>`,
+    discussion: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.458 1.458 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1ZM1.5 2.75v5.5c0 .138.112.25.25.25h1a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h3.5a.25.25 0 0 0 .25-.25v-5.5a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Zm13 2a.25.25 0 0 0-.25-.25h-.5a.75.75 0 0 1 0-1.5h.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 14.25 12H14v1.543a1.458 1.458 0 0 1-2.487 1.03L9.22 12.28a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215l2.22 2.22v-2.19a.75.75 0 0 1 .75-.75h1a.25.25 0 0 0 .25-.25Z"/></svg>`,
+    actions: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-5.5 5.5a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l5.5-5.5a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"/></svg>`,
+    commit: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>`,
+    alert: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/></svg>`,
+    repo: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/></svg>`,
+    notification: `<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 16a2 2 0 0 0 1.985-1.75c.017-.137-.097-.25-.235-.25h-3.5c-.138 0-.252.113-.235.25A2 2 0 0 0 8 16ZM3 5a5 5 0 0 1 10 0v2.947c0 .05.015.098.042.139l1.703 2.555A1.519 1.519 0 0 1 13.482 13H2.518a1.516 1.516 0 0 1-1.263-2.36l1.703-2.554A.255.255 0 0 0 3 7.947Z"/></svg>`,
+  };
+  return icons[type] || icons.notification;
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Open notification
+ */
+async function openNotification(id) {
+  await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: id });
+  window.close();
+}
+
+/**
+ * Mark all as read
+ */
+async function markAllAsRead() {
+  // Immediate visual feedback
+  const originalText = markAllBtn.innerHTML;
+  markAllBtn.disabled = true;
+  markAllBtn.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>`;
+
+  try {
+    const result = await sendMessage(MESSAGE_TYPES.MARK_ALL_AS_READ);
+    if (result.success) {
+      // Fade out all notifications
+      const items = notificationsList.querySelectorAll('.notification-item');
+      items.forEach((item, index) => {
+        setTimeout(() => {
+          item.style.transition = 'opacity 0.3s';
+          item.style.opacity = '0';
+        }, index * ANIMATION_DURATION.STAGGER_DELAY); // Stagger the animation
+      });
+
+      // Clear list after animation
+      setTimeout(() => {
+        notificationsList.innerHTML = '';
+        emptyState.hidden = false;
+        markAllBtn.disabled = true;
+        markAllBtn.innerHTML = originalText;
+      }, items.length * ANIMATION_DURATION.STAGGER_DELAY + 300);
+    }
+  } catch (error) {
+    // Restore on error
+    markAllBtn.disabled = false;
+    markAllBtn.innerHTML = originalText;
+    console.error('Failed to mark all as read:', error);
+  }
+}
+
+/**
+ * Refresh notifications
+ */
+async function refresh() {
+  // Immediate visual feedback
+  refreshBtn.disabled = true;
+  refreshBtn.classList.add('spinning');
+
+  // Temporarily hide countdown while refreshing
+  const wasRunning = countdownInterval !== null;
+  stopCountdown();
+
+  try {
+    await sendMessage(MESSAGE_TYPES.REFRESH);
+    const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
+    renderNotifications(state.notifications);
+  } catch (error) {
+    console.error('Failed to refresh:', error);
+
+    // Show appropriate error message based on error type
+    const cachedNotifications = await storage.getNotifications();
+    renderNotifications(cachedNotifications);
+
+    let message = '';
+    let className = 'error-message';
+
+    if (!navigator.onLine || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+      message = '⚠️ Offline - showing cached notifications';
+      className = 'offline-message';
+    } else if (error.message?.includes('timeout')) {
+      message = '⏱ Request timeout - showing cached data';
+      className = 'warning-message';
+    } else if (error.message?.includes('Rate limited')) {
+      message = '⏱ Rate limited - will retry automatically';
+      className = 'warning-message';
+    } else {
+      message = `❌ Error: ${error.message || 'Failed to refresh'}`;
+      className = 'error-message';
+    }
+
+    // Show error/warning message
+    const msgEl = document.createElement('div');
+    msgEl.className = className;
+    msgEl.textContent = message;
+    notificationsList.insertBefore(msgEl, notificationsList.firstChild);
+
+    setTimeout(() => msgEl.remove(), 5000);
+  } finally {
+    setTimeout(() => {
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove('spinning');
+      // Restart countdown after refresh
+      if (wasRunning) {
+        setTimeout(startCountdown, 100);
+      }
+    }, ANIMATION_DURATION.MIN_SPINNER_TIME); // Minimum spin time for visual feedback
+  }
+}
+
+/**
+ * Login
+ */
+async function login(authMethod = 'oauth', token = null) {
+  const result = await sendMessage(MESSAGE_TYPES.LOGIN, { authMethod, token });
+
+  if (result.success) {
+    usernameEl.textContent = result.username;
+    const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
+    renderNotifications(state.notifications);
+    showView('main');
+    // Start countdown timer after successful login
+    startCountdown();
+  } else {
+    alert('Login failed: ' + (result.error || 'Unknown error'));
+  }
+}
+
+/**
+ * Show PAT input form
+ */
+function showPATForm() {
+  authMethods.hidden = true;
+  patInputForm.hidden = false;
+  patInput.value = '';
+  patInput.focus();
+}
+
+/**
+ * Hide PAT input form
+ */
+function hidePATForm() {
+  authMethods.hidden = false;
+  patInputForm.hidden = true;
+  patInput.value = '';
+}
+
+/**
+ * Handle PAT login
+ */
+async function handlePATLogin() {
+  const token = patInput.value.trim();
+
+  if (!token) {
+    alert('Please enter a valid token');
+    return;
+  }
+
+  if (!token.startsWith(TOKEN_PREFIXES[0]) && !token.startsWith(TOKEN_PREFIXES[1])) {
+    alert(`Invalid token format. Token should start with "${TOKEN_PREFIXES[0]}" or "${TOKEN_PREFIXES[1]}"`);
+    return;
+  }
+
+  patLoginBtn.disabled = true;
+  patLoginBtn.textContent = 'Connecting...';
+
+  try {
+    await login('pat', token);
+  } catch (error) {
+    console.error('PAT login error:', error);
+  } finally {
+    patLoginBtn.disabled = false;
+    patLoginBtn.textContent = 'Connect';
+  }
+}
+
+/**
+ * Handle OAuth login
+ */
+async function handleOAuthLogin() {
+  oauthBtn.disabled = true;
+  oauthBtn.textContent = 'Signing in...';
+
+  try {
+    await login('oauth', null);
+  } catch (error) {
+    console.error('OAuth login error:', error);
+  } finally {
+    oauthBtn.disabled = false;
+    oauthBtn.textContent = 'Sign in with GitHub';
+  }
+}
+
+/**
+ * Logout
+ */
+async function logout() {
+  stopCountdown();
+  await sendMessage(MESSAGE_TYPES.LOGOUT);
+  hideSettings();
+  showView('login');
+}
+
+/**
+ * Pre-load theme before showing any view to prevent flash
+ */
+async function preloadTheme() {
+  const theme = await storage.getTheme();
+  applyTheme(theme);
+}
+
+/**
+ * Initialize popup
+ */
+async function init() {
+  // Apply theme first to prevent flash
+  await preloadTheme();
+
+  showView('loading');
+
+  // Listen for system theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
+    const currentTheme = await storage.getTheme();
+    if (currentTheme === 'system') {
+      applyTheme('system');
+    }
+  });
+
+  const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
+
+  if (state.isAuthenticated) {
+    // Set username with fallback
+    const username = state.username || await storage.getUsername() || 'User';
+    usernameEl.textContent = username;
+
+    renderNotifications(state.notifications);
+    showView('main');
+    // Start countdown timer for next refresh
+    startCountdown();
+  } else {
+    showView('login');
+  }
+}
+
+// Event listeners
+oauthBtn.addEventListener('click', handleOAuthLogin);
+patToggleBtn.addEventListener('click', showPATForm);
+patCancelBtn.addEventListener('click', hidePATForm);
+patLoginBtn.addEventListener('click', handlePATLogin);
+patInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    handlePATLogin();
+  }
+});
+
+// Settings
+settingsIconBtn.addEventListener('click', showSettings);
+settingsBackBtn.addEventListener('click', hideSettings);
+themeSelect.addEventListener('change', handleThemeChange);
+
+// User menu
+settingsLogoutBtn.addEventListener('click', logout);
+refreshBtn.addEventListener('click', refresh);
+markAllBtn.addEventListener('click', markAllAsRead);
+
+// Listen for storage changes to auto-update the notification list
+// This handles updates from background refresh or other sources
+browserStorage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && changes.notifications && !mainView.hidden) {
+    // Auto-update notification list when storage changes
+    const newNotifications = changes.notifications.newValue || [];
+    renderNotifications(newNotifications);
+  }
+});
+
+// Pre-apply theme to prevent flash on load
+(async () => {
+  await preloadTheme();
+  // Enable transitions after initial theme is applied
+  requestAnimationFrame(() => {
+    document.body.classList.add('transitions-enabled');
+  });
+  // Then initialize the rest
+  init();
+})();

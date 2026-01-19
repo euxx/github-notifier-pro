@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "GitHub Notifier Pro",
+  "version": "1.0.0",
+  "description": "Get GitHub notifications in your browser",
+
+  "permissions": [
+    "alarms",
+    "storage",
+    "identity",
+    "notifications"
+  ],
+
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://github.com/*"
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "images/icon.svg",
+      "48": "images/icon.svg",
+      "128": "images/icon.svg"
+    },
+    "default_title": "GitHub Notifier Pro"
+  },
+
+  "icons": {
+    "16": "images/icon.svg",
+    "48": "images/icon.svg",
+    "128": "images/icon.svg"
+  }
+}

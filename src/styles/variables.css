@@ -1,0 +1,55 @@
+/**
+ * Shared CSS Variables
+ * Used across all pages for consistent theming
+ */
+
+:root {
+  /* Theme Colors - Monochrome */
+  --primary-color: #1f2937;
+  --primary-hover: #111827;
+
+  /* UI Colors */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border-color: #e5e7eb;
+  --bg-hover: #f3f4f6;
+  --bg-secondary: #f9fafb;
+  --bg-primary: #ffffff;
+
+  /* Icon Colors - GitHub Style (softer) */
+  --icon-issue-open: #2da44e;      /* Brighter green for open issues */
+  --icon-issue-closed: #8250df;    /* GitHub purple for closed issues */
+  --icon-pr-open: #2da44e;         /* Brighter green for open PRs */
+  --icon-pr-merged: #8250df;       /* GitHub purple for merged PRs */
+  --icon-pr-closed: #cf222e;       /* GitHub red for closed PRs */
+  --icon-release: #7d8590;         /* Slightly brighter gray for releases */
+  --icon-discussion: #bf8700;      /* GitHub orange for discussions */
+}
+
+/* Dark Theme - GitHub Notifications Style */
+body.dark-theme {
+  --primary-color: #d1d5db;
+  --primary-hover: #9ca3af;
+
+  --text-primary: #adbac7;
+  --text-secondary: #768390;
+  --text-tertiary: #636e7b;
+  --border-color: #444c56;
+  --bg-hover: #2d333b;
+  --bg-secondary: #22272e;
+  --bg-primary: #22272e;
+
+  /* Icon Colors - GitHub Style (softer) */
+  --icon-issue-open: #2ea043;      /* Darker green for open issues */
+  --icon-issue-closed: #a371f7;    /* GitHub purple for closed issues */
+  --icon-pr-open: #2ea043;         /* Darker green for open PRs */
+  --icon-pr-merged: #a371f7;       /* GitHub purple for merged PRs */
+  --icon-pr-closed: #f85149;       /* GitHub red for closed PRs */
+  --icon-release: #848d97;         /* Slightly brighter gray for releases */
+  --icon-discussion: #d29922;      /* GitHub orange for discussions */
+}
+
+body.dark-theme .setting-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%239ca3af' d='M6 9L1 4h10z'/%3e%3c/svg%3e");
+}
