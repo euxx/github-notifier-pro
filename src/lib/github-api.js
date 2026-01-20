@@ -342,6 +342,33 @@ class GitHubAPI {
   }
 
   /**
+   * Parse CheckSuite status from title
+   * @private
+   */
+  parseCheckSuiteStatus(title) {
+    const lower = title.toLowerCase();
+
+    // Status patterns: [keywords, conclusion, status]
+    const patterns = [
+      { keywords: ['succeeded', 'passed', 'success'], conclusion: 'success', status: 'completed' },
+      { keywords: ['failed', 'failure'], conclusion: 'failure', status: 'completed' },
+      { keywords: ['cancelled'], conclusion: 'cancelled', status: 'completed' },
+      { keywords: ['skipped'], conclusion: 'skipped', status: 'completed' },
+      { keywords: ['in progress', 'running'], conclusion: null, status: 'in_progress' },
+      { keywords: ['queued', 'pending'], conclusion: null, status: 'queued' },
+    ];
+
+    for (const pattern of patterns) {
+      if (pattern.keywords.some(kw => lower.includes(kw))) {
+        return { conclusion: pattern.conclusion, status: pattern.status };
+      }
+    }
+
+    // Fallback if no pattern matches
+    return { conclusion: null, status: 'completed' };
+  }
+
+  /**
    * Get notification details (for URL resolution)
    */
   async getNotificationDetails(notification) {
@@ -357,8 +384,16 @@ class GitHubAPI {
           return { html_url: `${repo.html_url}/network/dependencies` };
         case 'RepositoryDependabotAlertsThread':
           return { html_url: `${repo.html_url}/security/dependabot` };
-        case 'CheckSuite':
-          return { html_url: `${repo.html_url}/actions` };
+        case 'CheckSuite': {
+          // Extract conclusion from title since GitHub doesn't provide subject.url for CheckSuite
+          // Title format: "XXX workflow run {succeeded|failed|cancelled|skipped} for YYY branch"
+          const result = this.parseCheckSuiteStatus(notification.subject.title);
+          return {
+            html_url: `${repo.html_url}/actions`,
+            conclusion: result.conclusion,
+            status: result.status
+          };
+        }
         case 'Discussion':
           return { html_url: `${repo.html_url}/discussions` };
         default:

@@ -519,7 +519,7 @@ body.transitions-enabled * {
 /* Other notification types */
 .notification-icon.release { color: var(--icon-release); }
 .notification-icon.discussion { color: var(--icon-discussion); }
-.notification-icon.actions { color: var(--text-secondary); }
+.notification-icon.actions { /* Color handled by SVG */ }
 .notification-icon.commit { color: var(--text-secondary); }
 .notification-icon.alert { color: #d29922; }
 .notification-icon.repo { color: var(--text-secondary); }

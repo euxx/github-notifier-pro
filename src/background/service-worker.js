@@ -42,6 +42,32 @@ async function updateBadge(count) {
 }
 
 /**
+ * Helper: Update notification details from API response
+ */
+function updateNotificationDetails(baseData, details, notifType) {
+  if (notifType === 'CheckSuite') {
+    baseData.conclusion = details.conclusion;
+    baseData.status = details.status;
+  } else {
+    baseData.state = details.state;
+    if (notifType === 'PullRequest' && details.merged) {
+      baseData.merged = true;
+    }
+  }
+}
+
+/**
+ * Helper: Copy cached details to new notification data
+ */
+function copyCachedDetails(baseData, existing) {
+  ['state', 'merged', 'conclusion', 'status', 'detailsFailed'].forEach(key => {
+    if (existing[key] !== undefined) {
+      baseData[key] = existing[key];
+    }
+  });
+}
+
+/**
  * Check for new notifications
  */
 async function checkNotifications() {
@@ -77,29 +103,30 @@ async function checkNotifications() {
           isNew: !existingIds.has(n.id), // Mark as new if not in existing set
         };
 
-        // For PRs and Issues, fetch state information
+        // For PRs, Issues, and CheckSuites, fetch state information
         // Only fetch if it's a new notification or updated_at changed
         const existing = existingMap.get(n.id);
         const needsUpdate = !existing || existing.updated_at !== n.updated_at;
+        const DETAIL_TYPES = ['PullRequest', 'Issue', 'CheckSuite'];
+        const shouldFetchDetails = DETAIL_TYPES.includes(n.subject.type);
 
-        if ((n.subject.type === 'PullRequest' || n.subject.type === 'Issue') && needsUpdate) {
-          try {
-            const details = await github.getNotificationDetails(n);
-            baseData.state = details.state; // 'open' or 'closed'
-            if (n.subject.type === 'PullRequest' && details.merged) {
-              baseData.merged = true;
+        if (shouldFetchDetails) {
+          if (needsUpdate) {
+            try {
+              const details = await github.getNotificationDetails(n);
+              updateNotificationDetails(baseData, details, n.subject.type);
+            } catch (error) {
+              console.error(`Failed to fetch details for notification ${n.id}:`, error);
+              // Fallback to default state if fetch fails
+              if (n.subject.type !== 'CheckSuite') {
+                baseData.state = 'open';
+              }
+              baseData.detailsFailed = true; // Mark that details fetch failed
             }
-          } catch (error) {
-            console.error(`Failed to fetch details for notification ${n.id}:`, error);
-            // Fallback to default state if fetch fails
-            baseData.state = 'open';
-            baseData.detailsFailed = true; // Mark that details fetch failed
+          } else if (existing) {
+            // Reuse existing state if we didn't fetch new details
+            copyCachedDetails(baseData, existing);
           }
-        } else if (existing && (existing.state || existing.merged)) {
-          // Reuse existing state if we didn't fetch new details
-          baseData.state = existing.state;
-          baseData.merged = existing.merged;
-          baseData.detailsFailed = existing.detailsFailed;
         }
 
         return baseData;
