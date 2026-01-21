@@ -45,6 +45,7 @@ async function updateBadge(count) {
  * Helper: Update notification details from API response
  */
 function updateNotificationDetails(baseData, details, notifType) {
+  // Set state/conclusion based on type
   if (notifType === 'CheckSuite') {
     baseData.conclusion = details.conclusion;
     baseData.status = details.status;
@@ -54,13 +55,29 @@ function updateNotificationDetails(baseData, details, notifType) {
       baseData.merged = true;
     }
   }
+
+  // Extract author from user or author field
+  const authorData = details.user || details.author;
+  if (authorData) {
+    baseData.author = {
+      login: authorData.login,
+      avatar_url: authorData.avatar_url,
+      html_url: authorData.html_url
+    };
+  }
+
+  // Copy additional fields if present
+  if (details.comments !== undefined) baseData.comment_count = details.comments;
+  if (details.number !== undefined) baseData.number = details.number;
+  if (details.created_at) baseData.created_at = details.created_at;
+  if (details.body) baseData.body = details.body;
 }
 
 /**
  * Helper: Copy cached details to new notification data
  */
 function copyCachedDetails(baseData, existing) {
-  ['state', 'merged', 'conclusion', 'status', 'detailsFailed'].forEach(key => {
+  ['state', 'merged', 'conclusion', 'status', 'detailsFailed', 'author', 'comment_count', 'number', 'created_at', 'body'].forEach(key => {
     if (existing[key] !== undefined) {
       baseData[key] = existing[key];
     }
@@ -103,12 +120,11 @@ async function checkNotifications() {
           isNew: !existingIds.has(n.id), // Mark as new if not in existing set
         };
 
-        // For PRs, Issues, and CheckSuites, fetch state information
+        // Fetch details for all notifications to get author information
         // Only fetch if it's a new notification or updated_at changed
         const existing = existingMap.get(n.id);
         const needsUpdate = !existing || existing.updated_at !== n.updated_at;
-        const DETAIL_TYPES = ['PullRequest', 'Issue', 'CheckSuite'];
-        const shouldFetchDetails = DETAIL_TYPES.includes(n.subject.type);
+        const shouldFetchDetails = true;
 
         if (shouldFetchDetails) {
           if (needsUpdate) {

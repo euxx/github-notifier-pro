@@ -348,7 +348,6 @@ class GitHubAPI {
   parseCheckSuiteStatus(title) {
     const lower = title.toLowerCase();
 
-    // Status patterns: [keywords, conclusion, status]
     const patterns = [
       { keywords: ['succeeded', 'passed', 'success'], conclusion: 'success', status: 'completed' },
       { keywords: ['failed', 'failure'], conclusion: 'failure', status: 'completed' },
@@ -358,14 +357,9 @@ class GitHubAPI {
       { keywords: ['queued', 'pending'], conclusion: null, status: 'queued' },
     ];
 
-    for (const pattern of patterns) {
-      if (pattern.keywords.some(kw => lower.includes(kw))) {
-        return { conclusion: pattern.conclusion, status: pattern.status };
-      }
-    }
-
-    // Fallback if no pattern matches
-    return { conclusion: null, status: 'completed' };
+    const match = patterns.find(p => p.keywords.some(kw => lower.includes(kw)));
+    return match ? { conclusion: match.conclusion, status: match.status }
+                 : { conclusion: null, status: 'completed' };
   }
 
   /**
@@ -388,6 +382,44 @@ class GitHubAPI {
           // Extract conclusion from title since GitHub doesn't provide subject.url for CheckSuite
           // Title format: "XXX workflow run {succeeded|failed|cancelled|skipped} for YYY branch"
           const result = this.parseCheckSuiteStatus(notification.subject.title);
+
+          // Try to find the workflow run to get actor information
+          // Parse workflow name from title (e.g., "Build and Push API Image workflow run succeeded for stream branch")
+          const titleMatch = notification.subject.title.match(/^(.+?) workflow run/);
+          const workflowName = titleMatch ? titleMatch[1].trim() : null;
+
+          if (workflowName) {
+            try {
+              // Get recent workflow runs for this repo
+              const runsUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/actions/runs?per_page=20`;
+              const runsResp = await fetchWithTimeout(runsUrl, {
+                headers: this.headers,
+              }, 10000);
+
+              if (runsResp.ok) {
+                const runsData = await runsResp.json();
+                // Find matching run by name and time (within 5 minutes)
+                const notifTime = new Date(notification.updated_at).getTime();
+                const matchingRun = runsData.workflow_runs?.find(run =>
+                  run.name === workflowName &&
+                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < 5 * 60 * 1000 // 5 min
+                );
+
+                if (matchingRun?.actor) {
+                  return {
+                    html_url: matchingRun.html_url || `${repo.html_url}/actions`,
+                    conclusion: result.conclusion,
+                    status: result.status,
+                    user: matchingRun.actor,
+                    number: matchingRun.run_number
+                  };
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to fetch workflow runs for CheckSuite:', e);
+            }
+          }
+
           return {
             html_url: `${repo.html_url}/actions`,
             conclusion: result.conclusion,

@@ -197,6 +197,9 @@ function renderNotifications(notifications) {
   cachedNotifications = notifications;
   cachedNotificationsJSON = notificationsJSON;
 
+  // Clear old hover cards
+  document.querySelectorAll('.notification-hover-card').forEach(card => card.remove());
+
   notificationsList.innerHTML = '';
 
   if (!notifications || notifications.length === 0) {
@@ -271,8 +274,8 @@ function renderNotifications(notifications) {
           ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion)}
         </div>
         <div class="notification-content">
-          <div class="notification-title" title="${escapeHtml(notif.title)}">
-            ${escapeHtml(notif.title)}
+          <div class="notification-title">
+            ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}
           </div>
         </div>
         <div class="notification-actions">
@@ -280,13 +283,23 @@ function renderNotifications(notifications) {
             ✓
           </button>
         </div>
+        ${createHoverCard(notif)}
       `;
 
-      // Click to open notification
+// Add hover event listeners with smart positioning
+      li.addEventListener('mouseenter', () => positionHoverCard(li));
+      li.addEventListener('mouseleave', () => {
+        const card = li.querySelector('.notification-hover-card');
+        if (card) card.classList.remove('visible');
+      });
+
+      // Click to open notification (but not on mark as read button)
       li.addEventListener('click', (e) => {
-        if (!e.target.classList.contains('btn-mark-read')) {
-          openNotification(notif.id);
+        // Don't open if clicking the mark as read button
+        if (e.target.closest('.btn-mark-read')) {
+          return;
         }
+        openNotification(notif.id);
       });
 
       // Mark as read button with optimistic update
@@ -475,12 +488,125 @@ function getIconSVG(type, state, merged, conclusion) {
 }
 
 /**
+ * Position hover card smartly based on available space
+ */
+function positionHoverCard(listItem) {
+  const card = listItem.querySelector('.notification-hover-card');
+  if (!card) return;
+
+  const rect = listItem.getBoundingClientRect();
+
+  // Measure card height without showing it
+  card.style.visibility = 'hidden';
+  card.style.opacity = '1';
+  card.classList.add('visible');
+  const cardHeight = card.offsetHeight;
+  card.style.visibility = '';
+  card.style.opacity = '';
+  card.classList.remove('visible');
+
+  // Determine position based on available space
+  const margin = 4;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+
+  const topPosition = spaceBelow >= cardHeight + margin
+    ? rect.bottom + margin
+    : (spaceAbove >= cardHeight + margin ? rect.top - cardHeight - margin : rect.bottom + margin);
+
+  card.style.top = `${topPosition}px`;
+
+  // Position card to align right edge with popup right edge (with some padding)
+  const popupWidth = document.body.offsetWidth;
+  card.style.right = '10px';
+  card.style.left = 'auto';
+
+  card.classList.add('visible');
+}
+
+/**
  * Escape HTML to prevent XSS
  */
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+/**
+ * Create hover card HTML for a notification
+ */
+function createHoverCard(notif) {
+  const hasAuthor = notif.author?.login;
+  const hasComments = notif.comment_count > 0;
+  const hasDescription = notif.body?.trim();
+
+  // Build metadata line
+  const metadataParts = [];
+  metadataParts.push(`<span class="hover-card-reason">${formatReason(notif.reason)}</span>`);
+  const fullTime = new Date(notif.updated_at).toLocaleString();
+  metadataParts.push(`<span title="${fullTime}">${formatTimeAgo(notif.updated_at)}</span>`);
+  if (hasComments) {
+    metadataParts.push(`${notif.comment_count} comment${notif.comment_count > 1 ? 's' : ''}`);
+  }
+
+  return `
+    <div class="notification-hover-card">
+      ${hasAuthor ? `
+        <div class="hover-card-header">
+          <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
+          <div class="hover-card-author">
+            <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
+          </div>
+        </div>
+      ` : ''}
+      <div class="hover-card-body">
+        <div class="hover-card-meta">${metadataParts.join(' · ')}</div>
+      </div>
+      ${hasDescription ? `
+        <div class="hover-card-description">${escapeHtml(notif.body.substring(0, 150))}${notif.body.length > 150 ? '...' : ''}</div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Format notification reason to human-readable text
+ */
+function formatReason(reason) {
+  const reasons = {
+    'subscribed': 'Subscribed',
+    'participating': 'Participating',
+    'mentioned': 'Mentioned',
+    'team_mention': 'Team Mentioned',
+    'comment': 'Commented',
+    'review_requested': 'Review Requested',
+    'security_alert': 'Security Alert',
+    'state_change': 'State Changed',
+    'assign': 'Assigned',
+    'author': 'You Authored',
+    'manual': 'Manual',
+    'ci_activity': 'CI Activity',
+  };
+  return reasons[reason] || reason || 'Unknown';
+}
+
+/**
+ * Format time ago
+ */
+function formatTimeAgo(timestamp) {
+  const now = new Date();
+  const then = new Date(timestamp);
+  const diffMs = now - then;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 0) return `${diffDays}d ago`;
+  if (diffHours > 0) return `${diffHours}h ago`;
+  if (diffMins > 0) return `${diffMins}m ago`;
+  return 'just now';
 }
 
 /**

@@ -388,6 +388,7 @@ body.transitions-enabled * {
 #notifications-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible; /* Allow horizontal overflow for hover cards */
   display: flex;
   flex-direction: column;
 }
@@ -500,6 +501,115 @@ body.transitions-enabled * {
   background: var(--bg-hover);
 }
 
+/* Notification Hover Card */
+.notification-hover-card {
+  position: fixed; /* Use fixed positioning to escape overflow constraints */
+  width: 300px;
+  max-width: 330px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  z-index: 10000; /* Very high to ensure visibility */
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+  /* Position will be set dynamically via JS */
+}
+
+.notification-item:hover .notification-hover-card,
+.notification-hover-card.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.notification-item {
+  position: relative;  /* Enable absolute positioning for child */
+}
+
+body.dark-theme .notification-hover-card {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.hover-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hover-card-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hover-card-author {
+  flex: 1;
+  min-width: 0;
+}
+
+.hover-card-author-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hover-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hover-card-meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.hover-card-row {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.hover-card-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.hover-card-reason {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.hover-card-description {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 .notification-icon {
   flex-shrink: 0;
   width: 16px;
@@ -519,7 +629,6 @@ body.transitions-enabled * {
 /* Other notification types */
 .notification-icon.release { color: var(--icon-release); }
 .notification-icon.discussion { color: var(--icon-discussion); }
-.notification-icon.actions { /* Color handled by SVG */ }
 .notification-icon.commit { color: var(--text-secondary); }
 .notification-icon.alert { color: #d29922; }
 .notification-icon.repo { color: var(--text-secondary); }
@@ -538,6 +647,11 @@ body.transitions-enabled * {
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.4;
+}
+
+.notification-number {
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 
 .notification-meta {
