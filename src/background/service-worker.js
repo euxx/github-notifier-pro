@@ -278,7 +278,14 @@ async function handleMessage(message) {
 
 async function handleLogin(authMethod = 'oauth', token = null) {
   try {
-    await github.login(authMethod, token);
+    // If token is provided (from Device Flow in popup), just use it directly
+    if (token) {
+      github.token = token;
+      await github.fetchUsername();
+    } else {
+      // Otherwise, trigger login flow
+      await github.login(authMethod, token);
+    }
 
     // Save credentials
     await storage.setToken(github.token);

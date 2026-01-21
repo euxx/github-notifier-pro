@@ -18,25 +18,23 @@
 
       <!-- Auth Method Selector -->
       <div class="auth-methods" id="auth-methods">
-        <div class="auth-method-card" id="oauth-method">
-          <div class="auth-method-icon">🔐</div>
-          <h3>OAuth</h3>
-          <button class="btn btn-primary" id="oauth-btn">
-            Sign in with GitHub
-          </button>
-        </div>
+        <button class="auth-method-card" id="oauth-method">
+          <div class="auth-method-content">
+            <h3>Sign in with GitHub</h3>
+            <p class="auth-method-desc">Secure Device Flow - no secrets needed</p>
+          </div>
+        </button>
 
         <div class="auth-method-divider">
           <span>OR</span>
         </div>
 
-        <div class="auth-method-card" id="pat-method">
-          <div class="auth-method-icon">🔑</div>
-          <h3>Personal Access Token</h3>
-          <button class="btn btn-secondary" id="pat-toggle-btn">
-            Use PAT
-          </button>
-        </div>
+        <button class="auth-method-card" id="pat-method">
+          <div class="auth-method-content">
+            <h3>Use Personal Access Token</h3>
+            <p class="auth-method-desc">Quick setup with manual token</p>
+          </div>
+        </button>
       </div>
 
       <!-- PAT Input Form (initially hidden) -->

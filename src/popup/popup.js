@@ -3,8 +3,9 @@
  */
 
 import * as storage from '../lib/storage.js';
-import { storage as browserStorage, alarms, runtime } from '../lib/chrome-api.js';
+import { storage as browserStorage, alarms, runtime, tabs } from '../lib/chrome-api.js';
 import { ANIMATION_DURATION, TOKEN_PREFIXES, MESSAGE_TYPES } from '../lib/constants.js';
+import { applyTheme } from '../lib/theme.js';
 
 // Elements
 const loginView = document.getElementById('login-view');
@@ -17,8 +18,8 @@ let cachedNotificationsJSON = null;
 
 // Auth method selection
 const authMethods = document.getElementById('auth-methods');
-const oauthBtn = document.getElementById('oauth-btn');
-const patToggleBtn = document.getElementById('pat-toggle-btn');
+const oauthMethod = document.getElementById('oauth-method');
+const patMethod = document.getElementById('pat-method');
 const patInputForm = document.getElementById('pat-input-form');
 const patInput = document.getElementById('pat-input');
 const patCancelBtn = document.getElementById('pat-cancel-btn');
@@ -146,26 +147,6 @@ async function handleThemeChange() {
 }
 
 /**
- * Apply theme to body
- */
-function applyTheme(theme) {
-  if (theme === 'dark') {
-    document.body.classList.add('dark-theme');
-  } else if (theme === 'light') {
-    document.body.classList.remove('dark-theme');
-  } else if (theme === 'system') {
-    // Follow system preference
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (prefersDark) {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.remove('dark-theme');
-    }
-  }
-}
-
-/**
- * Show
  * Send message to background script
  */
 async function sendMessage(action, data = {}) {
@@ -780,20 +761,15 @@ async function handlePATLogin() {
 }
 
 /**
- * Handle OAuth login
+ * Handle OAuth login - Open Device Flow page
  */
 async function handleOAuthLogin() {
-  oauthBtn.disabled = true;
-  oauthBtn.textContent = 'Signing in...';
+  // Open Device Flow authorization page in a new tab
+  const authUrl = chrome.runtime.getURL('src/auth/device-flow.html');
+  tabs.create({ url: authUrl });
 
-  try {
-    await login('oauth', null);
-  } catch (error) {
-    console.error('OAuth login error:', error);
-  } finally {
-    oauthBtn.disabled = false;
-    oauthBtn.textContent = 'Sign in with GitHub';
-  }
+  // Close popup (optional - let user keep it open)
+  // window.close();
 }
 
 /**
@@ -848,8 +824,8 @@ async function init() {
 }
 
 // Event listeners
-oauthBtn.addEventListener('click', handleOAuthLogin);
-patToggleBtn.addEventListener('click', showPATForm);
+oauthMethod.addEventListener('click', handleOAuthLogin);
+patMethod.addEventListener('click', showPATForm);
 patCancelBtn.addEventListener('click', hidePATForm);
 patLoginBtn.addEventListener('click', handlePATLogin);
 patInput.addEventListener('keypress', (e) => {

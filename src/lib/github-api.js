@@ -1,9 +1,9 @@
 /**
  * GitHub API client for Chrome extension
- * Supports OAuth and Personal Access Token authentication
+ * Supports Device Flow OAuth and Personal Access Token authentication
  */
 
-import { CLIENT_ID, CLIENT_SECRET } from '../config/config.js';
+import { CLIENT_ID } from '../config/config.js';
 import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS } from './constants.js';
 
 /**
@@ -149,18 +149,155 @@ class GitHubAPI {
   }
 
   /**
-   * Get OAuth redirect URL for Chrome extension
+   * Request device code for Device Flow OAuth
    */
-  getRedirectURL() {
-    return chrome.identity.getRedirectURL('oauth');
+  async requestDeviceCode() {
+    const response = await fetch(`${GITHUB_SITE_BASE}/login/device/code`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: CLIENT_ID,
+        scope: 'repo notifications',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to request device code');
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(data.error_description || data.error);
+    }
+
+    return data;
   }
 
   /**
-   * Start OAuth flow or use PAT
+   * Poll for access token using device code
+   */
+  async pollForToken(deviceCode, interval = 5, onProgress = null, onCancel = null) {
+    const maxAttempts = 180; // 15 minutes (900s / 5s)
+    let currentInterval = interval;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Check if cancelled
+      if (onCancel && onCancel()) {
+        throw new Error('Device Flow cancelled by user');
+      }
+
+      // Wait before polling
+      await new Promise(resolve => setTimeout(resolve, currentInterval * 1000));
+
+      // Check if cancelled during wait
+      if (onCancel && onCancel()) {
+        throw new Error('Device Flow cancelled by user');
+      }
+
+      // Notify progress if callback provided
+      if (onProgress) {
+        const remainingTime = (maxAttempts - attempt) * currentInterval;
+        onProgress({
+          attempt,
+          maxAttempts,
+          remainingTime,
+        });
+      }
+
+      try {
+        const response = await fetch(`${GITHUB_SITE_BASE}/login/oauth/access_token`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            client_id: CLIENT_ID,
+            device_code: deviceCode,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Success - got the token!
+        if (data.access_token) {
+          return data.access_token;
+        }
+
+        // Still waiting for user authorization
+        if (data.error === 'authorization_pending') {
+          continue;
+        }
+
+        // Slow down polling
+        if (data.error === 'slow_down') {
+          currentInterval += 5;
+          continue;
+        }
+
+        // Other errors (expired_token, access_denied, etc.)
+        throw new Error(data.error_description || data.error);
+      } catch (error) {
+        // Network errors - retry
+        if (attempt < maxAttempts - 1) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Authorization timeout - please try again');
+  }
+
+  /**
+   * Start Device Flow OAuth
+   * @param {Object} callbacks - { onDeviceCode, onProgress, onCancel }
+   */
+  async loginWithDeviceFlow(callbacks = {}) {
+    const { onDeviceCode = null, onProgress = null, onCancel = null } = callbacks;
+
+    // Step 1: Request device code
+    const deviceData = await this.requestDeviceCode();
+
+    // Notify caller with device code info
+    if (onDeviceCode) {
+      onDeviceCode({
+        verification_uri: deviceData.verification_uri,
+        user_code: deviceData.user_code,
+        expires_in: deviceData.expires_in,
+      });
+    }
+
+    // Step 2: Poll for token (with cancel support)
+    const accessToken = await this.pollForToken(
+      deviceData.device_code,
+      deviceData.interval,
+      onProgress,
+      onCancel
+    );
+
+    // Step 3: Save token and get username
+    this.token = accessToken;
+    await this.fetchUsername();
+
+    return true;
+  }
+
+  /**
+   * Start OAuth flow (Device Flow) or use PAT
    * @param {string} authMethod - 'oauth' or 'pat'
    * @param {string} token - PAT token (required if authMethod is 'pat')
+   * @param {Object} callbacks - { onDeviceCode, onProgress, onCancel } for Device Flow
    */
-  async login(authMethod = 'pat', token = null) {
+  async login(authMethod = 'pat', token = null, callbacks = {}) {
     // If using PAT, skip OAuth flow
     if (authMethod === 'pat') {
       if (!token) {
@@ -171,83 +308,8 @@ class GitHubAPI {
       return true;
     }
 
-    // OAuth flow (Chrome only)
-    const redirectURL = this.getRedirectURL();
-    const state = crypto.randomUUID();
-
-    const authURL = new URL(`${GITHUB_SITE_BASE}/login/oauth/authorize`);
-    authURL.searchParams.set('client_id', CLIENT_ID);
-    authURL.searchParams.set('redirect_uri', redirectURL);
-    authURL.searchParams.set('scope', 'repo notifications');
-    authURL.searchParams.set('state', state);
-
-    try {
-      const responseURL = await new Promise((resolve, reject) => {
-        chrome.identity.launchWebAuthFlow({
-          url: authURL.toString(),
-          interactive: true,
-        }, (responseUrl) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(responseUrl);
-          }
-        });
-      });
-
-      const url = new URL(responseURL);
-      const code = url.searchParams.get('code');
-      const returnedState = url.searchParams.get('state');
-
-      if (returnedState !== state) {
-        throw new Error('State mismatch');
-      }
-
-      if (!code) {
-        throw new Error('No authorization code received');
-      }
-
-      // Exchange code for token
-      const accessToken = await this.exchangeCodeForToken(code);
-      this.token = accessToken;
-
-      // Get username
-      await this.fetchUsername();
-
-      return true;
-    } catch (error) {
-      console.error('OAuth error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Exchange authorization code for access token
-   */
-  async exchangeCodeForToken(code) {
-    const response = await fetch(`${GITHUB_SITE_BASE}/login/oauth/access_token`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        code: code,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to exchange code for token');
-    }
-
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(data.error_description || data.error);
-    }
-
-    return data.access_token;
+    // Device Flow OAuth
+    return await this.loginWithDeviceFlow(callbacks);
   }
 
   /**
