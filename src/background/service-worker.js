@@ -71,13 +71,14 @@ function updateNotificationDetails(baseData, details, notifType) {
   if (details.number !== undefined) baseData.number = details.number;
   if (details.created_at) baseData.created_at = details.created_at;
   if (details.body) baseData.body = details.body;
+  if (details.html_url) baseData.html_url = details.html_url; // Cache the HTML URL for quick access
 }
 
 /**
  * Helper: Copy cached details to new notification data
  */
 function copyCachedDetails(baseData, existing) {
-  ['state', 'merged', 'conclusion', 'status', 'detailsFailed', 'author', 'comment_count', 'number', 'created_at', 'body'].forEach(key => {
+  ['state', 'merged', 'conclusion', 'status', 'detailsFailed', 'author', 'comment_count', 'number', 'created_at', 'body', 'html_url'].forEach(key => {
     if (existing[key] !== undefined) {
       baseData[key] = existing[key];
     }
@@ -336,28 +337,16 @@ async function openNotification(notificationId) {
     throw new Error('Notification not found');
   }
 
-  // Get the URL to open
-  let url = notification.repository.html_url;
+  // Use cached URL if available, otherwise fall back to repository URL
+  let url = notification.html_url || notification.repository.html_url;
 
-  try {
-    // Try to get detailed URL (e.g., direct to issue/PR)
-    const rawNotifications = await github.getNotifications();
-    const rawNotif = rawNotifications?.find((n) => n.id === notificationId);
-    if (rawNotif) {
-      const details = await github.getNotificationDetails(rawNotif);
-      if (details?.html_url) {
-        url = details.html_url;
-      }
-    }
-  } catch (error) {
-    console.error('Failed to get notification details:', error);
-  }
-
-  // Open tab
+  // Open tab immediately
   await tabs.create({ url });
 
-  // Mark as read
-  await markAsRead(notificationId);
+  // Mark as read in background (don't block the opening)
+  markAsRead(notificationId).catch(error => {
+    console.error('Failed to mark as read:', error);
+  });
 
   return { success: true, url };
 }
