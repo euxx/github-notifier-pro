@@ -455,7 +455,7 @@ body.transitions-enabled * {
 
 .repo-count {
   position: absolute;
-  right: 24px;
+  right: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -684,7 +684,7 @@ body.dark-theme .notification-hover-card {
 
 .notification-actions {
   position: absolute;
-  right: 6px;
+  right: 0px;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
@@ -1115,30 +1115,43 @@ body.dark-theme .notification-hover-card {
   }
 }
 
-/* Scrollbar Styles */
+/* Scrollbar Styles - Thin and subtle */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
+/* Light theme scrollbar - gray-black */
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.45);
 }
 
-body.dark-theme ::-webkit-scrollbar-thumb {
-  background: #4a5568;
+/* Dark theme scrollbar - more gray */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(160, 160, 160, 0.4);
 }
 
-body.dark-theme ::-webkit-scrollbar-thumb:hover {
-  background: #718096;
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 180, 180, 0.55);
+}
+
+/* System theme in dark mode */
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] ::-webkit-scrollbar-thumb {
+    background: rgba(160, 160, 160, 0.4);
+  }
+
+  [data-theme="system"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(180, 180, 180, 0.55);
+  }
 }
 
 /* Status Messages */
