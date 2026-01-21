@@ -4,7 +4,14 @@
 
 import * as storage from '../lib/storage.js';
 import { storage as browserStorage, alarms, runtime, tabs } from '../lib/chrome-api.js';
-import { ANIMATION_DURATION, TOKEN_PREFIXES, MESSAGE_TYPES } from '../lib/constants.js';
+import {
+  ANIMATION_DURATION,
+  TOKEN_PREFIXES,
+  MESSAGE_TYPES,
+  MIN_POPUP_WIDTH,
+  MAX_POPUP_WIDTH,
+  POPUP_WIDTH_STEP
+} from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
 
 // Elements
@@ -41,6 +48,11 @@ const settingsLogoutBtn = document.getElementById('settings-logout-btn');
 const settingsUsernameEl = document.getElementById('settings-username');
 const notificationsContainer = document.getElementById('notifications-container');
 const refreshCountdownEl = document.getElementById('refresh-countdown');
+
+// Popup size controls
+const popupWidthInput = document.getElementById('popup-width-input');
+const widthDecreaseBtn = document.getElementById('width-decrease');
+const widthIncreaseBtn = document.getElementById('width-increase');
 
 /**
  * Update countdown timer
@@ -144,6 +156,56 @@ async function handleThemeChange() {
 
   // Apply theme immediately
   applyTheme(theme);
+}
+
+/**
+ * Handle popup width change
+ */
+async function handleWidthChange() {
+  let width = parseInt(popupWidthInput.value, 10);
+  if (isNaN(width)) width = MIN_POPUP_WIDTH;
+
+  // Validate range
+  if (width < MIN_POPUP_WIDTH) width = MIN_POPUP_WIDTH;
+  if (width > MAX_POPUP_WIDTH) width = MAX_POPUP_WIDTH;
+
+  popupWidthInput.value = width;
+  document.body.style.width = `${width}px`;
+
+  // Save to storage
+  await storage.setPopupWidth(width);
+}
+
+/**
+ * Decrease width
+ */
+async function decreaseWidth() {
+  const currentWidth = parseInt(popupWidthInput.value, 10);
+  const newWidth = Math.max(MIN_POPUP_WIDTH, currentWidth - POPUP_WIDTH_STEP);
+  popupWidthInput.value = newWidth;
+  await handleWidthChange();
+}
+
+/**
+ * Increase width
+ */
+async function increaseWidth() {
+  const currentWidth = parseInt(popupWidthInput.value, 10);
+  const newWidth = Math.min(MAX_POPUP_WIDTH, currentWidth + POPUP_WIDTH_STEP);
+  popupWidthInput.value = newWidth;
+  await handleWidthChange();
+}
+
+/**
+ * Apply saved popup size
+ */
+async function applyPopupSize() {
+  const width = await storage.getPopupWidth();
+
+  document.body.style.width = `${width}px`;
+
+  // Update input value
+  popupWidthInput.value = width;
 }
 
 /**
@@ -838,6 +900,10 @@ patInput.addEventListener('keypress', (e) => {
 settingsIconBtn.addEventListener('click', showSettings);
 settingsBackBtn.addEventListener('click', hideSettings);
 themeSelect.addEventListener('change', handleThemeChange);
+popupWidthInput.addEventListener('change', handleWidthChange);
+popupWidthInput.addEventListener('blur', handleWidthChange);
+widthDecreaseBtn.addEventListener('click', decreaseWidth);
+widthIncreaseBtn.addEventListener('click', increaseWidth);
 
 // User menu
 settingsLogoutBtn.addEventListener('click', logout);

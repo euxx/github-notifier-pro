@@ -134,6 +134,32 @@
             <option value="system">System</option>
           </select>
         </div>
+
+        <div class="setting-row">
+          <label for="popup-width-input">Width</label>
+          <div class="width-controls">
+            <button class="btn-icon width-btn" id="width-decrease" title="Decrease width">
+              <svg viewBox="0 0 16 16" width="14" height="14">
+                <path fill="currentColor" d="M2 7.75A.75.75 0 0 1 2.75 7h10a.75.75 0 0 1 0 1.5h-10A.75.75 0 0 1 2 7.75z"/>
+              </svg>
+            </button>
+            <input
+              type="number"
+              id="popup-width-input"
+              class="width-input"
+              min="400"
+              max="800"
+              step="10"
+              value="400"
+            />
+            <span class="width-unit">px</span>
+            <button class="btn-icon width-btn" id="width-increase" title="Increase width">
+              <svg viewBox="0 0 16 16" width="14" height="14">
+                <path fill="currentColor" d="M8 2.75a.75.75 0 0 1 .75.75v4h4a.75.75 0 0 1 0 1.5h-4v4a.75.75 0 0 1-1.5 0v-4h-4a.75.75 0 0 1 0-1.5h4v-4A.75.75 0 0 1 8 2.75z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

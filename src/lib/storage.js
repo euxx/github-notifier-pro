@@ -3,6 +3,8 @@
  * Uses Chrome Storage API directly
  */
 
+import { DEFAULT_POPUP_WIDTH } from './constants.js';
+
 const STORAGE_KEYS = {
   TOKEN: 'token',
   USERNAME: 'username',
@@ -10,6 +12,7 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'notifications',
   LAST_CHECK: 'lastCheck',
   THEME: 'theme', // 'light', 'dark', or 'system'
+  POPUP_WIDTH: 'popupWidth', // 400-800
 };
 
 /**
@@ -107,6 +110,14 @@ export async function getTheme() {
 
 export async function setTheme(theme) {
   return set(STORAGE_KEYS.THEME, theme);
+}
+
+export async function getPopupWidth() {
+  return get(STORAGE_KEYS.POPUP_WIDTH, DEFAULT_POPUP_WIDTH);
+}
+
+export async function setPopupWidth(width) {
+  return set(STORAGE_KEYS.POPUP_WIDTH, width);
 }
 
 export { STORAGE_KEYS };
