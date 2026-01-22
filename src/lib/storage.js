@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   LAST_CHECK: 'lastCheck',
   THEME: 'theme', // 'light', 'dark', or 'system'
   POPUP_WIDTH: 'popupWidth', // 400-800
+  SHOW_HOVER_CARDS: 'showHoverCards', // boolean
 };
 
 /**
@@ -118,6 +119,14 @@ export async function getPopupWidth() {
 
 export async function setPopupWidth(width) {
   return set(STORAGE_KEYS.POPUP_WIDTH, width);
+}
+
+export async function getShowHoverCards() {
+  return get(STORAGE_KEYS.SHOW_HOVER_CARDS, true); // default true
+}
+
+export async function setShowHoverCards(show) {
+  return set(STORAGE_KEYS.SHOW_HOVER_CARDS, show);
 }
 
 export { STORAGE_KEYS };

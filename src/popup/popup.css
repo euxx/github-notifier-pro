@@ -533,7 +533,6 @@ body.transitions-enabled * {
   /* Position will be set dynamically via JS */
 }
 
-.notification-item:hover .notification-hover-card,
 .notification-hover-card.visible {
   opacity: 1;
   transform: scale(1);
@@ -881,7 +880,7 @@ body.dark-theme .notification-hover-card {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  width: 60px;
+  min-width: 50px;
   flex-shrink: 0;
   padding-left: 6px;
 }
@@ -890,6 +889,29 @@ body.dark-theme .notification-hover-card {
   flex: 0 0 auto;
   max-width: 120px;
   width: 120px;
+}
+
+/* Toggle Switch - Checkbox Style */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-switch input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.toggle-slider {
+  display: none;
 }
 
 .btn-compact {

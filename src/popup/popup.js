@@ -54,6 +54,12 @@ const popupWidthInput = document.getElementById('popup-width-input');
 const widthDecreaseBtn = document.getElementById('width-decrease');
 const widthIncreaseBtn = document.getElementById('width-increase');
 
+// Hover cards toggle
+const hoverCardsToggle = document.getElementById('hover-cards-toggle');
+
+// Store hover cards setting
+let showHoverCards = true;
+
 /**
  * Update countdown timer
  */
@@ -123,6 +129,10 @@ async function showSettings() {
   if (settingsUsernameEl && username) {
     settingsUsernameEl.textContent = username;
   }
+
+  // Load hover cards setting
+  const showCards = await storage.getShowHoverCards();
+  hoverCardsToggle.checked = showCards;
 
   // Hide header and footer
   document.querySelector('.header').hidden = true;
@@ -329,11 +339,17 @@ function renderNotifications(notifications) {
         ${createHoverCard(notif)}
       `;
 
-// Add hover event listeners with smart positioning
-      li.addEventListener('mouseenter', () => positionHoverCard(li));
+      // Add hover event listeners - they check showHoverCards flag
+      li.addEventListener('mouseenter', () => {
+        if (showHoverCards) {
+          positionHoverCard(li);
+        }
+      });
       li.addEventListener('mouseleave', () => {
-        const card = li.querySelector('.notification-hover-card');
-        if (card) card.classList.remove('visible');
+        if (showHoverCards) {
+          const card = li.querySelector('.notification-hover-card');
+          if (card) card.classList.remove('visible');
+        }
       });
 
       // Click to open notification (but not on mark as read button)
@@ -862,6 +878,9 @@ async function init() {
   // Apply saved popup width
   await applyPopupSize();
 
+  // Load hover cards setting
+  showHoverCards = await storage.getShowHoverCards();
+
   showView('loading');
 
   // Listen for system theme changes
@@ -907,6 +926,17 @@ popupWidthInput.addEventListener('change', handleWidthChange);
 popupWidthInput.addEventListener('blur', handleWidthChange);
 widthDecreaseBtn.addEventListener('click', decreaseWidth);
 widthIncreaseBtn.addEventListener('click', increaseWidth);
+hoverCardsToggle.addEventListener('change', async () => {
+  showHoverCards = hoverCardsToggle.checked;
+  await storage.setShowHoverCards(showHoverCards);
+
+  // Hide any currently visible hover cards when disabling
+  if (!showHoverCards) {
+    document.querySelectorAll('.notification-hover-card.visible').forEach(card => {
+      card.classList.remove('visible');
+    });
+  }
+});
 
 // User menu
 settingsLogoutBtn.addEventListener('click', logout);
