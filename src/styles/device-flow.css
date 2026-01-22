@@ -98,6 +98,22 @@ p {
   cursor: not-allowed;
 }
 
+.auth-note {
+  margin: 16px 0;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.auth-note strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .status {
   margin-top: 24px;
   padding: 16px;
