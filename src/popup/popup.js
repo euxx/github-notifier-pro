@@ -859,6 +859,9 @@ async function init() {
   // Apply theme first to prevent flash
   await preloadTheme();
 
+  // Apply saved popup width
+  await applyPopupSize();
+
   showView('loading');
 
   // Listen for system theme changes
