@@ -6,6 +6,7 @@ import github from '../lib/github-api.js';
 import * as storage from '../lib/storage.js';
 import { action, alarms, runtime, storage as browserStorage, tabs } from '../lib/chrome-api.js';
 import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib/constants.js';
+import { formatReason } from '../lib/format-utils.js';
 
 /**
  * Initialize extension state from storage
@@ -151,6 +152,9 @@ async function checkNotifications() {
 
       await storage.setNotifications(processed);
       await updateBadge(processed.length);
+
+      // Show desktop notifications for new items
+      await showDesktopNotificationsForNew(processed);
     }
   } catch (error) {
     console.error('Failed to check notifications:', error);
@@ -344,8 +348,8 @@ async function openNotification(notificationId) {
     throw new Error('Notification not found');
   }
 
-  // Use cached URL if available, otherwise fall back to repository URL
-  let url = notification.html_url || notification.repository.html_url;
+  // Get URL (with fallback logic)
+  const url = getNotificationUrl(notification);
 
   // Open tab immediately
   await tabs.create({ url });
@@ -388,6 +392,139 @@ async function markAllAsRead() {
   } catch (error) {
     console.error('Failed to mark all as read:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Show desktop notifications for new items
+ */
+async function showDesktopNotificationsForNew(notifications) {
+  try {
+    // Check if desktop notifications are enabled
+    const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
+
+    if (!enableDesktopNotifications) {
+      return;
+    }
+
+    // Get silent mode setting
+    const silentMode = await storage.getSilentMode();
+
+    // Filter and show only new notifications
+    const newNotifications = notifications.filter(n => n.isNew);
+
+    // Show desktop notification for each new item
+    for (const notif of newNotifications) {
+      await showDesktopNotification(notif, silentMode);
+    }
+  } catch (error) {
+    console.error('Failed to show desktop notifications:', error);
+  }
+}
+
+/**
+ * Show a single desktop notification
+ */
+async function showDesktopNotification(notif, silentMode = false) {
+  try {
+    // Format title to match popup display: "#123 Title"
+    let displayTitle = notif.title;
+    if (notif.number !== undefined) {
+      displayTitle = `#${notif.number} ${notif.title}`;
+    }
+
+    const notificationOptions = {
+      type: 'basic',
+      iconUrl: chrome.runtime.getURL('images/icon.png'),
+      title: displayTitle, // #123 Title
+      message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // 次要信息
+      priority: 2,
+      requireInteraction: false,
+      silent: silentMode,
+    };
+
+    // Create notification
+    const notificationId = `github-notif-${notif.id}`;
+    await chrome.notifications.create(notificationId, notificationOptions);
+  } catch (error) {
+    console.error('Failed to create desktop notification:', error);
+  }
+}
+
+/**
+ * Handle notification click - open the notification URL
+ */
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  try {
+    // Extract notification ID from the chrome notification ID
+    const githubNotifId = notificationId.replace('github-notif-', '');
+
+    // Get all notifications to find the one that was clicked
+    const notifications = await storage.getNotifications();
+    const notification = notifications.find(n => n.id === githubNotifId);
+
+    if (notification) {
+      // Open the notification URL
+      await openNotificationUrl(notification);
+
+      // Mark as read
+      await github.markAsRead(githubNotifId);
+
+      // Update stored notifications
+      const updatedNotifications = notifications.filter(n => n.id !== githubNotifId);
+      await storage.setNotifications(updatedNotifications);
+      await updateBadge(updatedNotifications.length);
+    }
+
+    // Clear the notification
+    await chrome.notifications.clear(notificationId);
+  } catch (error) {
+    console.error('Failed to handle notification click:', error);
+  }
+});
+
+/**
+ * Get notification URL with fallback logic
+ */
+function getNotificationUrl(notification) {
+  // Return cached URL if available
+  if (notification.html_url) {
+    return notification.html_url;
+  }
+
+  // Otherwise, construct URL based on notification type
+  const fullName = notification.repository.full_name;
+  const type = notification.type;
+
+  // For PRs and Issues, construct URL from number
+  if ((type === 'PullRequest' || type === 'Issue') && notification.number) {
+    const issueOrPr = type === 'PullRequest' ? 'pull' : 'issues';
+    return `https://github.com/${fullName}/${issueOrPr}/${notification.number}`;
+  }
+  // For releases
+  else if (type === 'Release') {
+    return `https://github.com/${fullName}/releases`;
+  }
+  // For commits
+  else if (type === 'Commit') {
+    // Extract SHA from URL (usually in subject.url)
+    const match = notification.url?.match(/commits\/([a-f0-9]+)/);
+    if (match) {
+      return `https://github.com/${fullName}/commit/${match[1]}`;
+    }
+  }
+
+  // Fallback to repository URL
+  return notification.repository.html_url;
+}
+
+/**
+ * Open notification URL in browser
+ */
+async function openNotificationUrl(notification) {
+  const url = getNotificationUrl(notification);
+  if (url) {
+    await tabs.create({ url });
   }
 }
 

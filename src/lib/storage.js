@@ -14,6 +14,9 @@ const STORAGE_KEYS = {
   THEME: 'theme', // 'light', 'dark', or 'system'
   POPUP_WIDTH: 'popupWidth', // 400-800
   SHOW_HOVER_CARDS: 'showHoverCards', // boolean
+  // Desktop notification settings
+  ENABLE_DESKTOP_NOTIFICATIONS: 'enableDesktopNotifications', // boolean
+  SILENT_MODE: 'silentMode', // boolean
 };
 
 /**
@@ -127,6 +130,23 @@ export async function getShowHoverCards() {
 
 export async function setShowHoverCards(show) {
   return set(STORAGE_KEYS.SHOW_HOVER_CARDS, show);
+}
+
+// Desktop notification settings
+export async function getEnableDesktopNotifications() {
+  return get(STORAGE_KEYS.ENABLE_DESKTOP_NOTIFICATIONS, false); // default false
+}
+
+export async function setEnableDesktopNotifications(enable) {
+  return set(STORAGE_KEYS.ENABLE_DESKTOP_NOTIFICATIONS, enable);
+}
+
+export async function getSilentMode() {
+  return get(STORAGE_KEYS.SILENT_MODE, false); // default false
+}
+
+export async function setSilentMode(silent) {
+  return set(STORAGE_KEYS.SILENT_MODE, silent);
 }
 
 export { STORAGE_KEYS };

@@ -13,6 +13,7 @@ import {
   POPUP_WIDTH_STEP
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
+import { formatReason } from '../lib/format-utils.js';
 
 // Elements
 const loginView = document.getElementById('login-view');
@@ -56,6 +57,10 @@ const widthIncreaseBtn = document.getElementById('width-increase');
 
 // Hover cards toggle
 const hoverCardsToggle = document.getElementById('hover-cards-toggle');
+
+// Desktop notification settings
+const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
+const silentModeToggle = document.getElementById('silent-mode-toggle');
 
 // Store hover cards setting
 let showHoverCards = true;
@@ -133,6 +138,13 @@ async function showSettings() {
   // Load hover cards setting
   const showCards = await storage.getShowHoverCards();
   hoverCardsToggle.checked = showCards;
+
+  // Load desktop notification settings
+  const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
+  desktopNotificationsToggle.checked = enableDesktopNotifications;
+
+  const silentMode = await storage.getSilentMode();
+  silentModeToggle.checked = silentMode;
 
   // Hide header and footer
   document.querySelector('.header').hidden = true;
@@ -630,27 +642,6 @@ function createHoverCard(notif) {
 }
 
 /**
- * Format notification reason to human-readable text
- */
-function formatReason(reason) {
-  const reasons = {
-    'subscribed': 'Subscribed',
-    'participating': 'Participating',
-    'mentioned': 'Mentioned',
-    'team_mention': 'Team Mentioned',
-    'comment': 'Commented',
-    'review_requested': 'Review Requested',
-    'security_alert': 'Security Alert',
-    'state_change': 'State Changed',
-    'assign': 'Assigned',
-    'author': 'You Authored',
-    'manual': 'Manual',
-    'ci_activity': 'CI Activity',
-  };
-  return reasons[reason] || reason || 'Unknown';
-}
-
-/**
  * Format time ago
  */
 function formatTimeAgo(timestamp) {
@@ -936,6 +927,17 @@ hoverCardsToggle.addEventListener('change', async () => {
       card.classList.remove('visible');
     });
   }
+});
+
+// Desktop notification settings
+desktopNotificationsToggle.addEventListener('change', async () => {
+  const enabled = desktopNotificationsToggle.checked;
+  await storage.setEnableDesktopNotifications(enabled);
+});
+
+silentModeToggle.addEventListener('change', async () => {
+  const silent = silentModeToggle.checked;
+  await storage.setSilentMode(silent);
 });
 
 // User menu

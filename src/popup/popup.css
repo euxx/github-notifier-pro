@@ -926,9 +926,15 @@ body.dark-theme .notification-hover-card {
 }
 
 .setting-section {
-  margin-top: 20px;
+  margin-top: 4px;
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
+}
+
+/* Remove border-bottom from the row immediately before a section */
+.setting-row:has(+ .setting-section),
+.setting-row.no-border-bottom {
+  border-bottom: none;
 }
 
 .setting-section-title {
@@ -936,6 +942,7 @@ body.dark-theme .notification-hover-card {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 12px;
+  padding-left: 6px;
 }
 
 .setting-item label {
