@@ -22,7 +22,7 @@
   --icon-issue-closed: #8250df;    /* GitHub purple for closed issues */
   --icon-pr-open: #2da44e;         /* Brighter green for open PRs */
   --icon-pr-merged: #8250df;       /* GitHub purple for merged PRs */
-  --icon-pr-closed: #cf222e;       /* GitHub red for closed PRs */
+  --icon-pr-closed: #a0222e;       /* Dimmer red for closed PRs */
   --icon-release: #7d8590;         /* Slightly brighter gray for releases */
   --icon-discussion: #bf8700;      /* GitHub orange for discussions */
 }
@@ -45,7 +45,7 @@ body.dark-theme {
   --icon-issue-closed: #a371f7;    /* GitHub purple for closed issues */
   --icon-pr-open: #2ea043;         /* Darker green for open PRs */
   --icon-pr-merged: #a371f7;       /* GitHub purple for merged PRs */
-  --icon-pr-closed: #f85149;       /* GitHub red for closed PRs */
+  --icon-pr-closed: #c44149;       /* Dimmer red for closed PRs */
   --icon-release: #848d97;         /* Slightly brighter gray for releases */
   --icon-discussion: #d29922;      /* GitHub orange for discussions */
 }
