@@ -407,15 +407,12 @@ async function showDesktopNotificationsForNew(notifications) {
       return;
     }
 
-    // Get silent mode setting
-    const silentMode = await storage.getSilentMode();
-
     // Filter and show only new notifications
     const newNotifications = notifications.filter(n => n.isNew);
 
     // Show desktop notification for each new item
     for (const notif of newNotifications) {
-      await showDesktopNotification(notif, silentMode);
+      await showDesktopNotification(notif);
     }
   } catch (error) {
     console.error('Failed to show desktop notifications:', error);
@@ -425,7 +422,7 @@ async function showDesktopNotificationsForNew(notifications) {
 /**
  * Show a single desktop notification
  */
-async function showDesktopNotification(notif, silentMode = false) {
+async function showDesktopNotification(notif) {
   try {
     // Format title to match popup display: "#123 Title"
     let displayTitle = notif.title;
@@ -436,11 +433,10 @@ async function showDesktopNotification(notif, silentMode = false) {
     const notificationOptions = {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('images/icon.png'),
-      title: displayTitle, // #123 Title
-      message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // 次要信息
+      title: displayTitle, // Primary: #123 Title
+      message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
       priority: 2,
-      requireInteraction: false,
-      silent: silentMode,
+      requireInteraction: false, // Allow auto-dismiss
     };
 
     // Create notification

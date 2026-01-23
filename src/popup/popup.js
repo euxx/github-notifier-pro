@@ -60,7 +60,6 @@ const hoverCardsToggle = document.getElementById('hover-cards-toggle');
 
 // Desktop notification settings
 const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
-const silentModeToggle = document.getElementById('silent-mode-toggle');
 
 // Store hover cards setting
 let showHoverCards = true;
@@ -142,9 +141,6 @@ async function showSettings() {
   // Load desktop notification settings
   const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
   desktopNotificationsToggle.checked = enableDesktopNotifications;
-
-  const silentMode = await storage.getSilentMode();
-  silentModeToggle.checked = silentMode;
 
   // Hide header and footer
   document.querySelector('.header').hidden = true;
@@ -933,11 +929,6 @@ hoverCardsToggle.addEventListener('change', async () => {
 desktopNotificationsToggle.addEventListener('change', async () => {
   const enabled = desktopNotificationsToggle.checked;
   await storage.setEnableDesktopNotifications(enabled);
-});
-
-silentModeToggle.addEventListener('change', async () => {
-  const silent = silentModeToggle.checked;
-  await storage.setSilentMode(silent);
 });
 
 // User menu

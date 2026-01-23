@@ -16,7 +16,6 @@ const STORAGE_KEYS = {
   SHOW_HOVER_CARDS: 'showHoverCards', // boolean
   // Desktop notification settings
   ENABLE_DESKTOP_NOTIFICATIONS: 'enableDesktopNotifications', // boolean
-  SILENT_MODE: 'silentMode', // boolean
 };
 
 /**
@@ -139,14 +138,6 @@ export async function getEnableDesktopNotifications() {
 
 export async function setEnableDesktopNotifications(enable) {
   return set(STORAGE_KEYS.ENABLE_DESKTOP_NOTIFICATIONS, enable);
-}
-
-export async function getSilentMode() {
-  return get(STORAGE_KEYS.SILENT_MODE, false); // default false
-}
-
-export async function setSilentMode(silent) {
-  return set(STORAGE_KEYS.SILENT_MODE, silent);
 }
 
 export { STORAGE_KEYS };
