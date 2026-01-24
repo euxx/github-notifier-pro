@@ -124,7 +124,7 @@ export async function setPopupWidth(width) {
 }
 
 export async function getShowHoverCards() {
-  return get(STORAGE_KEYS.SHOW_HOVER_CARDS, true); // default true
+  return get(STORAGE_KEYS.SHOW_HOVER_CARDS, false); // default false
 }
 
 export async function setShowHoverCards(show) {

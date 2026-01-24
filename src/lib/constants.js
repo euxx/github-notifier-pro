@@ -25,7 +25,7 @@ export const ANIMATION_DURATION = {
 // UI Dimensions
 export const MIN_POPUP_WIDTH = 400;
 export const MAX_POPUP_WIDTH = 800;
-export const DEFAULT_POPUP_WIDTH = 400;
+export const DEFAULT_POPUP_WIDTH = 600;
 export const POPUP_WIDTH_STEP = 50;
 export const POPUP_MIN_HEIGHT = 300;
 export const POPUP_MAX_HEIGHT = 600;
