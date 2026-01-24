@@ -8,6 +8,10 @@ A Chrome extension for GitHub notifications with offline support and smart rate 
 - **Desktop notifications** - Get notified instantly with system notifications
   - Click to open notification directly
   - Auto-dismiss after a few seconds
+- **Responsive notification metadata** - Shows additional info based on popup width
+  - Comment count, author avatar, and relative time
+  - Automatically adjusts based on available space
+  - Release notifications include content preview
 - Dark/Light/System theme support
 - **Two authentication methods:**
   - **Device Flow OAuth** (recommended) - Secure, no secrets needed

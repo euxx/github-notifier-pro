@@ -330,13 +330,34 @@ function renderNotifications(notifications) {
         }
       }
 
+      // Pre-compute release body for performance
+      const releaseBody = notif.type === 'Release' && notif.body ? notif.body.trimStart() : '';
+
       li.innerHTML = `
         <div class="notification-icon ${iconClass}">
           ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion)}
         </div>
         <div class="notification-content">
-          <div class="notification-title">
-            ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}
+          <div class="notification-main">
+            <div class="notification-title" data-title="${escapeAttr(notif.title)}${releaseBody ? '\n\n' + escapeAttr(releaseBody) : ''}"${showHoverCards ? '' : ` title="${escapeAttr(notif.title)}${releaseBody ? '\n\n' + escapeAttr(releaseBody) : ''}"`}>
+              ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(releaseBody.substring(0, 200))}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
+            </div>
+          </div>
+          <div class="notification-meta">
+            ${notif.comment_count !== undefined && notif.comment_count > 0 ? `
+              <span class="notification-comments">
+                <svg viewBox="0 0 16 16" width="12" height="12">
+                  <path fill="currentColor" d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h4.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+                </svg>
+                ${notif.comment_count}
+              </span>
+            ` : ''}
+            ${notif.author ? `
+              <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
+            ` : ''}
+            ${notif.created_at || notif.updated_at ? `
+              <span class="notification-time">${formatTimeAgo(notif.created_at || notif.updated_at)}</span>
+            ` : ''}
           </div>
         </div>
         <div class="notification-actions">
@@ -601,6 +622,31 @@ function escapeHtml(text) {
 }
 
 /**
+ * Escape HTML attributes to prevent XSS
+ */
+function escapeAttr(text) {
+  return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * Format time ago (e.g., "2h ago", "3d ago")
+ */
+function formatTimeAgo(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 30) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+/**
  * Create hover card HTML for a notification
  */
 function createHoverCard(notif) {
@@ -635,24 +681,6 @@ function createHoverCard(notif) {
       ` : ''}
     </div>
   `;
-}
-
-/**
- * Format time ago
- */
-function formatTimeAgo(timestamp) {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now - then;
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffDays > 0) return `${diffDays}d ago`;
-  if (diffHours > 0) return `${diffHours}h ago`;
-  if (diffMins > 0) return `${diffMins}m ago`;
-  return 'just now';
 }
 
 /**
@@ -922,6 +950,14 @@ hoverCardsToggle.addEventListener('change', async () => {
     document.querySelectorAll('.notification-hover-card.visible').forEach(card => {
       card.classList.remove('visible');
     });
+  }
+
+  // Re-render to update title attributes based on new setting
+  if (cachedNotifications) {
+    // Force re-render by clearing cache
+    const notifications = cachedNotifications;
+    cachedNotificationsJSON = null;
+    renderNotifications(notifications);
   }
 });
 
