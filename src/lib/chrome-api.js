@@ -1,47 +1,50 @@
 /**
- * Chrome API helpers with Promise wrappers
- * Simplified version for Chrome-only extension
+ * Browser API helpers with Promise wrappers
+ * Cross-browser compatible (Chrome & Firefox)
  */
+
+// Browser compatibility layer
+const api = typeof browser !== 'undefined' ? browser : chrome;
 
 // Storage API
 export const storage = {
   local: {
     get(keys) {
       return new Promise((resolve) => {
-        chrome.storage.local.get(keys, resolve);
+        api.storage.local.get(keys, resolve);
       });
     },
     set(items) {
       return new Promise((resolve) => {
-        chrome.storage.local.set(items, resolve);
+        api.storage.local.set(items, resolve);
       });
     },
     remove(keys) {
       return new Promise((resolve) => {
-        chrome.storage.local.remove(keys, resolve);
+        api.storage.local.remove(keys, resolve);
       });
     },
     clear() {
       return new Promise((resolve) => {
-        chrome.storage.local.clear(resolve);
+        api.storage.local.clear(resolve);
       });
     }
   },
-  onChanged: chrome.storage.onChanged
+  onChanged: api.storage.onChanged
 };
 
 // Runtime API
 export const runtime = {
   sendMessage(message) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, resolve);
+      api.runtime.sendMessage(message, resolve);
     });
   },
-  onMessage: chrome.runtime.onMessage,
-  onStartup: chrome.runtime.onStartup,
-  onInstalled: chrome.runtime.onInstalled,
+  onMessage: api.runtime.onMessage,
+  onStartup: api.runtime.onStartup,
+  onInstalled: api.runtime.onInstalled,
   getURL(path) {
-    return chrome.runtime.getURL(path);
+    return api.runtime.getURL(path);
   }
 };
 
@@ -49,17 +52,17 @@ export const runtime = {
 export const action = {
   setBadgeText(details) {
     return new Promise((resolve) => {
-      chrome.action.setBadgeText(details, resolve);
+      api.action.setBadgeText(details, resolve);
     });
   },
   setBadgeBackgroundColor(details) {
     return new Promise((resolve) => {
-      chrome.action.setBadgeBackgroundColor(details, resolve);
+      api.action.setBadgeBackgroundColor(details, resolve);
     });
   },
   setTitle(details) {
     return new Promise((resolve) => {
-      chrome.action.setTitle(details, resolve);
+      api.action.setTitle(details, resolve);
     });
   }
 };
@@ -68,27 +71,42 @@ export const action = {
 export const alarms = {
   create(name, alarmInfo) {
     return new Promise((resolve) => {
-      chrome.alarms.create(name, alarmInfo, resolve);
+      api.alarms.create(name, alarmInfo, resolve);
     });
   },
   clear(name) {
     return new Promise((resolve) => {
-      chrome.alarms.clear(name, resolve);
+      api.alarms.clear(name, resolve);
     });
   },
   getAll() {
     return new Promise((resolve) => {
-      chrome.alarms.getAll(resolve);
+      api.alarms.getAll(resolve);
     });
   },
-  onAlarm: chrome.alarms.onAlarm
+  onAlarm: api.alarms.onAlarm
 };
 
 // Tabs API
 export const tabs = {
   create(createProperties) {
     return new Promise((resolve) => {
-      chrome.tabs.create(createProperties, resolve);
+      api.tabs.create(createProperties, resolve);
     });
   }
+};
+
+// Notifications API
+export const notifications = {
+  create(notificationId, options) {
+    return new Promise((resolve) => {
+      api.notifications.create(notificationId, options, resolve);
+    });
+  },
+  clear(notificationId) {
+    return new Promise((resolve) => {
+      api.notifications.clear(notificationId, resolve);
+    });
+  },
+  onClicked: api.notifications.onClicked
 };

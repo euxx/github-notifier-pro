@@ -38,7 +38,7 @@ export const CACHE_DURATION = {
   NOTIFICATIONS: 60000, // 1 minute
 };
 
-// Message Types (for chrome.runtime.sendMessage)
+// Message Types (for runtime.sendMessage)
 export const MESSAGE_TYPES = {
   LOGIN: 'login',
   LOGOUT: 'logout',

@@ -1,9 +1,12 @@
 /**
- * Storage utility for Chrome extension
- * Uses Chrome Storage API directly
+ * Storage utility for browser extensions
+ * Cross-browser compatible (Chrome & Firefox)
  */
 
 import { DEFAULT_POPUP_WIDTH } from './constants.js';
+
+// Browser compatibility layer
+const api = typeof browser !== 'undefined' ? browser : chrome;
 
 const STORAGE_KEYS = {
   TOKEN: 'token',
@@ -23,7 +26,7 @@ const STORAGE_KEYS = {
  */
 export async function get(key, defaultValue = null) {
   return new Promise((resolve) => {
-    chrome.storage.local.get(key, (result) => {
+    api.storage.local.get(key, (result) => {
       resolve(result[key] ?? defaultValue);
     });
   });
@@ -34,7 +37,7 @@ export async function get(key, defaultValue = null) {
  */
 export async function set(key, value) {
   return new Promise((resolve) => {
-    chrome.storage.local.set({ [key]: value }, resolve);
+    api.storage.local.set({ [key]: value }, resolve);
   });
 }
 
@@ -43,7 +46,7 @@ export async function set(key, value) {
  */
 export async function remove(key) {
   return new Promise((resolve) => {
-    chrome.storage.local.remove(key, resolve);
+    api.storage.local.remove(key, resolve);
   });
 }
 
@@ -52,7 +55,7 @@ export async function remove(key) {
  */
 export async function getMultiple(keys) {
   return new Promise((resolve) => {
-    chrome.storage.local.get(keys, resolve);
+    api.storage.local.get(keys, resolve);
   });
 }
 
@@ -61,7 +64,7 @@ export async function getMultiple(keys) {
  */
 export async function setMultiple(data) {
   return new Promise((resolve) => {
-    chrome.storage.local.set(data, resolve);
+    api.storage.local.set(data, resolve);
   });
 }
 
@@ -70,7 +73,7 @@ export async function setMultiple(data) {
  */
 export async function clear() {
   return new Promise((resolve) => {
-    chrome.storage.local.clear(resolve);
+    api.storage.local.clear(resolve);
   });
 }
 

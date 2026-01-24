@@ -4,7 +4,7 @@
 
 import github from '../lib/github-api.js';
 import * as storage from '../lib/storage.js';
-import { action, alarms, runtime, storage as browserStorage, tabs } from '../lib/chrome-api.js';
+import { action, alarms, runtime, storage as browserStorage, tabs, notifications } from '../lib/chrome-api.js';
 import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 
@@ -432,7 +432,7 @@ async function showDesktopNotification(notif) {
 
     const notificationOptions = {
       type: 'basic',
-      iconUrl: chrome.runtime.getURL('images/icon.png'),
+      iconUrl: runtime.getURL('images/icon.png'),
       title: displayTitle, // Primary: #123 Title
       message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
       priority: 2,
@@ -441,7 +441,7 @@ async function showDesktopNotification(notif) {
 
     // Create notification
     const notificationId = `github-notif-${notif.id}`;
-    await chrome.notifications.create(notificationId, notificationOptions);
+    await notifications.create(notificationId, notificationOptions);
   } catch (error) {
     console.error('Failed to create desktop notification:', error);
   }
@@ -450,7 +450,7 @@ async function showDesktopNotification(notif) {
 /**
  * Handle notification click - open the notification URL
  */
-chrome.notifications.onClicked.addListener(async (notificationId) => {
+notifications.onClicked.addListener(async (notificationId) => {
   try {
     // Extract notification ID from the chrome notification ID
     const githubNotifId = notificationId.replace('github-notif-', '');
@@ -473,7 +473,7 @@ chrome.notifications.onClicked.addListener(async (notificationId) => {
     }
 
     // Clear the notification
-    await chrome.notifications.clear(notificationId);
+    await notifications.clear(notificationId);
   } catch (error) {
     console.error('Failed to handle notification click:', error);
   }

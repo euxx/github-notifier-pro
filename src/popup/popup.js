@@ -884,7 +884,7 @@ async function handlePATLogin() {
  */
 async function handleOAuthLogin() {
   // Open Device Flow authorization page in a new tab
-  const authUrl = chrome.runtime.getURL('src/auth/device-flow.html');
+  const authUrl = runtime.getURL('src/auth/device-flow.html');
   tabs.create({ url: authUrl });
 
   // Close popup (optional - let user keep it open)

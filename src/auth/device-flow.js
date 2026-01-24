@@ -5,6 +5,7 @@
 import * as storage from '../lib/storage.js';
 import github from '../lib/github-api.js';
 import { initTheme } from '../lib/theme.js';
+import { runtime } from '../lib/chrome-api.js';
 
 const deviceCodeEl = document.getElementById('device-code');
 const copyBtn = document.getElementById('copy-btn');
@@ -91,7 +92,7 @@ async function startDeviceFlow() {
       window.close();
       // If window.close() doesn't work (some browsers block it), redirect
       if (!window.closed) {
-        window.location.href = chrome.runtime.getURL('src/popup/popup.html');
+        window.location.href = runtime.getURL('src/popup/popup.html');
       }
     }, 2000);
 
