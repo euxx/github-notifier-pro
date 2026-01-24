@@ -331,7 +331,7 @@ function renderNotifications(notifications) {
       }
 
       // Pre-compute release body for performance
-      const releaseBody = notif.type === 'Release' && notif.body ? notif.body.trimStart() : '';
+      const releaseBody = notif.type === 'Release' && notif.body ? notif.body.trim() : '';
 
       li.innerHTML = `
         <div class="notification-icon ${iconClass}">
@@ -374,12 +374,40 @@ function renderNotifications(notifications) {
           positionHoverCard(li);
         }
       });
-      li.addEventListener('mouseleave', () => {
+      li.addEventListener('mouseleave', (e) => {
         if (showHoverCards) {
           const card = li.querySelector('.notification-hover-card');
-          if (card) card.classList.remove('visible');
+          if (card) {
+            // Only hide if not hovering over the card itself
+            const cardRect = card.getBoundingClientRect();
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            // Check if mouse is over the hover card
+            const isOverCard = mouseX >= cardRect.left && mouseX <= cardRect.right &&
+                             mouseY >= cardRect.top && mouseY <= cardRect.bottom;
+
+            if (!isOverCard) {
+              card.classList.remove('visible');
+            }
+          }
         }
       });
+
+      // Add hover card mouse events to keep it visible while interacting
+      const hoverCard = li.querySelector('.notification-hover-card');
+      if (hoverCard) {
+        hoverCard.addEventListener('mouseenter', () => {
+          if (showHoverCards) {
+            hoverCard.classList.add('visible');
+          }
+        });
+        hoverCard.addEventListener('mouseleave', () => {
+          if (showHoverCards) {
+            hoverCard.classList.remove('visible');
+          }
+        });
+      }
 
       // Click to open notification (but not on mark as read button)
       li.addEventListener('click', (e) => {
@@ -594,7 +622,7 @@ function positionHoverCard(listItem) {
   card.classList.remove('visible');
 
   // Determine position based on available space
-  const margin = 4;
+  const margin = 0; // Small gap for easier mouse movement
   const spaceBelow = window.innerHeight - rect.bottom;
   const spaceAbove = rect.top;
 
@@ -677,7 +705,7 @@ function createHoverCard(notif) {
         <div class="hover-card-meta">${metadataParts.join(' · ')}</div>
       </div>
       ${hasDescription ? `
-        <div class="hover-card-description">${escapeHtml(notif.body.substring(0, 150))}${notif.body.length > 150 ? '...' : ''}</div>
+        <div class="hover-card-description">${escapeHtml(notif.body.trim())}</div>
       ` : ''}
     </div>
   `;
