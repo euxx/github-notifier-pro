@@ -18,7 +18,6 @@ import { formatReason } from '../lib/format-utils.js';
 // Elements
 const loginView = document.getElementById('login-view');
 const mainView = document.getElementById('main-view');
-const loading = document.getElementById('loading');
 
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
@@ -239,7 +238,6 @@ async function sendMessage(action, data = {}) {
 function showView(view) {
   loginView.hidden = view !== 'login';
   mainView.hidden = view !== 'main';
-  loading.hidden = view !== 'loading';
 }
 
 /**
@@ -915,16 +913,11 @@ async function preloadTheme() {
  * Initialize popup
  */
 async function init() {
-  // Apply theme first to prevent flash
-  await preloadTheme();
-
   // Apply saved popup width
   await applyPopupSize();
 
   // Load hover cards setting
   showHoverCards = await storage.getShowHoverCards();
-
-  showView('loading');
 
   // Listen for system theme changes
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
@@ -1013,7 +1006,9 @@ browserStorage.onChanged.addListener((changes, areaName) => {
 // Pre-apply theme to prevent flash on load
 (async () => {
   await preloadTheme();
-  // Enable transitions after initial theme is applied
+  // Apply popup width immediately
+  await applyPopupSize();
+  // Enable transitions after initial theme and size are applied
   requestAnimationFrame(() => {
     document.body.classList.add('transitions-enabled');
   });
