@@ -66,6 +66,65 @@ async function retryFetch(fetchFn, maxRetries = 3, baseDelay = 1000) {
   throw lastError;
 }
 
+/**
+ * Retry request with support for transient 401 errors
+ * Some operations may encounter temporary 401 errors that succeed on retry
+ * @param {Function} fetchFn - Function that returns a fetch promise
+ * @param {number} maxRetries - Maximum number of retries (default: 2)
+ * @param {number} baseDelay - Base delay in milliseconds (default: 500ms)
+ * @returns {Promise<Response>}
+ */
+async function retryRequest(fetchFn, maxRetries = 2, baseDelay = 500) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetchFn();
+
+      // Success case
+      if (response.ok || response.status === 205) {
+        return response;
+      }
+
+      // Create error for non-OK responses
+      lastError = new Error(`Request failed: ${response.status}`);
+      lastError.response = response;
+
+      // Retry on 401 (transient auth issues) and 5xx errors
+      if (response.status === 401 || response.status >= 500) {
+        if (attempt < maxRetries) {
+          // Linear backoff: 500ms, 1000ms
+          await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
+          continue;
+        }
+      }
+
+      // For other errors (403, 404, etc.), throw immediately
+      throw lastError;
+    } catch (error) {
+      lastError = error;
+
+      // If it's already our custom error with response, handle retry logic
+      if (error.response) {
+        // Already handled above, just rethrow on last attempt
+        if (attempt === maxRetries) throw error;
+        continue;
+      }
+
+      // Network errors - retry
+      if (attempt < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
+        await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
+        continue;
+      }
+
+      // Last attempt or non-retryable error
+      if (attempt === maxRetries) throw lastError;
+    }
+  }
+
+  throw lastError;
+}
+
 class GitHubAPI {
   constructor() {
     this.token = null;
@@ -526,17 +585,14 @@ class GitHubAPI {
   async markAsRead(threadId) {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: this.headers,
+    const response = await retryRequest(async () => {
+      return await fetch(url, {
+        method: 'PATCH',
+        headers: this.headers,
+      });
     });
 
     this.updateRateLimit(response);
-
-    if (!response.ok) {
-      throw new Error(`Failed to mark notification as read: ${response.status}`);
-    }
-
     return true;
   }
 
@@ -548,23 +604,20 @@ class GitHubAPI {
       this.lastUpdate = new Date().toISOString();
     }
 
-    const response = await fetch(`${GITHUB_API_BASE}/notifications`, {
-      method: 'PUT',
-      headers: {
-        ...this.headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        last_read_at: this.lastUpdate,
-      }),
+    const response = await retryRequest(async () => {
+      return await fetch(`${GITHUB_API_BASE}/notifications`, {
+        method: 'PUT',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          last_read_at: this.lastUpdate,
+        }),
+      });
     });
 
     this.updateRateLimit(response);
-
-    if (!response.ok && response.status !== 205) {
-      throw new Error(`Failed to mark all as read: ${response.status}`);
-    }
-
     return true;
   }
 }
