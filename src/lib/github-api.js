@@ -70,6 +70,7 @@ class GitHubAPI {
   constructor() {
     this.token = null;
     this.username = null;
+    this.userInfo = null; // Store complete user info for fallback avatar
     this.pollInterval = 60;
     this.lastUpdate = null;
     // Rate limiting state
@@ -325,6 +326,11 @@ class GitHubAPI {
     if (response.ok) {
       const data = await response.json();
       this.username = data.login;
+      this.userInfo = {
+        login: data.login,
+        avatar_url: data.avatar_url,
+        html_url: data.html_url
+      };
       return this.username;
     }
 
@@ -337,6 +343,7 @@ class GitHubAPI {
   logout() {
     this.token = null;
     this.username = null;
+    this.userInfo = null;
   }
 
   /**
@@ -485,7 +492,8 @@ class GitHubAPI {
           return {
             html_url: `${repo.html_url}/actions`,
             conclusion: result.conclusion,
-            status: result.status
+            status: result.status,
+            user: this.userInfo || repo.owner  // Fallback to current user, then repo owner
           };
         }
         case 'Discussion':
