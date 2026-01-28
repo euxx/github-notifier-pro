@@ -235,9 +235,19 @@ async function sendMessage(action, data = {}) {
 /**
  * Show a specific view
  */
-function showView(view) {
+async function showView(view) {
   loginView.hidden = view !== 'login';
   mainView.hidden = view !== 'main';
+
+  // Apply different widths for different views
+  if (view === 'login') {
+    // Fixed width for login view
+    document.body.style.width = '400px';
+  } else if (view === 'main') {
+    // Use saved width for main view
+    const width = await storage.getPopupWidth();
+    document.body.style.width = `${width}px`;
+  }
 }
 
 /**
@@ -823,7 +833,7 @@ async function login(authMethod = 'oauth', token = null) {
     usernameEl.textContent = result.username;
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
     renderNotifications(state.notifications);
-    showView('main');
+    await showView('main');
     // Start countdown timer after successful login
     startCountdown();
   } else {
@@ -898,7 +908,7 @@ async function logout() {
   stopCountdown();
   await sendMessage(MESSAGE_TYPES.LOGOUT);
   hideSettings();
-  showView('login');
+  await showView('login');
 }
 
 /**
@@ -935,11 +945,11 @@ async function init() {
     usernameEl.textContent = username;
 
     renderNotifications(state.notifications);
-    showView('main');
+    await showView('main');
     // Start countdown timer for next refresh
     startCountdown();
   } else {
-    showView('login');
+    await showView('login');
   }
 }
 
