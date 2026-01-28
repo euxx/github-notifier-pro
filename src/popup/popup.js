@@ -22,6 +22,7 @@ const mainView = document.getElementById('main-view');
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
 let cachedNotificationsJSON = null;
+let cachedRepoOrder = []; // Cache repo order to prevent resorting on mark-as-read
 
 // Auth method selection
 const authMethods = document.getElementById('auth-methods');
@@ -253,8 +254,10 @@ async function showView(view) {
 /**
  * Render notifications list (grouped by repository)
  * Optimized with caching to avoid unnecessary re-renders
+ * @param {Array} notifications - Array of notification objects
+ * @param {boolean} shouldResort - Whether to re-sort repos by time (true on refresh, false on mark-as-read)
  */
-function renderNotifications(notifications) {
+function renderNotifications(notifications, shouldResort = true) {
   // Check if notifications have actually changed
   const notificationsJSON = JSON.stringify(notifications);
   if (cachedNotificationsJSON === notificationsJSON) {
@@ -280,26 +283,50 @@ function renderNotifications(notifications) {
   emptyState.hidden = true;
   markAllBtn.disabled = false;
 
-  // Group notifications by repository
+  // Group notifications by repository and track latest time
   const groupedByRepo = {};
   for (const notif of notifications) {
     const repoFullName = notif.repository.full_name;
+    const notifTime = new Date(notif.updated_at).getTime();
+
     if (!groupedByRepo[repoFullName]) {
       groupedByRepo[repoFullName] = {
         repo: notif.repository,
         notifications: [],
-        firstNotifTime: notif.updated_at, // Use first notification's time
+        latestNotifTime: notifTime, // Initialize with first notification
       };
     }
+
     groupedByRepo[repoFullName].notifications.push(notif);
+
+    // Update latest time if this notification is newer
+    if (notifTime > groupedByRepo[repoFullName].latestNotifTime) {
+      groupedByRepo[repoFullName].latestNotifTime = notifTime;
+    }
   }
 
-  // Sort repos by first notification's time (most recent first)
-  const sortedRepos = Object.keys(groupedByRepo).sort((a, b) => {
-    const timeA = new Date(groupedByRepo[a].firstNotifTime);
-    const timeB = new Date(groupedByRepo[b].firstNotifTime);
-    return timeB - timeA; // Descending order (newest first)
-  });
+  // Sort repos by latest notification's time (most recent first)
+  let sortedRepos;
+  if (shouldResort) {
+    // Re-sort repos by time (on refresh)
+    sortedRepos = Object.keys(groupedByRepo).sort((a, b) => {
+      const timeA = groupedByRepo[a].latestNotifTime;
+      const timeB = groupedByRepo[b].latestNotifTime;
+      return timeB - timeA; // Descending order (newest first)
+    });
+    // Cache the new order
+    cachedRepoOrder = sortedRepos;
+  } else {
+    // Filter cached order to only include repos that still have notifications
+    const currentRepos = new Set(Object.keys(groupedByRepo));
+    sortedRepos = cachedRepoOrder.filter(repo => currentRepos.has(repo));
+    // Add any new repos that weren't in the cache (shouldn't happen often)
+    const cachedSet = new Set(cachedRepoOrder);
+    const newRepos = Object.keys(groupedByRepo).filter(repo => !cachedSet.has(repo));
+    if (newRepos.length > 0) {
+      sortedRepos = [...sortedRepos, ...newRepos];
+    }
+  }
 
   // Render each repository group
   for (const repoFullName of sortedRepos) {
@@ -779,13 +806,13 @@ async function refresh() {
   try {
     await sendMessage(MESSAGE_TYPES.REFRESH);
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-    renderNotifications(state.notifications);
+    renderNotifications(state.notifications, true); // Re-sort on refresh
   } catch (error) {
     console.error('Failed to refresh:', error);
 
     // Show appropriate error message based on error type
     const cachedNotifications = await storage.getNotifications();
-    renderNotifications(cachedNotifications);
+    renderNotifications(cachedNotifications, true); // Re-sort even on error
 
     let message = '';
     let className = 'error-message';
@@ -832,7 +859,7 @@ async function login(authMethod = 'oauth', token = null) {
   if (result.success) {
     usernameEl.textContent = result.username;
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-    renderNotifications(state.notifications);
+    renderNotifications(state.notifications, true); // Re-sort on login
     await showView('main');
     // Start countdown timer after successful login
     startCountdown();
@@ -944,7 +971,7 @@ async function init() {
     const username = state.username || await storage.getUsername() || 'User';
     usernameEl.textContent = username;
 
-    renderNotifications(state.notifications);
+    renderNotifications(state.notifications, true); // Re-sort on init
     await showView('main');
     // Start countdown timer for next refresh
     startCountdown();
@@ -1007,9 +1034,15 @@ markAllBtn.addEventListener('click', markAllAsRead);
 // This handles updates from background refresh or other sources
 browserStorage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.notifications && !mainView.hidden) {
+    const hasOngoingAnimations = document.querySelectorAll('.marking-read').length > 0;
+    if (hasOngoingAnimations) {
+      return; // Don't update, let the animation complete naturally
+    }
+
     // Auto-update notification list when storage changes
     const newNotifications = changes.notifications.newValue || [];
-    renderNotifications(newNotifications);
+    // Don't resort - keep existing order to prevent jumping
+    renderNotifications(newNotifications, false);
   }
 });
 
