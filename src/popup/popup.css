@@ -24,6 +24,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* Prevent layout shift during load */
   text-rendering: optimizeLegibility;
+  /* Use tabular figures for aligned numbers throughout the app */
+  font-variant-numeric: tabular-nums;
 }
 
 /* Only enable transitions after page load to prevent flash */
@@ -98,7 +100,6 @@ body.transitions-enabled * {
 .auth-method-card:hover {
   border-color: var(--primary-color);
   background: var(--bg-hover);
-  transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -200,7 +201,7 @@ body.transitions-enabled * {
   background: var(--bg-hover);
   border-radius: 3px;
   font-size: 11px;
-  font-family: 'SF Mono', Monaco, monospace;
+  font-family: ui-monospace, monospace;
 }
 
 .pat-actions {

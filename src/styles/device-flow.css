@@ -13,6 +13,8 @@ body {
   justify-content: center;
   min-height: 100vh;
   padding: 20px;
+  /* Use tabular figures for aligned numbers */
+  font-variant-numeric: tabular-nums;
 }
 
 .container {
@@ -50,7 +52,7 @@ p {
 }
 
 .device-code {
-  font-family: 'Courier New', monospace;
+  font-family: ui-monospace, monospace;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: 4px;
