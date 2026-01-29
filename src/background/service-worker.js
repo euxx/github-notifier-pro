@@ -123,17 +123,38 @@ function copyCachedDetails(baseData, existing) {
 }
 
 /**
+ * Track the version of the current notification fetch to prevent race conditions
+ * Incremented each time checkNotifications is called
+ */
+let notificationFetchVersion = 0;
+
+/**
  * Check for new notifications
+ *
+ * Race condition prevention:
+ * - Each fetch gets a unique version number
+ * - Only the most recent fetch can overwrite storage
+ * - Older detail fetches are discarded if a newer fetch has completed
  */
 async function checkNotifications() {
   if (!github.isAuthenticated) {
     return;
   }
 
+  // Increment version for this fetch to prevent race conditions
+  const currentFetchVersion = ++notificationFetchVersion;
+  console.log(`Starting notification fetch #${currentFetchVersion}`);
+
   try {
     const notifications = await github.getNotifications();
 
     if (notifications) {
+      // Check if a newer fetch has already started
+      if (currentFetchVersion < notificationFetchVersion) {
+        console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`);
+        return;
+      }
+
       // Get existing notifications to check for new ones
       const existingNotifications = await storage.getNotifications();
       const existingIds = new Set(existingNotifications.map(n => n.id));
@@ -157,6 +178,7 @@ async function checkNotifications() {
           },
           icon: getIconForType(n.subject.type),
           isNew: !existingIds.has(n.id), // Mark as new if not in existing set
+          _fetchVersion: currentFetchVersion, // Track which fetch this came from
         };
 
         // Pre-populate from existing cached data if available
@@ -167,6 +189,12 @@ async function checkNotifications() {
 
         return baseData;
       });
+
+      // Check again before saving (another fetch might have started)
+      if (currentFetchVersion < notificationFetchVersion) {
+        console.log(`Fetch #${currentFetchVersion} superseded before saving basic data, aborting`);
+        return;
+      }
 
       // Save basic data immediately - popup can display now
       await storage.setNotifications(basicProcessed);
@@ -203,21 +231,36 @@ async function checkNotifications() {
 
       // Wait for all details in background and update storage once
       Promise.all(detailPromises).then(async (results) => {
+        // Check if a newer fetch has completed while we were fetching details
+        if (currentFetchVersion < notificationFetchVersion) {
+          console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding detail updates`);
+          return; // Discard these results, newer data is already in storage
+        }
+
         const failedCount = results.filter(r => r.success === false).length;
         const cachedCount = results.filter(r => r.cached === true).length;
-        console.log(`Notification details: ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`);
+        console.log(`Notification details (fetch #${currentFetchVersion}): ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`);
 
-        // Update storage with all completed details
-        await storage.setNotifications(detailedNotifications);
+        // Double-check before final save
+        const currentStoredNotifications = await storage.getNotifications();
+        const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
+
+        if (currentFetchVersion >= storedVersion) {
+          // Update storage with all completed details
+          await storage.setNotifications(detailedNotifications);
+          console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+        } else {
+          console.log(`Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`);
+        }
       }).catch(error => {
-        console.error('Error fetching notification details:', error);
+        console.error(`Error fetching notification details (fetch #${currentFetchVersion}):`, error);
       });
 
       // Show desktop notifications for new items (using basic data)
       await showDesktopNotificationsForNew(basicProcessed);
     }
   } catch (error) {
-    console.error('Failed to check notifications:', error);
+    console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
 
     // Handle different error types with appropriate UI feedback
     if (error.message && error.message.includes('Rate limited')) {
