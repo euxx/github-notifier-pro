@@ -6,6 +6,7 @@ import * as storage from '../lib/storage.js';
 import github from '../lib/github-api.js';
 import { initTheme } from '../lib/theme.js';
 import { runtime } from '../lib/chrome-api.js';
+import { ANIMATION_DURATION } from '../lib/constants.js';
 
 const deviceCodeEl = document.getElementById('device-code');
 const copyBtn = document.getElementById('copy-btn');
@@ -38,14 +39,14 @@ async function startDeviceFlow() {
         navigator.clipboard.writeText(data.user_code).then(() => {
           copyBtn.textContent = '✓ Copied!';
 
-          // Wait 1 second before opening GitHub (let user see the "Copied!" message)
+          // Wait before opening GitHub (let user see the "Copied!" message)
           setTimeout(() => {
             window.open(verificationUri, '_blank');
-          }, 1000);
+          }, ANIMATION_DURATION.GITHUB_OPEN_DELAY);
 
           setTimeout(() => {
             copyBtn.textContent = 'Copy Code';
-          }, 4000);
+          }, ANIMATION_DURATION.COPY_FEEDBACK);
         }).catch(err => {
           console.error('Failed to auto-copy code:', err);
           // Still open GitHub even if copy fails
@@ -64,7 +65,7 @@ async function startDeviceFlow() {
           const minutes = Math.floor(remaining / 60);
           const seconds = remaining % 60;
           countdownEl.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }, 1000);
+        }, ANIMATION_DURATION.COUNTDOWN_INTERVAL);
       },
       onProgress: (progress) => {
         const minutes = Math.floor(progress.remainingTime / 60);
@@ -94,7 +95,7 @@ async function startDeviceFlow() {
       if (!window.closed) {
         window.location.href = runtime.getURL('src/popup/popup.html');
       }
-    }, 2000);
+    }, ANIMATION_DURATION.AUTO_CLOSE);
 
   } catch (error) {
     console.error('Device Flow error:', error);
@@ -112,7 +113,7 @@ copyBtn.addEventListener('click', async () => {
     copyBtn.textContent = '✓ Copied!';
     setTimeout(() => {
       copyBtn.textContent = 'Copy Code';
-    }, 2000);
+    }, ANIMATION_DURATION.AUTO_CLOSE);
   } catch (err) {
     console.error('Failed to copy:', err);
   }

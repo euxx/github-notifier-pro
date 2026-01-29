@@ -10,7 +10,9 @@ import {
   MESSAGE_TYPES,
   MIN_POPUP_WIDTH,
   MAX_POPUP_WIDTH,
-  POPUP_WIDTH_STEP
+  POPUP_WIDTH_STEP,
+  TIMING_THRESHOLDS,
+  TIME_CONVERSION
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
 import { formatReason, formatType, getNotificationStatus } from '../lib/format-utils.js';
@@ -85,7 +87,7 @@ async function updateCountdown() {
     const remaining = notificationAlarm.scheduledTime - now;
 
     // Detect alarm reset (when scheduledTime jumps to a future time)
-    if (lastAlarmTime && notificationAlarm.scheduledTime > lastAlarmTime + 5000) {
+    if (lastAlarmTime && notificationAlarm.scheduledTime > lastAlarmTime + TIMING_THRESHOLDS.ALARM_RESET_DETECTION) {
       // Alarm was reset, don't show the jump
       // Just update to the new time smoothly
     }
@@ -109,7 +111,7 @@ function startCountdown() {
   if (countdownInterval) {
     clearInterval(countdownInterval);
   }
-  countdownInterval = setInterval(updateCountdown, 1000);
+  countdownInterval = setInterval(updateCountdown, ANIMATION_DURATION.COUNTDOWN_INTERVAL);
 }
 
 function stopCountdown() {
@@ -585,7 +587,7 @@ function renderNotifications(notifications, shouldResort = true) {
           li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
           setTimeout(() => {
             li.style.backgroundColor = '';
-          }, 1000);
+          }, ANIMATION_DURATION.ERROR_BACKGROUND_FADE);
         }
       });
 
@@ -698,9 +700,9 @@ function formatTimeAgo(dateString) {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+  const diffMins = Math.floor(diffMs / TIME_CONVERSION.MS_TO_MINUTES);
+  const diffHours = Math.floor(diffMs / (60 * TIME_CONVERSION.MS_TO_MINUTES));
+  const diffDays = Math.floor(diffMs / (24 * 60 * TIME_CONVERSION.MS_TO_MINUTES));
 
   if (diffMins < 1) return 'now';
   if (diffMins < 60) return `${diffMins}m ago`;

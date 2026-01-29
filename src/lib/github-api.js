@@ -4,7 +4,7 @@
  */
 
 import { CLIENT_ID } from '../config/config.js';
-import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS } from './constants.js';
+import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS, API_TIMEOUTS, TIMING_THRESHOLDS, TIME_CONVERSION } from './constants.js';
 import { buildNotificationUrl } from './url-builder.js';
 
 /**
@@ -14,7 +14,7 @@ import { buildNotificationUrl } from './url-builder.js';
  * @param {number} timeout - Timeout in milliseconds (default: 30s)
  * @returns {Promise<Response>}
  */
-async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+async function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUTS.DEFAULT) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -41,7 +41,7 @@ async function fetchWithTimeout(url, options = {}, timeout = 30000) {
  * @param {number} baseDelay - Base delay in milliseconds
  * @returns {Promise<Response>}
  */
-async function retryFetch(fetchFn, maxRetries = 3, baseDelay = 1000) {
+async function retryFetch(fetchFn, maxRetries = 3, baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY) {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -75,7 +75,7 @@ async function retryFetch(fetchFn, maxRetries = 3, baseDelay = 1000) {
  * @param {number} baseDelay - Base delay in milliseconds (default: 500ms)
  * @returns {Promise<Response>}
  */
-async function retryRequest(fetchFn, maxRetries = 2, baseDelay = 500) {
+async function retryRequest(fetchFn, maxRetries = 2, baseDelay = API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY) {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -197,10 +197,10 @@ class GitHubAPI {
   getRateLimitInfo() {
     const info = { ...this.rateLimit };
     if (info.reset) {
-      const resetDate = new Date(info.reset * 1000);
+      const resetDate = new Date(info.reset * TIME_CONVERSION.MS_TO_SECONDS);
       const now = new Date();
       const diffMs = resetDate - now;
-      const diffMins = Math.ceil(diffMs / 60000);
+      const diffMins = Math.ceil(diffMs / TIME_CONVERSION.MS_TO_MINUTES);
 
       info.resetTime = resetDate.toLocaleTimeString();
       info.resetIn = diffMins > 0 ? `${diffMins} min` : 'soon';
@@ -379,7 +379,7 @@ class GitHubAPI {
   async fetchUsername() {
     const response = await fetchWithTimeout(`${GITHUB_API_BASE}/user`, {
       headers: this.headers,
-    }, 10000);
+    }, API_TIMEOUTS.USER_INFO);
 
     this.updateRateLimit(response);
 
@@ -514,7 +514,7 @@ class GitHubAPI {
               const runsUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/actions/runs?per_page=20`;
               const runsResp = await fetchWithTimeout(runsUrl, {
                 headers: this.headers,
-              }, 10000);
+              }, API_TIMEOUTS.USER_INFO);
 
               if (runsResp.ok) {
                 const runsData = await runsResp.json();
@@ -522,7 +522,7 @@ class GitHubAPI {
                 const notifTime = new Date(notification.updated_at).getTime();
                 const matchingRun = runsData.workflow_runs?.find(run =>
                   run.name === workflowName &&
-                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < 5 * 60 * 1000
+                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW
                 );
 
                 if (matchingRun?.actor) {
@@ -556,7 +556,7 @@ class GitHubAPI {
     const response = await retryFetch(async () => {
       const resp = await fetchWithTimeout(notification.subject.url, {
         headers: this.headers,
-      }, 15000);
+      }, API_TIMEOUTS.NOTIFICATION_DETAILS);
 
       if (!resp.ok) {
         throw new Error(`Failed to fetch notification details: ${resp.status}`);
