@@ -2,6 +2,8 @@
  * Formatting utilities for notifications
  */
 
+import { NOTIFICATION_TYPE_LABELS } from './constants.js';
+
 /**
  * Format notification reason to human-readable text
  */
@@ -27,17 +29,7 @@ export function formatReason(reason) {
  * Format notification type to human-readable text
  */
 export function formatType(type) {
-  const types = {
-    'Issue': 'Issue',
-    'PullRequest': 'Pull Request',
-    'Release': 'Release',
-    'Discussion': 'Discussion',
-    'Commit': 'Commit',
-    'CheckSuite': 'CI Activity',
-    'RepositoryVulnerabilityAlert': 'Security Alert',
-    'RepositoryDependabotAlertsThread': 'Dependabot Alert',
-  };
-  return types[type] || type || 'Notification';
+  return NOTIFICATION_TYPE_LABELS[type] || type || 'Notification';
 }
 
 /**

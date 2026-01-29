@@ -12,7 +12,8 @@ import {
   MAX_POPUP_WIDTH,
   POPUP_WIDTH_STEP,
   TIMING_THRESHOLDS,
-  TIME_CONVERSION
+  TIME_CONVERSION,
+  NOTIFICATION_TYPES
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
 import { formatReason, formatType, getNotificationStatus, escapeHtml, escapeAttr } from '../lib/format-utils.js';
@@ -372,7 +373,7 @@ function renderNotifications(notifications, shouldResort = true) {
       }
 
       // Pre-compute release body for performance
-      const releaseBody = notif.type === 'Release' && notif.body ? notif.body.trim() : '';
+      const releaseBody = notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : '';
 
       li.innerHTML = `
         <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">

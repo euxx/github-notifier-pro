@@ -4,7 +4,7 @@
  */
 
 import { CLIENT_ID } from '../config/config.js';
-import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS, API_TIMEOUTS, TIMING_THRESHOLDS, TIME_CONVERSION } from './constants.js';
+import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS, API_TIMEOUTS, TIMING_THRESHOLDS, TIME_CONVERSION, NOTIFICATION_TYPES } from './constants.js';
 import { buildNotificationUrl } from './url-builder.js';
 
 /**
@@ -502,7 +502,7 @@ class GitHubAPI {
       const html_url = buildNotificationUrl(notification);
 
       switch (subjectType) {
-        case 'CheckSuite': {
+        case NOTIFICATION_TYPES.CHECK_SUITE: {
           // GitHub doesn't provide subject.url for CheckSuite, parse from title
           const result = this.parseCheckSuiteStatus(notification.subject.title);
 

@@ -3,7 +3,7 @@
  * Centralized logic for constructing URLs from notification data
  */
 
-import { GITHUB_SITE_BASE } from './constants.js';
+import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from './constants.js';
 
 /**
  * Build URL for a GitHub notification
@@ -37,31 +37,31 @@ export function buildNotificationUrl(notification) {
   const type = notification.type;
 
   switch (type) {
-    case 'Issue':
+    case NOTIFICATION_TYPES.ISSUE:
       return buildIssueUrl(fullName, notification.number);
 
-    case 'PullRequest':
+    case NOTIFICATION_TYPES.PULL_REQUEST:
       return buildPullRequestUrl(fullName, notification.number);
 
-    case 'Release':
+    case NOTIFICATION_TYPES.RELEASE:
       return buildReleaseUrl(fullName);
 
-    case 'Commit':
+    case NOTIFICATION_TYPES.COMMIT:
       return buildCommitUrl(fullName, notification.url);
 
-    case 'Discussion':
+    case NOTIFICATION_TYPES.DISCUSSION:
       return buildDiscussionUrl(fullName);
 
-    case 'CheckSuite':
+    case NOTIFICATION_TYPES.CHECK_SUITE:
       return buildCheckSuiteUrl(fullName);
 
-    case 'RepositoryInvitation':
+    case NOTIFICATION_TYPES.REPOSITORY_INVITATION:
       return buildInvitationUrl(fullName);
 
-    case 'RepositoryVulnerabilityAlert':
+    case NOTIFICATION_TYPES.VULNERABILITY_ALERT:
       return buildVulnerabilityUrl(fullName);
 
-    case 'RepositoryDependabotAlertsThread':
+    case NOTIFICATION_TYPES.DEPENDABOT_ALERT:
       return buildDependabotUrl(fullName);
 
     default:

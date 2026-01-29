@@ -75,3 +75,40 @@ export const MESSAGE_TYPES = {
   MARK_ALL_AS_READ: 'markAllAsRead',
   REFRESH: 'refresh',
 };
+
+// GitHub Notification Types
+export const NOTIFICATION_TYPES = {
+  ISSUE: 'Issue',
+  PULL_REQUEST: 'PullRequest',
+  RELEASE: 'Release',
+  DISCUSSION: 'Discussion',
+  COMMIT: 'Commit',
+  CHECK_SUITE: 'CheckSuite',
+  VULNERABILITY_ALERT: 'RepositoryVulnerabilityAlert',
+  DEPENDABOT_ALERT: 'RepositoryDependabotAlertsThread',
+  REPOSITORY_INVITATION: 'RepositoryInvitation',
+};
+
+// Notification Type to Icon Name Mapping
+export const NOTIFICATION_TYPE_ICONS = {
+  [NOTIFICATION_TYPES.ISSUE]: 'issue',
+  [NOTIFICATION_TYPES.PULL_REQUEST]: 'pr',
+  [NOTIFICATION_TYPES.RELEASE]: 'release',
+  [NOTIFICATION_TYPES.DISCUSSION]: 'discussion',
+  [NOTIFICATION_TYPES.COMMIT]: 'commit',
+  [NOTIFICATION_TYPES.CHECK_SUITE]: 'actions',
+  [NOTIFICATION_TYPES.VULNERABILITY_ALERT]: 'alert',
+  [NOTIFICATION_TYPES.REPOSITORY_INVITATION]: 'repo',
+};
+
+// Notification Type to Human-Readable Name Mapping
+export const NOTIFICATION_TYPE_LABELS = {
+  [NOTIFICATION_TYPES.ISSUE]: 'Issue',
+  [NOTIFICATION_TYPES.PULL_REQUEST]: 'Pull Request',
+  [NOTIFICATION_TYPES.RELEASE]: 'Release',
+  [NOTIFICATION_TYPES.DISCUSSION]: 'Discussion',
+  [NOTIFICATION_TYPES.COMMIT]: 'Commit',
+  [NOTIFICATION_TYPES.CHECK_SUITE]: 'CI Activity',
+  [NOTIFICATION_TYPES.VULNERABILITY_ALERT]: 'Security Alert',
+  [NOTIFICATION_TYPES.DEPENDABOT_ALERT]: 'Dependabot Alert',
+};

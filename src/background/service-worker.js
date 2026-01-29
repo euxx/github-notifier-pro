@@ -5,7 +5,7 @@
 import github from '../lib/github-api.js';
 import * as storage from '../lib/storage.js';
 import { action, alarms, runtime, storage as browserStorage, tabs, notifications } from '../lib/chrome-api.js';
-import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib/constants.js';
+import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES, NOTIFICATION_TYPES, NOTIFICATION_TYPE_ICONS } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 import { buildNotificationUrl } from '../lib/url-builder.js';
 
@@ -157,12 +157,12 @@ async function updateBadge(count) {
  */
 function updateNotificationDetails(baseData, details, notifType) {
   // Set state/conclusion based on type
-  if (notifType === 'CheckSuite') {
+  if (notifType === NOTIFICATION_TYPES.CHECK_SUITE) {
     baseData.conclusion = details.conclusion;
     baseData.status = details.status;
   } else {
     baseData.state = details.state;
-    if (notifType === 'PullRequest' && details.merged) {
+    if (notifType === NOTIFICATION_TYPES.PULL_REQUEST && details.merged) {
       baseData.merged = true;
     }
   }
@@ -378,17 +378,7 @@ async function checkNotifications() {
  * Get icon name for notification type
  */
 function getIconForType(type) {
-  const icons = {
-    Issue: 'issue',
-    PullRequest: 'pr',
-    Release: 'release',
-    Discussion: 'discussion',
-    Commit: 'commit',
-    CheckSuite: 'actions',
-    RepositoryVulnerabilityAlert: 'alert',
-    RepositoryInvitation: 'repo',
-  };
-  return icons[type] || 'notification';
+  return NOTIFICATION_TYPE_ICONS[type] || 'notification';
 }
 
 /**
