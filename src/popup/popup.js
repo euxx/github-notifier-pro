@@ -26,6 +26,10 @@ let cachedNotifications = null;
 let cachedNotificationsJSON = null;
 let cachedRepoOrder = []; // Cache repo order to prevent resorting on mark-as-read
 
+// Track last user action to prevent race conditions with storage updates
+let lastUserActionTime = 0;
+let lastAnimationDuration = 400; // Default to single notification animation duration
+
 // Auth method selection
 const authMethods = document.getElementById('auth-methods');
 const oauthMethod = document.getElementById('oauth-method');
@@ -470,6 +474,10 @@ function renderNotifications(notifications, shouldResort = true) {
         markReadBtn.disabled = true;
         markReadBtn.textContent = '✓';
 
+        // Track user action to prevent storage listener race condition
+        lastAnimationDuration = ANIMATION_DURATION.FADE_OUT + ANIMATION_DURATION.SLIDE_UP;
+        lastUserActionTime = Date.now();
+
         // Start fade-out animation immediately (don't wait for API)
         li.classList.add('fade-out');
 
@@ -754,6 +762,14 @@ async function markAllAsRead() {
     if (result.success) {
       // Fade out all notifications
       const items = notificationsList.querySelectorAll('.notification-item');
+
+      // Calculate total animation duration for this operation
+      const animationDuration = items.length * ANIMATION_DURATION.STAGGER_DELAY + 300;
+      lastAnimationDuration = animationDuration;
+
+      // Track user action to prevent storage listener race condition
+      lastUserActionTime = Date.now();
+
       items.forEach((item, index) => {
         setTimeout(() => {
           item.style.transition = 'opacity 0.3s';
@@ -767,7 +783,7 @@ async function markAllAsRead() {
         emptyState.hidden = false;
         markAllBtn.disabled = true;
         markAllBtn.innerHTML = originalText;
-      }, items.length * ANIMATION_DURATION.STAGGER_DELAY + 300);
+      }, animationDuration);
     }
   } catch (error) {
     // Restore on error
@@ -1020,9 +1036,13 @@ markAllBtn.addEventListener('click', markAllAsRead);
 // This handles updates from background refresh or other sources
 browserStorage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.notifications && !mainView.hidden) {
+    // Prevent race condition: ignore updates during and shortly after user actions
+    const timeSinceUserAction = Date.now() - lastUserActionTime;
     const hasOngoingAnimations = document.querySelectorAll('.marking-read').length > 0;
-    if (hasOngoingAnimations) {
-      return; // Don't update, let the animation complete naturally
+
+    // Use dynamic animation duration to cover both single and bulk operations
+    if (hasOngoingAnimations || timeSinceUserAction < lastAnimationDuration) {
+      return;
     }
 
     // Auto-update notification list when storage changes
