@@ -173,6 +173,9 @@ async function checkNotifications() {
       await updateBadge(basicProcessed.length);
 
       // Second pass: Fetch details asynchronously for new/updated notifications
+      // Create a deep copy to avoid race conditions with concurrent updates
+      const detailedNotifications = basicProcessed.map(n => ({ ...n }));
+
       // Collect results and update storage once when all details are fetched
       const detailPromises = notifications.map(async (n, index) => {
         const existing = existingMap.get(n.id);
@@ -182,16 +185,16 @@ async function checkNotifications() {
           try {
             const details = await github.getNotificationDetails(n);
 
-            // Update the notification with details in-place
-            updateNotificationDetails(basicProcessed[index], details, n.subject.type);
+            // Update the notification copy with details
+            updateNotificationDetails(detailedNotifications[index], details, n.subject.type);
             return { success: true, id: n.id };
           } catch (error) {
             console.error(`Failed to fetch details for notification ${n.id}:`, error);
             // Mark as failed
             if (n.subject.type !== 'CheckSuite') {
-              basicProcessed[index].state = 'open';
+              detailedNotifications[index].state = 'open';
             }
-            basicProcessed[index].detailsFailed = true;
+            detailedNotifications[index].detailsFailed = true;
             return { success: false, id: n.id, error: error.message };
           }
         }
@@ -205,7 +208,7 @@ async function checkNotifications() {
         console.log(`Notification details: ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`);
 
         // Update storage with all completed details
-        await storage.setNotifications(basicProcessed);
+        await storage.setNotifications(detailedNotifications);
       }).catch(error => {
         console.error('Error fetching notification details:', error);
       });
