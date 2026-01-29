@@ -1048,6 +1048,11 @@ browserStorage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+// Cleanup countdown timer when popup closes
+window.addEventListener('beforeunload', () => {
+  stopCountdown();
+});
+
 // Pre-apply theme to prevent flash on load
 (async () => {
   await preloadTheme();
