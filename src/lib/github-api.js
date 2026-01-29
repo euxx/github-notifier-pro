@@ -35,92 +35,84 @@ async function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUTS.DEFAUL
 }
 
 /**
- * Retry a fetch request with exponential backoff
+ * Unified retry function with configurable strategy
  * @param {Function} fetchFn - Function that returns a fetch promise
- * @param {number} maxRetries - Maximum number of retries
- * @param {number} baseDelay - Base delay in milliseconds
+ * @param {Object} options - Retry options
+ * @param {number} options.maxRetries - Maximum number of retries (default: 3)
+ * @param {number} options.baseDelay - Base delay in milliseconds (default: 1000)
+ * @param {string} options.backoff - Backoff strategy: 'exponential' or 'linear' (default: 'exponential')
+ * @param {Array<number>} options.retryOn - HTTP status codes to retry on (default: [401, 429, 500+])
+ * @param {boolean} options.checkResponse - Whether to check response.ok (default: true)
  * @returns {Promise<Response>}
  */
-async function retryFetch(fetchFn, maxRetries = 3, baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY) {
-  let lastError;
+async function retryWithStrategy(fetchFn, options = {}) {
+  const {
+    maxRetries = 3,
+    baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY,
+    backoff = 'exponential',
+    retryOn = [401, 429],
+    checkResponse = true
+  } = options;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fetchFn();
-    } catch (error) {
-      lastError = error;
-
-      // Don't retry on last attempt
-      if (attempt === maxRetries) break;
-
-      // Don't retry on certain errors (4xx errors except 429)
-      if (error.message && error.message.includes('40') && !error.message.includes('429')) {
-        throw error; // Authentication, permission errors - don't retry
-      }
-
-      // Exponential backoff: 1s, 2s, 4s
-      const delay = baseDelay * Math.pow(2, attempt);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-
-  throw lastError;
-}
-
-/**
- * Retry request with support for transient 401 errors
- * Some operations may encounter temporary 401 errors that succeed on retry
- * @param {Function} fetchFn - Function that returns a fetch promise
- * @param {number} maxRetries - Maximum number of retries (default: 2)
- * @param {number} baseDelay - Base delay in milliseconds (default: 500ms)
- * @returns {Promise<Response>}
- */
-async function retryRequest(fetchFn, maxRetries = 2, baseDelay = API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY) {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetchFn();
 
-      // Success case
-      if (response.ok || response.status === 205) {
+      // If checking response and got a response object
+      if (checkResponse && response && typeof response.status === 'number') {
+        // Success cases
+        if (response.ok || response.status === 205) {
+          return response;
+        }
+
+        // Check if we should retry this status code
+        const shouldRetry = retryOn.includes(response.status) ||
+                          (response.status >= 500 && retryOn.includes(500));
+
+        if (!shouldRetry || attempt === maxRetries) {
+          // Don't retry or last attempt - throw error
+          const error = new Error(`Request failed: ${response.status}`);
+          error.response = response;
+          throw error;
+        }
+
+        // Will retry - continue to delay logic below
+        lastError = new Error(`Request failed: ${response.status}`);
+        lastError.response = response;
+      } else {
+        // No response checking needed or successful
         return response;
       }
-
-      // Create error for non-OK responses
-      lastError = new Error(`Request failed: ${response.status}`);
-      lastError.response = response;
-
-      // Retry on 401 (transient auth issues) and 5xx errors
-      if (response.status === 401 || response.status >= 500) {
-        if (attempt < maxRetries) {
-          // Linear backoff: 500ms, 1000ms
-          await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
-          continue;
-        }
-      }
-
-      // For other errors (403, 404, etc.), throw immediately
-      throw lastError;
     } catch (error) {
       lastError = error;
 
-      // If it's already our custom error with response, handle retry logic
+      // Last attempt - throw immediately
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+
+      // Don't retry on 40x errors (except those in retryOn list)
       if (error.response) {
-        // Already handled above, just rethrow on last attempt
-        if (attempt === maxRetries) throw error;
-        continue;
+        const status = error.response.status;
+        const shouldRetry = retryOn.includes(status) ||
+                          (status >= 500 && retryOn.includes(500));
+
+        if (!shouldRetry && status >= 400 && status < 500) {
+          throw error;
+        }
       }
 
-      // Network errors - retry
-      if (attempt < maxRetries && (error.message.includes('fetch') || error.message.includes('network'))) {
-        await new Promise(resolve => setTimeout(resolve, baseDelay * (attempt + 1)));
-        continue;
-      }
-
-      // Last attempt or non-retryable error
-      if (attempt === maxRetries) throw lastError;
+      // Network errors or retryable errors - continue to retry
     }
+
+    // Calculate delay based on backoff strategy
+    const delay = backoff === 'exponential'
+      ? baseDelay * Math.pow(2, attempt)
+      : baseDelay * (attempt + 1);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   throw lastError;
@@ -430,7 +422,7 @@ class GitHubAPI {
     // Add timestamp to prevent caching
     url.searchParams.set('_t', Date.now().toString());
 
-    const response = await retryFetch(async () => {
+    const response = await retryWithStrategy(async () => {
       const resp = await fetchWithTimeout(url.toString(), {
         headers: this.headers,
         cache: 'no-store', // Force no cache
@@ -441,6 +433,12 @@ class GitHubAPI {
       }
 
       return resp;
+    }, {
+      maxRetries: 3,
+      baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
+      backoff: 'exponential',
+      retryOn: [429, 500],
+      checkResponse: false // Already checking resp.ok above
     });
 
     this.updateRateLimit(response);
@@ -553,7 +551,7 @@ class GitHubAPI {
       }
     }
 
-    const response = await retryFetch(async () => {
+    const response = await retryWithStrategy(async () => {
       const resp = await fetchWithTimeout(notification.subject.url, {
         headers: this.headers,
       }, API_TIMEOUTS.NOTIFICATION_DETAILS);
@@ -563,7 +561,13 @@ class GitHubAPI {
       }
 
       return resp;
-    }, 2);
+    }, {
+      maxRetries: 2,
+      baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
+      backoff: 'exponential',
+      retryOn: [429, 500],
+      checkResponse: false // Already checking resp.ok above
+    });
 
     this.updateRateLimit(response);
     return await response.json();
@@ -575,11 +579,17 @@ class GitHubAPI {
   async markAsRead(threadId) {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
-    const response = await retryRequest(async () => {
+    const response = await retryWithStrategy(async () => {
       return await fetch(url, {
         method: 'PATCH',
         headers: this.headers,
       });
+    }, {
+      maxRetries: 2,
+      baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+      backoff: 'linear',
+      retryOn: [401, 500],
+      checkResponse: true
     });
 
     this.updateRateLimit(response);
@@ -594,7 +604,7 @@ class GitHubAPI {
       this.lastUpdate = new Date().toISOString();
     }
 
-    const response = await retryRequest(async () => {
+    const response = await retryWithStrategy(async () => {
       return await fetch(`${GITHUB_API_BASE}/notifications`, {
         method: 'PUT',
         headers: {
@@ -605,6 +615,12 @@ class GitHubAPI {
           last_read_at: this.lastUpdate,
         }),
       });
+    }, {
+      maxRetries: 2,
+      baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+      backoff: 'linear',
+      retryOn: [401, 500],
+      checkResponse: true
     });
 
     this.updateRateLimit(response);
