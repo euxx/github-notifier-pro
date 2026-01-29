@@ -456,8 +456,8 @@ notifications.onClicked.addListener(async (notificationId) => {
     const githubNotifId = notificationId.replace('github-notif-', '');
 
     // Get all notifications to find the one that was clicked
-    const notifications = await storage.getNotifications();
-    const notification = notifications.find(n => n.id === githubNotifId);
+    const notificationsList = await storage.getNotifications();
+    const notification = notificationsList.find(n => n.id === githubNotifId);
 
     if (notification) {
       // Open the notification URL
@@ -467,7 +467,7 @@ notifications.onClicked.addListener(async (notificationId) => {
       await github.markAsRead(githubNotifId);
 
       // Update stored notifications
-      const updatedNotifications = notifications.filter(n => n.id !== githubNotifId);
+      const updatedNotifications = notificationsList.filter(n => n.id !== githubNotifId);
       await storage.setNotifications(updatedNotifications);
       await updateBadge(updatedNotifications.length);
     }
