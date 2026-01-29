@@ -22,3 +22,62 @@ export function formatReason(reason) {
   };
   return reasons[reason] || reason || 'Unknown';
 }
+
+/**
+ * Format notification type to human-readable text
+ */
+export function formatType(type) {
+  const types = {
+    'Issue': 'Issue',
+    'PullRequest': 'Pull Request',
+    'Release': 'Release',
+    'Discussion': 'Discussion',
+    'Commit': 'Commit',
+    'CheckSuite': 'CI Activity',
+    'RepositoryVulnerabilityAlert': 'Security Alert',
+    'RepositoryDependabotAlertsThread': 'Dependabot Alert',
+  };
+  return types[type] || type || 'Notification';
+}
+
+/**
+ * Format notification state to human-readable text
+ */
+export function formatState(state) {
+  if (!state) return '';
+  const states = {
+    'open': 'Open',
+    'closed': 'Closed',
+    'merged': 'Merged',
+    'success': 'Success',
+    'failure': 'Failure',
+    'cancelled': 'Cancelled',
+    'skipped': 'Skipped',
+    'pending': 'Pending',
+  };
+  return states[state] || state;
+}
+
+/**
+ * Get notification status text (type + state)
+ */
+export function getNotificationStatus(notif) {
+  const type = formatType(notif.type);
+
+  // For CI/Actions
+  if (notif.conclusion) {
+    return `${type} (${formatState(notif.conclusion)})`;
+  }
+
+  // For PRs - check merged first
+  if (notif.merged) {
+    return `${type} (Merged)`;
+  }
+
+  // For Issues and PRs
+  if (notif.state) {
+    return `${type} (${formatState(notif.state)})`;
+  }
+
+  return type;
+}

@@ -13,7 +13,7 @@ import {
   POPUP_WIDTH_STEP
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
-import { formatReason } from '../lib/format-utils.js';
+import { formatReason, formatType, getNotificationStatus } from '../lib/format-utils.js';
 
 // Elements
 const loginView = document.getElementById('login-view');
@@ -369,7 +369,7 @@ function renderNotifications(notifications, shouldResort = true) {
       const releaseBody = notif.type === 'Release' && notif.body ? notif.body.trim() : '';
 
       li.innerHTML = `
-        <div class="notification-icon ${iconClass}">
+        <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">
           ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion)}
         </div>
         <div class="notification-content">
