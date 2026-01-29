@@ -9,6 +9,12 @@ import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib
 import { formatReason } from '../lib/format-utils.js';
 
 /**
+ * In-memory cache for author information
+ * Key: author login, Value: { login, avatar_url, html_url }
+ */
+const authorCache = new Map();
+
+/**
  * Initialize extension state from storage
  */
 async function initialize() {
@@ -19,10 +25,31 @@ async function initialize() {
     if (username) {
       github.username = username;
     }
+
+    // Populate author cache from existing notifications
+    await initializeAuthorCache();
+
     await startPolling();
     await checkNotifications();
   } else {
     await updateBadge(null);
+  }
+}
+
+/**
+ * Initialize author cache from stored notifications
+ * This provides instant avatar display for known authors
+ */
+async function initializeAuthorCache() {
+  try {
+    const notifications = await storage.getNotifications();
+    for (const notif of notifications) {
+      if (notif.author && notif.author.login) {
+        authorCache.set(notif.author.login, notif.author);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to initialize author cache:', error);
   }
 }
 
@@ -60,11 +87,15 @@ function updateNotificationDetails(baseData, details, notifType) {
   // Extract author from user or author field
   const authorData = details.user || details.author;
   if (authorData) {
-    baseData.author = {
+    const author = {
       login: authorData.login,
       avatar_url: authorData.avatar_url,
       html_url: authorData.html_url
     };
+    baseData.author = author;
+
+    // Cache author data for future use
+    authorCache.set(authorData.login, author);
   }
 
   // Copy additional fields if present
@@ -84,6 +115,11 @@ function copyCachedDetails(baseData, existing) {
       baseData[key] = existing[key];
     }
   });
+
+  // Also populate author cache if we have author data
+  if (existing.author && existing.author.login) {
+    authorCache.set(existing.author.login, existing.author);
+  }
 }
 
 /**
@@ -103,8 +139,9 @@ async function checkNotifications() {
       const existingIds = new Set(existingNotifications.map(n => n.id));
       const existingMap = new Map(existingNotifications.map(n => [n.id, n]));
 
-      // Process notifications - add normalized type and icon
-      const processed = await Promise.all(notifications.map(async (n) => {
+      // First pass: Create basic notification data immediately
+      const basicProcessed = notifications.map((n) => {
+        const existing = existingMap.get(n.id);
         const baseData = {
           id: n.id,
           title: n.subject.title,
@@ -122,39 +159,59 @@ async function checkNotifications() {
           isNew: !existingIds.has(n.id), // Mark as new if not in existing set
         };
 
-        // Fetch details for all notifications to get author information
-        // Only fetch if it's a new notification or updated_at changed
-        const existing = existingMap.get(n.id);
-        const needsUpdate = !existing || existing.updated_at !== n.updated_at;
-        const shouldFetchDetails = true;
-
-        if (shouldFetchDetails) {
-          if (needsUpdate) {
-            try {
-              const details = await github.getNotificationDetails(n);
-              updateNotificationDetails(baseData, details, n.subject.type);
-            } catch (error) {
-              console.error(`Failed to fetch details for notification ${n.id}:`, error);
-              // Fallback to default state if fetch fails
-              if (n.subject.type !== 'CheckSuite') {
-                baseData.state = 'open';
-              }
-              baseData.detailsFailed = true; // Mark that details fetch failed
-            }
-          } else if (existing) {
-            // Reuse existing state if we didn't fetch new details
-            copyCachedDetails(baseData, existing);
-          }
+        // Pre-populate from existing cached data if available
+        // This provides instant display for cached data
+        if (existing) {
+          copyCachedDetails(baseData, existing);
         }
 
         return baseData;
-      }));
+      });
 
-      await storage.setNotifications(processed);
-      await updateBadge(processed.length);
+      // Save basic data immediately - popup can display now
+      await storage.setNotifications(basicProcessed);
+      await updateBadge(basicProcessed.length);
 
-      // Show desktop notifications for new items
-      await showDesktopNotificationsForNew(processed);
+      // Second pass: Fetch details asynchronously for new/updated notifications
+      // Collect results and update storage once when all details are fetched
+      const detailPromises = notifications.map(async (n, index) => {
+        const existing = existingMap.get(n.id);
+        const needsUpdate = !existing || existing.updated_at !== n.updated_at;
+
+        if (needsUpdate) {
+          try {
+            const details = await github.getNotificationDetails(n);
+
+            // Update the notification with details in-place
+            updateNotificationDetails(basicProcessed[index], details, n.subject.type);
+            return { success: true, id: n.id };
+          } catch (error) {
+            console.error(`Failed to fetch details for notification ${n.id}:`, error);
+            // Mark as failed
+            if (n.subject.type !== 'CheckSuite') {
+              basicProcessed[index].state = 'open';
+            }
+            basicProcessed[index].detailsFailed = true;
+            return { success: false, id: n.id, error: error.message };
+          }
+        }
+        return { success: true, id: n.id, cached: true };
+      });
+
+      // Wait for all details in background and update storage once
+      Promise.all(detailPromises).then(async (results) => {
+        const failedCount = results.filter(r => r.success === false).length;
+        const cachedCount = results.filter(r => r.cached === true).length;
+        console.log(`Notification details: ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`);
+
+        // Update storage with all completed details
+        await storage.setNotifications(basicProcessed);
+      }).catch(error => {
+        console.error('Error fetching notification details:', error);
+      });
+
+      // Show desktop notifications for new items (using basic data)
+      await showDesktopNotificationsForNew(basicProcessed);
     }
   } catch (error) {
     console.error('Failed to check notifications:', error);
