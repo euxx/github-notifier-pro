@@ -7,6 +7,7 @@ import * as storage from '../lib/storage.js';
 import { action, alarms, runtime, storage as browserStorage, tabs, notifications } from '../lib/chrome-api.js';
 import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
+import { buildNotificationUrl } from '../lib/url-builder.js';
 
 /**
  * LRU (Least Recently Used) Cache implementation
@@ -539,8 +540,8 @@ async function openNotification(notificationId) {
     throw new Error('Notification not found');
   }
 
-  // Get URL (with fallback logic)
-  const url = getNotificationUrl(notification);
+  // Build URL using centralized builder
+  const url = buildNotificationUrl(notification);
 
   // Open tab immediately
   await tabs.create({ url });
@@ -651,8 +652,9 @@ notifications.onClicked.addListener(async (notificationId) => {
     const notification = notificationsList.find(n => n.id === githubNotifId);
 
     if (notification) {
-      // Open the notification URL
-      await openNotificationUrl(notification);
+      // Build and open URL using centralized builder
+      const url = buildNotificationUrl(notification);
+      await tabs.create({ url });
 
       // Mark as read
       await github.markAsRead(githubNotifId);
@@ -670,50 +672,7 @@ notifications.onClicked.addListener(async (notificationId) => {
   }
 });
 
-/**
- * Get notification URL with fallback logic
- */
-function getNotificationUrl(notification) {
-  // Return cached URL if available
-  if (notification.html_url) {
-    return notification.html_url;
-  }
-
-  // Otherwise, construct URL based on notification type
-  const fullName = notification.repository.full_name;
-  const type = notification.type;
-
-  // For PRs and Issues, construct URL from number
-  if ((type === 'PullRequest' || type === 'Issue') && notification.number) {
-    const issueOrPr = type === 'PullRequest' ? 'pull' : 'issues';
-    return `https://github.com/${fullName}/${issueOrPr}/${notification.number}`;
-  }
-  // For releases
-  else if (type === 'Release') {
-    return `https://github.com/${fullName}/releases`;
-  }
-  // For commits
-  else if (type === 'Commit') {
-    // Extract SHA from URL (usually in subject.url)
-    const match = notification.url?.match(/commits\/([a-f0-9]+)/);
-    if (match) {
-      return `https://github.com/${fullName}/commit/${match[1]}`;
-    }
-  }
-
-  // Fallback to repository URL
-  return notification.repository.html_url;
-}
-
-/**
- * Open notification URL in browser
- */
-async function openNotificationUrl(notification) {
-  const url = getNotificationUrl(notification);
-  if (url) {
-    await tabs.create({ url });
-  }
-}
+// URL construction is now handled by centralized url-builder.js module
 
 // Initialize on startup
 initialize();

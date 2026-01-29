@@ -5,6 +5,7 @@
 
 import { CLIENT_ID } from '../config/config.js';
 import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS } from './constants.js';
+import { buildNotificationUrl } from './url-builder.js';
 
 /**
  * Create a fetch request with timeout
@@ -491,34 +492,25 @@ class GitHubAPI {
   }
 
   /**
-   * Get notification details (for URL resolution)
+   * Get notification details (including URL and metadata)
    */
   async getNotificationDetails(notification) {
     const subjectType = notification.subject.type;
     const repo = notification.repository;
 
-    // Handle special types without subject URL
     if (!notification.subject.url) {
+      const html_url = buildNotificationUrl(notification);
+
       switch (subjectType) {
-        case 'RepositoryInvitation':
-          return { html_url: `${repo.html_url}/invitations` };
-        case 'RepositoryVulnerabilityAlert':
-          return { html_url: `${repo.html_url}/network/dependencies` };
-        case 'RepositoryDependabotAlertsThread':
-          return { html_url: `${repo.html_url}/security/dependabot` };
         case 'CheckSuite': {
-          // Extract conclusion from title since GitHub doesn't provide subject.url for CheckSuite
-          // Title format: "XXX workflow run {succeeded|failed|cancelled|skipped} for YYY branch"
+          // GitHub doesn't provide subject.url for CheckSuite, parse from title
           const result = this.parseCheckSuiteStatus(notification.subject.title);
 
-          // Try to find the workflow run to get actor information
-          // Parse workflow name from title (e.g., "Build and Push API Image workflow run succeeded for stream branch")
           const titleMatch = notification.subject.title.match(/^(.+?) workflow run/);
           const workflowName = titleMatch ? titleMatch[1].trim() : null;
 
           if (workflowName) {
             try {
-              // Get recent workflow runs for this repo
               const runsUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/actions/runs?per_page=20`;
               const runsResp = await fetchWithTimeout(runsUrl, {
                 headers: this.headers,
@@ -526,16 +518,16 @@ class GitHubAPI {
 
               if (runsResp.ok) {
                 const runsData = await runsResp.json();
-                // Find matching run by name and time (within 5 minutes)
+                // Match by name and time (5 min window)
                 const notifTime = new Date(notification.updated_at).getTime();
                 const matchingRun = runsData.workflow_runs?.find(run =>
                   run.name === workflowName &&
-                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < 5 * 60 * 1000 // 5 min
+                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < 5 * 60 * 1000
                 );
 
                 if (matchingRun?.actor) {
                   return {
-                    html_url: matchingRun.html_url || `${repo.html_url}/actions`,
+                    html_url: matchingRun.html_url || html_url,
                     conclusion: result.conclusion,
                     status: result.status,
                     user: matchingRun.actor,
@@ -549,31 +541,29 @@ class GitHubAPI {
           }
 
           return {
-            html_url: `${repo.html_url}/actions`,
+            html_url,
             conclusion: result.conclusion,
             status: result.status,
-            user: this.userInfo || repo.owner  // Fallback to current user, then repo owner
+            user: this.userInfo || repo.owner
           };
         }
-        case 'Discussion':
-          return { html_url: `${repo.html_url}/discussions` };
+
         default:
           return { html_url: repo.html_url };
       }
     }
 
-    // Fetch subject details with retry
     const response = await retryFetch(async () => {
       const resp = await fetchWithTimeout(notification.subject.url, {
         headers: this.headers,
-      }, 15000); // Shorter timeout for details
+      }, 15000);
 
       if (!resp.ok) {
         throw new Error(`Failed to fetch notification details: ${resp.status}`);
       }
 
       return resp;
-    }, 2); // Only 2 retries for details (less critical)
+    }, 2);
 
     this.updateRateLimit(response);
     return await response.json();
