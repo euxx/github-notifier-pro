@@ -24,8 +24,20 @@ const mainView = document.getElementById('main-view');
 
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
-let cachedNotificationsJSON = null;
+let cachedNotificationsHash = null; // Lightweight hash for comparison
 let cachedRepoOrder = []; // Cache repo order to prevent resorting on mark-as-read
+
+/**
+ * Create a lightweight hash of notifications for change detection
+ * Uses IDs and updated_at timestamps (much faster than JSON.stringify)
+ * @param {Array} notifications - Array of notification objects
+ * @returns {string} Hash string
+ */
+function createNotificationsHash(notifications) {
+  if (!notifications || notifications.length === 0) return 'empty';
+  // Concatenate id:updated_at pairs
+  return notifications.map(n => `${n.id}:${n.updated_at}`).join('|');
+}
 
 // Track last user action to prevent race conditions with storage updates
 let lastUserActionTime = 0;
@@ -265,16 +277,16 @@ async function showView(view) {
  * @param {boolean} shouldResort - Whether to re-sort repos by time (true on refresh, false on mark-as-read)
  */
 function renderNotifications(notifications, shouldResort = true) {
-  // Check if notifications have actually changed
-  const notificationsJSON = JSON.stringify(notifications);
-  if (cachedNotificationsJSON === notificationsJSON) {
+  // Check if notifications have actually changed (lightweight hash comparison)
+  const notificationsHash = createNotificationsHash(notifications);
+  if (cachedNotificationsHash === notificationsHash) {
     // Data hasn't changed, skip re-render
     return;
   }
 
   // Update cache
   cachedNotifications = notifications;
-  cachedNotificationsJSON = notificationsJSON;
+  cachedNotificationsHash = notificationsHash;
 
   // Clear old hover cards
   document.querySelectorAll('.notification-hover-card').forEach(card => card.remove());
@@ -1017,7 +1029,7 @@ hoverCardsToggle.addEventListener('change', async () => {
   if (cachedNotifications) {
     // Force re-render by clearing cache
     const notifications = cachedNotifications;
-    cachedNotificationsJSON = null;
+    cachedNotificationsHash = null;
     renderNotifications(notifications);
   }
 });
