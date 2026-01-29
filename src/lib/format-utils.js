@@ -81,3 +81,19 @@ export function getNotificationStatus(notif) {
 
   return type;
 }
+
+/**
+ * Escape HTML to prevent XSS
+ */
+export function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * Escape HTML attributes to prevent XSS
+ */
+export function escapeAttr(text) {
+  return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}

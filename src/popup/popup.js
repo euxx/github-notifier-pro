@@ -15,7 +15,7 @@ import {
   TIME_CONVERSION
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
-import { formatReason, formatType, getNotificationStatus } from '../lib/format-utils.js';
+import { formatReason, formatType, getNotificationStatus, escapeHtml, escapeAttr } from '../lib/format-utils.js';
 
 // Elements
 const loginView = document.getElementById('login-view');
@@ -675,22 +675,6 @@ function positionHoverCard(listItem) {
   card.style.left = 'auto';
 
   card.classList.add('visible');
-}
-
-/**
- * Escape HTML to prevent XSS
- */
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-/**
- * Escape HTML attributes to prevent XSS
- */
-function escapeAttr(text) {
-  return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /**
