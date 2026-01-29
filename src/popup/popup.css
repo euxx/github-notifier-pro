@@ -718,7 +718,7 @@ body.dark-theme .notification-hover-card {
 }
 
 .notification-time {
-  width: 50px; /* Fixed width for alignment (e.g., "999d ago") */
+  width: 55px; /* Increased width to fit full dates (e.g., "12/31/2026") */
   text-align: right;
   flex-shrink: 0;
 }
