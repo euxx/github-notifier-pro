@@ -35,8 +35,8 @@ let cachedRepoOrder = []; // Cache repo order to prevent resorting on mark-as-re
  */
 function createNotificationsHash(notifications) {
   if (!notifications || notifications.length === 0) return 'empty';
-  // Concatenate id:updated_at pairs
-  return notifications.map(n => `${n.id}:${n.updated_at}`).join('|');
+  // Include author to detect when detailed info is loaded
+  return notifications.map(n => `${n.id}:${n.updated_at}:${n.author?.login || ''}`).join('|');
 }
 
 // Track last user action to prevent race conditions with storage updates
@@ -877,9 +877,9 @@ async function login(authMethod = 'oauth', token = null) {
 
   if (result.success) {
     usernameEl.textContent = result.username;
+    await showView('main');  // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-    renderNotifications(state.notifications, true); // Re-sort on login
-    await showView('main');
+    renderNotifications(state.notifications, true); // Then render notifications
     // Start countdown timer after successful login
     startCountdown();
   } else {
