@@ -153,6 +153,10 @@ async function showSettings() {
     settingsUsernameEl.textContent = username;
   }
 
+  // Load popup width setting
+  const width = await storage.getPopupWidth();
+  popupWidthInput.value = width;
+
   // Load hover cards setting
   const showCards = await storage.getShowHoverCards();
   hoverCardsToggle.checked = showCards;
@@ -965,9 +969,6 @@ async function preloadTheme() {
  * Initialize popup
  */
 async function init() {
-  // Apply saved popup width
-  await applyPopupSize();
-
   // Load hover cards setting
   showHoverCards = await storage.getShowHoverCards();
 
@@ -987,11 +988,11 @@ async function init() {
     usernameEl.textContent = username;
 
     renderNotifications(state.notifications, true); // Re-sort on init
-    await showView('main');
+    await showView('main');  // This will apply saved width
     // Start countdown timer for next refresh
     startCountdown();
   } else {
-    await showView('login');
+    await showView('login');  // This will set 400px width
   }
 }
 
@@ -1073,12 +1074,10 @@ window.addEventListener('beforeunload', () => {
 // Pre-apply theme to prevent flash on load
 (async () => {
   await preloadTheme();
-  // Apply popup width immediately
-  await applyPopupSize();
-  // Enable transitions after initial theme and size are applied
+  // Enable transitions after initial theme is applied
   requestAnimationFrame(() => {
     document.body.classList.add('transitions-enabled');
   });
-  // Then initialize the rest
+  // Then initialize (showView will set the correct width)
   init();
 })();
