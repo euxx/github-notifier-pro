@@ -135,11 +135,14 @@ vi.mock('../src/lib/format-utils.js', () => ({
 
 // Mock url-builder
 vi.mock('../src/lib/url-builder.js', () => ({
-  buildNotificationUrl: vi.fn((notif) => notif.html_url || `https://github.com/${notif.repository?.full_name || 'test/repo'}`),
+  buildNotificationUrl: vi.fn(
+    (notif) => notif.html_url || `https://github.com/${notif.repository?.full_name || 'test/repo'}`,
+  ),
 }));
 
 // Import helper functions for testing (after mocks are set up)
-const { getIconForType, updateNotificationDetails, copyCachedDetails } = await import('../src/background/service-worker.js');
+const { getIconForType, updateNotificationDetails, copyCachedDetails } =
+  await import('../src/background/service-worker.js');
 
 // Capture the message handler when service-worker registers it
 let messageHandler = null;
@@ -157,7 +160,7 @@ mockNotifications.onClicked.addListener.mockImplementation((_handler) => {
 });
 
 describe('service-worker', () => {
-  beforeEach(async() => {
+  beforeEach(async () => {
     // Reset all mocks
     vi.clearAllMocks();
 
@@ -206,9 +209,9 @@ describe('service-worker', () => {
       expect(mockRuntime.onInstalled.addListener).toHaveBeenCalled();
     });
 
-    it('should show ? badge when not authenticated', async() => {
+    it('should show ? badge when not authenticated', async () => {
       // Wait for initialization
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '?' });
       expect(mockAction.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#6B7280' });
@@ -216,7 +219,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - LOGIN', () => {
-    it('should login with PAT token', async() => {
+    it('should login with PAT token', async () => {
       mockGithub.fetchUsername.mockResolvedValue('testuser');
       mockGithub.token = 'ghp_test';
       mockGithub.username = 'testuser';
@@ -225,50 +228,46 @@ describe('service-worker', () => {
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'login', authMethod: 'pat', token: 'ghp_test' },
-        {},
-        sendResponse,
-      );
+      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
 
       // Wait for async handling
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.fetchUsername).toHaveBeenCalled();
       expect(mockStorageFunctions.setToken).toHaveBeenCalledWith('ghp_test');
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        success: true,
-        username: 'testuser',
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          username: 'testuser',
+        }),
+      );
     });
 
-    it('should return error on login failure', async() => {
+    it('should return error on login failure', async () => {
       mockGithub.fetchUsername.mockRejectedValue(new Error('Invalid token'));
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'login', authMethod: 'pat', token: 'invalid' },
-        {},
-        sendResponse,
+      messageHandler({ action: 'login', authMethod: 'pat', token: 'invalid' }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: 'Invalid token',
+        }),
       );
-
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        success: false,
-        error: 'Invalid token',
-      }));
     });
   });
 
   describe('handleMessage - LOGOUT', () => {
-    it('should logout and clear state', async() => {
+    it('should logout and clear state', async () => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'logout' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.logout).toHaveBeenCalled();
       expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
@@ -279,27 +278,27 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - GET_STATE', () => {
-    it('should return current state', async() => {
+    it('should return current state', async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.username = 'testuser';
-      mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '1', title: 'Test' },
-      ]);
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '1', title: 'Test' }]);
 
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'getState' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        isAuthenticated: true,
-        username: 'testuser',
-        notifications: [{ id: '1', title: 'Test' }],
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isAuthenticated: true,
+          username: 'testuser',
+          notifications: [{ id: '1', title: 'Test' }],
+        }),
+      );
     });
 
-    it('should fetch username from storage if not in memory', async() => {
+    it('should fetch username from storage if not in memory', async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.username = null;
       mockStorageFunctions.getUsername.mockResolvedValue('storeduser');
@@ -309,22 +308,24 @@ describe('service-worker', () => {
 
       messageHandler({ action: 'getState' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockStorageFunctions.getUsername).toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        username: 'storeduser',
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'storeduser',
+        }),
+      );
     });
   });
 
   describe('handleMessage - GET_RATE_LIMIT', () => {
-    it('should return rate limit info', async() => {
+    it('should return rate limit info', async () => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'getRateLimit' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.getRateLimitInfo).toHaveBeenCalled();
       expect(sendResponse).toHaveBeenCalledWith({
@@ -334,7 +335,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - OPEN_NOTIFICATION', () => {
-    it('should open notification URL in new tab', async() => {
+    it('should open notification URL in new tab', async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         {
           id: '123',
@@ -348,34 +349,28 @@ describe('service-worker', () => {
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'openNotification', notificationId: '123' },
-        {},
-        sendResponse,
-      );
+      messageHandler({ action: 'openNotification', notificationId: '123' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockTabs.create).toHaveBeenCalledWith({
         url: 'https://github.com/owner/repo/issues/1',
       });
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        success: true,
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+        }),
+      );
     });
 
-    it('should throw error for non-existent notification', async() => {
+    it('should throw error for non-existent notification', async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'openNotification', notificationId: 'nonexistent' },
-        {},
-        sendResponse,
-      );
+      messageHandler({ action: 'openNotification', notificationId: 'nonexistent' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
         error: 'Notification not found',
@@ -384,7 +379,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - MARK_AS_READ', () => {
-    it('should mark notification as read and update storage', async() => {
+    it('should mark notification as read and update storage', async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         { id: '123', title: 'Test' },
         { id: '456', title: 'Another' },
@@ -393,37 +388,25 @@ describe('service-worker', () => {
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'markAsRead', notificationId: '123' },
-        {},
-        sendResponse,
-      );
+      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.markAsRead).toHaveBeenCalledWith('123');
-      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
-        { id: '456', title: 'Another' },
-      ]);
+      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([{ id: '456', title: 'Another' }]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1' });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it('should return error on API failure', async() => {
-      mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', title: 'Test' },
-      ]);
+    it('should return error on API failure', async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '123', title: 'Test' }]);
       mockGithub.markAsRead.mockRejectedValue(new Error('API Error'));
 
       const sendResponse = vi.fn();
 
-      messageHandler(
-        { action: 'markAsRead', notificationId: '123' },
-        {},
-        sendResponse,
-      );
+      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,
@@ -433,14 +416,14 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - MARK_ALL_AS_READ', () => {
-    it('should mark all notifications as read', async() => {
+    it('should mark all notifications as read', async () => {
       mockGithub.markAllAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'markAllAsRead' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.markAllAsRead).toHaveBeenCalled();
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
@@ -450,7 +433,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - REFRESH', () => {
-    it('should refresh notifications and reset alarm', async() => {
+    it('should refresh notifications and reset alarm', async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue([]);
 
@@ -458,7 +441,7 @@ describe('service-worker', () => {
 
       messageHandler({ action: 'refresh' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
       expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
@@ -470,12 +453,12 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - unknown action', () => {
-    it('should return error for unknown action', async() => {
+    it('should return error for unknown action', async () => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'unknownAction' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
         error: 'Unknown action: unknownAction',
@@ -484,30 +467,26 @@ describe('service-worker', () => {
   });
 
   describe('badge updates', () => {
-    it('should show empty badge when count is 0', async() => {
+    it('should show empty badge when count is 0', async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue([]);
 
       const sendResponse = vi.fn();
       messageHandler({ action: 'markAllAsRead' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '' });
     });
 
-    it('should show count on badge when notifications exist', async() => {
-      mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '1' },
-        { id: '2' },
-        { id: '3' },
-      ]);
+    it('should show count on badge when notifications exist', async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '1' }, { id: '2' }, { id: '3' }]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
       messageHandler({ action: 'markAsRead', notificationId: '1' }, {}, sendResponse);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // After removing one, should show 2
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '2' });

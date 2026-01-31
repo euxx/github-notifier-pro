@@ -17,7 +17,7 @@ let config = {
   emptyState: null,
   markAllBtn: null,
   getShowHoverCards: () => true,
-  sendMessage: async() => {},
+  sendMessage: async () => {},
   onUserAction: () => {},
 };
 
@@ -52,7 +52,7 @@ export function clearNotificationCache() {
  */
 export function createNotificationsHash(notifications) {
   if (!notifications || notifications.length === 0) return 'empty';
-  return notifications.map(n => `${n.id}:${n.updated_at}:${n.author?.login || ''}`).join('|');
+  return notifications.map((n) => `${n.id}:${n.updated_at}:${n.author?.login || ''}`).join('|');
 }
 
 /**
@@ -95,20 +95,28 @@ function createHoverCard(notif) {
 
   return `
     <div class="notification-hover-card">
-      ${hasAuthor ? `
+      ${
+        hasAuthor
+          ? `
         <div class="hover-card-header">
           <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
           <div class="hover-card-author">
             <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
           </div>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
       <div class="hover-card-body">
         <div class="hover-card-meta">${metadataParts.join(' · ')}</div>
       </div>
-      ${hasDescription ? `
+      ${
+        hasDescription
+          ? `
         <div class="hover-card-description">${escapeHtml(notif.body.trim())}</div>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
   `;
 }
@@ -137,9 +145,12 @@ function positionHoverCard(listItem) {
   const spaceBelow = window.innerHeight - rect.bottom;
   const spaceAbove = rect.top;
 
-  const topPosition = spaceBelow >= cardHeight + margin
-    ? rect.bottom + margin
-    : (spaceAbove >= cardHeight + margin ? rect.top - cardHeight - margin : rect.bottom + margin);
+  const topPosition =
+    spaceBelow >= cardHeight + margin
+      ? rect.bottom + margin
+      : spaceAbove >= cardHeight + margin
+        ? rect.top - cardHeight - margin
+        : rect.bottom + margin;
 
   card.style.top = `${topPosition}px`;
   card.style.right = '10px';
@@ -188,20 +199,32 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         </div>
       </div>
       <div class="notification-meta">
-        ${notif.comment_count !== undefined && notif.comment_count > 0 ? `
+        ${
+          notif.comment_count !== undefined && notif.comment_count > 0
+            ? `
           <span class="notification-comments">
             <svg viewBox="0 0 16 16" width="12" height="12">
               <path fill="currentColor" d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h4.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
             </svg>
             ${notif.comment_count}
           </span>
-        ` : ''}
-        ${notif.author ? `
+        `
+            : ''
+        }
+        ${
+          notif.author
+            ? `
           <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
-        ` : ''}
-        ${notif.created_at || notif.updated_at ? `
+        `
+            : ''
+        }
+        ${
+          notif.created_at || notif.updated_at
+            ? `
           <span class="notification-time">${formatTimeAgo(notif.created_at || notif.updated_at)}</span>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     </div>
     <div class="notification-actions">
@@ -224,8 +247,11 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
       const card = li.querySelector('.notification-hover-card');
       if (card) {
         const cardRect = card.getBoundingClientRect();
-        const isOverCard = e.clientX >= cardRect.left && e.clientX <= cardRect.right &&
-                          e.clientY >= cardRect.top && e.clientY <= cardRect.bottom;
+        const isOverCard =
+          e.clientX >= cardRect.left &&
+          e.clientX <= cardRect.right &&
+          e.clientY >= cardRect.top &&
+          e.clientY <= cardRect.bottom;
         if (!isOverCard) {
           card.classList.remove('visible');
         }
@@ -249,7 +275,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   }
 
   // Click to open notification
-  li.addEventListener('click', async(e) => {
+  li.addEventListener('click', async (e) => {
     if (e.target.closest('.btn-mark-read')) {
       return;
     }
@@ -259,7 +285,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
   // Mark as read button with optimistic update
   const markReadBtn = li.querySelector('.btn-mark-read');
-  markReadBtn.addEventListener('click', async(e) => {
+  markReadBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
 
     if (li.classList.contains('marking-read')) {
@@ -291,7 +317,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
         for (const item of groupItems) {
           const itemId = item.dataset.id;
-          const itemNotif = notifications.find(n => n.id === itemId);
+          const itemNotif = notifications.find((n) => n.id === itemId);
           if (itemNotif && itemNotif.repository.full_name === repoFullName) {
             hasNotificationsInGroup = true;
             break;
@@ -392,7 +418,7 @@ export function renderNotifications(notifications, shouldResort = true) {
   cachedNotificationsHash = notificationsHash;
 
   // Clear old hover cards
-  document.querySelectorAll('.notification-hover-card').forEach(card => card.remove());
+  document.querySelectorAll('.notification-hover-card').forEach((card) => card.remove());
 
   notificationsList.innerHTML = '';
 
@@ -435,9 +461,9 @@ export function renderNotifications(notifications, shouldResort = true) {
     cachedRepoOrder = sortedRepos;
   } else {
     const currentRepos = new Set(Object.keys(groupedByRepo));
-    sortedRepos = cachedRepoOrder.filter(repo => currentRepos.has(repo));
+    sortedRepos = cachedRepoOrder.filter((repo) => currentRepos.has(repo));
     const cachedSet = new Set(cachedRepoOrder);
-    const newRepos = Object.keys(groupedByRepo).filter(repo => !cachedSet.has(repo));
+    const newRepos = Object.keys(groupedByRepo).filter((repo) => !cachedSet.has(repo));
     if (newRepos.length > 0) {
       sortedRepos = [...sortedRepos, ...newRepos];
     }

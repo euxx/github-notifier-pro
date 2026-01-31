@@ -119,9 +119,7 @@ describe('escapeHtml', () => {
   });
 
   it('should handle combined special characters', () => {
-    expect(escapeHtml('<a href="url">link</a>')).toBe(
-      '&lt;a href=&quot;url&quot;&gt;link&lt;/a&gt;',
-    );
+    expect(escapeHtml('<a href="url">link</a>')).toBe('&lt;a href=&quot;url&quot;&gt;link&lt;/a&gt;');
   });
 
   it('should handle null/undefined', () => {

@@ -63,7 +63,7 @@ describe('theme', () => {
   });
 
   describe('initTheme', () => {
-    it('should apply theme from storage', async() => {
+    it('should apply theme from storage', async () => {
       const mockGetTheme = vi.fn().mockResolvedValue('dark');
 
       await initTheme(mockGetTheme);
@@ -72,7 +72,7 @@ describe('theme', () => {
       expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
     });
 
-    it('should default to system theme if no theme in storage', async() => {
+    it('should default to system theme if no theme in storage', async () => {
       const mockGetTheme = vi.fn().mockResolvedValue(null);
       mockMatchMedia.mockReturnValue({ matches: true });
 
@@ -83,7 +83,7 @@ describe('theme', () => {
       expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
     });
 
-    it('should apply light theme from storage', async() => {
+    it('should apply light theme from storage', async () => {
       const mockGetTheme = vi.fn().mockResolvedValue('light');
 
       await initTheme(mockGetTheme);

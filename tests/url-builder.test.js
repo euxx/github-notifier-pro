@@ -11,9 +11,7 @@ describe('buildNotificationUrl', () => {
         type: 'Issue',
         repository: { full_name: 'owner/repo' },
       };
-      expect(buildNotificationUrl(notification)).toBe(
-        'https://github.com/owner/repo/issues/123',
-      );
+      expect(buildNotificationUrl(notification)).toBe('https://github.com/owner/repo/issues/123');
     });
   });
 
@@ -72,9 +70,7 @@ describe('buildNotificationUrl', () => {
         url: 'https://api.github.com/repos/owner/repo/commits/abc123def',
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
-      expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/commit/abc123def`,
-      );
+      expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo/commit/abc123def`);
     });
 
     it('should build commits list URL without API URL', () => {
@@ -122,9 +118,7 @@ describe('buildNotificationUrl', () => {
         type: 'RepositoryVulnerabilityAlert',
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
-      expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/network/dependencies`,
-      );
+      expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo/network/dependencies`);
     });
   });
 
@@ -134,9 +128,7 @@ describe('buildNotificationUrl', () => {
         type: 'RepositoryDependabotAlertsThread',
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
-      expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/security/dependabot`,
-      );
+      expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo/security/dependabot`);
     });
   });
 

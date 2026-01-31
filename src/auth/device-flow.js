@@ -36,22 +36,25 @@ async function startDeviceFlow() {
         openGithubBtn.disabled = false;
 
         // Auto-copy device code to clipboard
-        navigator.clipboard.writeText(data.user_code).then(() => {
-          copyBtn.textContent = '✓ Copied!';
+        navigator.clipboard
+          .writeText(data.user_code)
+          .then(() => {
+            copyBtn.textContent = '✓ Copied!';
 
-          // Wait before opening GitHub (let user see the "Copied!" message)
-          setTimeout(() => {
+            // Wait before opening GitHub (let user see the "Copied!" message)
+            setTimeout(() => {
+              window.open(verificationUri, '_blank');
+            }, ANIMATION_DURATION.GITHUB_OPEN_DELAY);
+
+            setTimeout(() => {
+              copyBtn.textContent = 'Copy Code';
+            }, ANIMATION_DURATION.COPY_FEEDBACK);
+          })
+          .catch((err) => {
+            console.error('Failed to auto-copy code:', err);
+            // Still open GitHub even if copy fails
             window.open(verificationUri, '_blank');
-          }, ANIMATION_DURATION.GITHUB_OPEN_DELAY);
-
-          setTimeout(() => {
-            copyBtn.textContent = 'Copy Code';
-          }, ANIMATION_DURATION.COPY_FEEDBACK);
-        }).catch(err => {
-          console.error('Failed to auto-copy code:', err);
-          // Still open GitHub even if copy fails
-          window.open(verificationUri, '_blank');
-        });
+          });
 
         // Start countdown
         let remaining = data.expires_in;
@@ -96,7 +99,6 @@ async function startDeviceFlow() {
         window.location.href = runtime.getURL('src/popup/popup.html');
       }
     }, ANIMATION_DURATION.AUTO_CLOSE);
-
   } catch (error) {
     console.error('Device Flow error:', error);
     statusEl.className = 'status error';
@@ -106,7 +108,7 @@ async function startDeviceFlow() {
 }
 
 // Copy device code
-copyBtn.addEventListener('click', async() => {
+copyBtn.addEventListener('click', async () => {
   const code = deviceCodeEl.textContent;
   try {
     await navigator.clipboard.writeText(code);

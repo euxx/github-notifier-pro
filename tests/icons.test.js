@@ -49,10 +49,7 @@ describe('getIconSVG', () => {
   });
 
   describe('fallback behavior', () => {
-    it.each([
-      ['unknown_type'],
-      [undefined],
-    ])('should return notification icon for "%s"', (iconType) => {
+    it.each([['unknown_type'], [undefined]])('should return notification icon for "%s"', (iconType) => {
       expect(getIconSVG(iconType)).toBe(ICON_SVGS['notification']);
     });
   });

@@ -73,7 +73,7 @@ export class LRUCache {
     return {
       size: this.cache.size,
       maxSize: this.maxSize,
-      utilization: `${(this.cache.size / this.maxSize * 100).toFixed(1)}%`,
+      utilization: `${((this.cache.size / this.maxSize) * 100).toFixed(1)}%`,
       keys: Array.from(this.cache.keys()),
     };
   }

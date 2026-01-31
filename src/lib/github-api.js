@@ -4,7 +4,15 @@
  */
 
 import { CLIENT_ID } from '../config/config.js';
-import { GITHUB_API_BASE, GITHUB_SITE_BASE, MIN_POLL_INTERVAL_SECONDS, API_TIMEOUTS, TIMING_THRESHOLDS, TIME_CONVERSION, NOTIFICATION_TYPES } from './constants.js';
+import {
+  GITHUB_API_BASE,
+  GITHUB_SITE_BASE,
+  MIN_POLL_INTERVAL_SECONDS,
+  API_TIMEOUTS,
+  TIMING_THRESHOLDS,
+  TIME_CONVERSION,
+  NOTIFICATION_TYPES,
+} from './constants.js';
 import { buildNotificationUrl } from './url-builder.js';
 
 /**
@@ -68,8 +76,7 @@ async function retryWithStrategy(fetchFn, options = {}) {
         }
 
         // Check if we should retry this status code
-        const shouldRetry = retryOn.includes(response.status) ||
-                          (response.status >= 500 && retryOn.includes(500));
+        const shouldRetry = retryOn.includes(response.status) || (response.status >= 500 && retryOn.includes(500));
 
         if (!shouldRetry || attempt === maxRetries) {
           // Don't retry or last attempt - throw error
@@ -96,8 +103,7 @@ async function retryWithStrategy(fetchFn, options = {}) {
       // Don't retry on 40x errors (except those in retryOn list)
       if (error.response) {
         const status = error.response.status;
-        const shouldRetry = retryOn.includes(status) ||
-                          (status >= 500 && retryOn.includes(500));
+        const shouldRetry = retryOn.includes(status) || (status >= 500 && retryOn.includes(500));
 
         if (!shouldRetry && status >= 400 && status < 500) {
           throw error;
@@ -108,11 +114,9 @@ async function retryWithStrategy(fetchFn, options = {}) {
     }
 
     // Calculate delay based on backoff strategy
-    const delay = backoff === 'exponential'
-      ? baseDelay * Math.pow(2, attempt)
-      : baseDelay * (attempt + 1);
+    const delay = backoff === 'exponential' ? baseDelay * Math.pow(2, attempt) : baseDelay * (attempt + 1);
 
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   throw lastError;
@@ -140,7 +144,7 @@ class GitHubAPI {
 
   get headers() {
     const h = {
-      'Accept': 'application/vnd.github+json',
+      Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     };
     if (this.token) {
@@ -208,7 +212,7 @@ class GitHubAPI {
     const response = await fetch(`${GITHUB_SITE_BASE}/login/device/code`, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -243,7 +247,7 @@ class GitHubAPI {
       }
 
       // Wait before polling
-      await new Promise(resolve => setTimeout(resolve, currentInterval * 1000));
+      await new Promise((resolve) => setTimeout(resolve, currentInterval * 1000));
 
       // Check if cancelled during wait
       if (onCancel && onCancel()) {
@@ -264,7 +268,7 @@ class GitHubAPI {
         const response = await fetch(`${GITHUB_SITE_BASE}/login/oauth/access_token`, {
           method: 'POST',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -330,12 +334,7 @@ class GitHubAPI {
     }
 
     // Step 2: Poll for token (with cancel support)
-    const accessToken = await this.pollForToken(
-      deviceData.device_code,
-      deviceData.interval,
-      onProgress,
-      onCancel,
-    );
+    const accessToken = await this.pollForToken(deviceData.device_code, deviceData.interval, onProgress, onCancel);
 
     // Step 3: Save token and get username
     this.token = accessToken;
@@ -369,9 +368,13 @@ class GitHubAPI {
    * Fetch current user's username
    */
   async fetchUsername() {
-    const response = await fetchWithTimeout(`${GITHUB_API_BASE}/user`, {
-      headers: this.headers,
-    }, API_TIMEOUTS.USER_INFO);
+    const response = await fetchWithTimeout(
+      `${GITHUB_API_BASE}/user`,
+      {
+        headers: this.headers,
+      },
+      API_TIMEOUTS.USER_INFO,
+    );
 
     this.updateRateLimit(response);
 
@@ -422,24 +425,31 @@ class GitHubAPI {
     // Add timestamp to prevent caching
     url.searchParams.set('_t', Date.now().toString());
 
-    const response = await retryWithStrategy(async() => {
-      const resp = await fetchWithTimeout(url.toString(), {
-        headers: this.headers,
-        cache: 'no-store', // Force no cache
-      }, API_TIMEOUTS.DEFAULT);
+    const response = await retryWithStrategy(
+      async () => {
+        const resp = await fetchWithTimeout(
+          url.toString(),
+          {
+            headers: this.headers,
+            cache: 'no-store', // Force no cache
+          },
+          API_TIMEOUTS.DEFAULT,
+        );
 
-      if (!resp.ok) {
-        throw new Error(`Failed to fetch notifications: ${resp.status}`);
-      }
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch notifications: ${resp.status}`);
+        }
 
-      return resp;
-    }, {
-      maxRetries: 3,
-      baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
-      backoff: 'exponential',
-      retryOn: [429, 500],
-      checkResponse: false, // Already checking resp.ok above
-    });
+        return resp;
+      },
+      {
+        maxRetries: 3,
+        baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
+        backoff: 'exponential',
+        retryOn: [429, 500],
+        checkResponse: false, // Already checking resp.ok above
+      },
+    );
 
     this.updateRateLimit(response);
 
@@ -484,9 +494,8 @@ class GitHubAPI {
       { keywords: ['queued', 'pending'], conclusion: null, status: 'queued' },
     ];
 
-    const match = patterns.find(p => p.keywords.some(kw => lower.includes(kw)));
-    return match ? { conclusion: match.conclusion, status: match.status }
-      : { conclusion: null, status: 'completed' };
+    const match = patterns.find((p) => p.keywords.some((kw) => lower.includes(kw)));
+    return match ? { conclusion: match.conclusion, status: match.status } : { conclusion: null, status: 'completed' };
   }
 
   /**
@@ -510,17 +519,22 @@ class GitHubAPI {
           if (workflowName) {
             try {
               const runsUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/actions/runs?per_page=20`;
-              const runsResp = await fetchWithTimeout(runsUrl, {
-                headers: this.headers,
-              }, API_TIMEOUTS.USER_INFO);
+              const runsResp = await fetchWithTimeout(
+                runsUrl,
+                {
+                  headers: this.headers,
+                },
+                API_TIMEOUTS.USER_INFO,
+              );
 
               if (runsResp.ok) {
                 const runsData = await runsResp.json();
                 // Match by name and time (5 min window)
                 const notifTime = new Date(notification.updated_at).getTime();
-                const matchingRun = runsData.workflow_runs?.find(run =>
-                  run.name === workflowName &&
-                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW,
+                const matchingRun = runsData.workflow_runs?.find(
+                  (run) =>
+                    run.name === workflowName &&
+                    Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW,
                 );
 
                 if (matchingRun?.actor) {
@@ -551,23 +565,30 @@ class GitHubAPI {
       }
     }
 
-    const response = await retryWithStrategy(async() => {
-      const resp = await fetchWithTimeout(notification.subject.url, {
-        headers: this.headers,
-      }, API_TIMEOUTS.NOTIFICATION_DETAILS);
+    const response = await retryWithStrategy(
+      async () => {
+        const resp = await fetchWithTimeout(
+          notification.subject.url,
+          {
+            headers: this.headers,
+          },
+          API_TIMEOUTS.NOTIFICATION_DETAILS,
+        );
 
-      if (!resp.ok) {
-        throw new Error(`Failed to fetch notification details: ${resp.status}`);
-      }
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch notification details: ${resp.status}`);
+        }
 
-      return resp;
-    }, {
-      maxRetries: 2,
-      baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
-      backoff: 'exponential',
-      retryOn: [429, 500],
-      checkResponse: false, // Already checking resp.ok above
-    });
+        return resp;
+      },
+      {
+        maxRetries: 2,
+        baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
+        backoff: 'exponential',
+        retryOn: [429, 500],
+        checkResponse: false, // Already checking resp.ok above
+      },
+    );
 
     this.updateRateLimit(response);
     return await response.json();
@@ -579,18 +600,21 @@ class GitHubAPI {
   async markAsRead(threadId) {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
-    const response = await retryWithStrategy(async() => {
-      return await fetch(url, {
-        method: 'PATCH',
-        headers: this.headers,
-      });
-    }, {
-      maxRetries: 2,
-      baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-      backoff: 'linear',
-      retryOn: [401, 500],
-      checkResponse: true,
-    });
+    const response = await retryWithStrategy(
+      async () => {
+        return await fetch(url, {
+          method: 'PATCH',
+          headers: this.headers,
+        });
+      },
+      {
+        maxRetries: 2,
+        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+        backoff: 'linear',
+        retryOn: [401, 500],
+        checkResponse: true,
+      },
+    );
 
     this.updateRateLimit(response);
     return true;
@@ -604,24 +628,27 @@ class GitHubAPI {
       this.lastUpdate = new Date().toISOString();
     }
 
-    const response = await retryWithStrategy(async() => {
-      return await fetch(`${GITHUB_API_BASE}/notifications`, {
-        method: 'PUT',
-        headers: {
-          ...this.headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          last_read_at: this.lastUpdate,
-        }),
-      });
-    }, {
-      maxRetries: 2,
-      baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-      backoff: 'linear',
-      retryOn: [401, 500],
-      checkResponse: true,
-    });
+    const response = await retryWithStrategy(
+      async () => {
+        return await fetch(`${GITHUB_API_BASE}/notifications`, {
+          method: 'PUT',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            last_read_at: this.lastUpdate,
+          }),
+        });
+      },
+      {
+        maxRetries: 2,
+        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+        backoff: 'linear',
+        retryOn: [401, 500],
+        checkResponse: true,
+      },
+    );
 
     this.updateRateLimit(response);
     return true;

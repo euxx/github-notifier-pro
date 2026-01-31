@@ -5,7 +5,13 @@
 import github from '../lib/github-api.js';
 import * as storage from '../lib/storage.js';
 import { action, alarms, runtime, tabs, notifications } from '../lib/chrome-api.js';
-import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES, NOTIFICATION_TYPES, NOTIFICATION_TYPE_ICONS } from '../lib/constants.js';
+import {
+  ALARM_NAME,
+  DEFAULT_POLL_INTERVAL_MINUTES,
+  MESSAGE_TYPES,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_ICONS,
+} from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 import { buildNotificationUrl } from '../lib/url-builder.js';
 import { LRUCache } from '../lib/lru-cache.js';
@@ -115,7 +121,19 @@ export function updateNotificationDetails(baseData, details, notifType) {
  * @exported for testing
  */
 export function copyCachedDetails(baseData, existing) {
-  ['state', 'merged', 'conclusion', 'status', 'detailsFailed', 'author', 'comment_count', 'number', 'created_at', 'body', 'html_url'].forEach(key => {
+  [
+    'state',
+    'merged',
+    'conclusion',
+    'status',
+    'detailsFailed',
+    'author',
+    'comment_count',
+    'number',
+    'created_at',
+    'body',
+    'html_url',
+  ].forEach((key) => {
     if (existing[key] !== undefined) {
       baseData[key] = existing[key];
     }
@@ -162,8 +180,8 @@ async function checkNotifications() {
 
       // Get existing notifications to check for new ones
       const existingNotifications = await storage.getNotifications();
-      const existingIds = new Set(existingNotifications.map(n => n.id));
-      const existingMap = new Map(existingNotifications.map(n => [n.id, n]));
+      const existingIds = new Set(existingNotifications.map((n) => n.id));
+      const existingMap = new Map(existingNotifications.map((n) => [n.id, n]));
 
       // First pass: Create basic notification data immediately
       const basicProcessed = notifications.map((n) => {
@@ -207,10 +225,10 @@ async function checkNotifications() {
 
       // Second pass: Fetch details asynchronously for new/updated notifications
       // Create a deep copy to avoid race conditions with concurrent updates
-      const detailedNotifications = basicProcessed.map(n => ({ ...n }));
+      const detailedNotifications = basicProcessed.map((n) => ({ ...n }));
 
       // Collect results and update storage once when all details are fetched
-      const detailPromises = notifications.map(async(n, index) => {
+      const detailPromises = notifications.map(async (n, index) => {
         const existing = existingMap.get(n.id);
         const needsUpdate = !existing || existing.updated_at !== n.updated_at;
 
@@ -235,35 +253,43 @@ async function checkNotifications() {
       });
 
       // Wait for all details in background and update storage once
-      Promise.all(detailPromises).then(async(results) => {
-        // Check if a newer fetch has completed while we were fetching details
-        if (currentFetchVersion < notificationFetchVersion) {
-          console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding detail updates`);
-          return; // Discard these results, newer data is already in storage
-        }
+      Promise.all(detailPromises)
+        .then(async (results) => {
+          // Check if a newer fetch has completed while we were fetching details
+          if (currentFetchVersion < notificationFetchVersion) {
+            console.log(
+              `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding detail updates`,
+            );
+            return; // Discard these results, newer data is already in storage
+          }
 
-        const failedCount = results.filter(r => r.success === false).length;
-        const cachedCount = results.filter(r => r.cached === true).length;
-        console.log(`Notification details (fetch #${currentFetchVersion}): ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`);
+          const failedCount = results.filter((r) => r.success === false).length;
+          const cachedCount = results.filter((r) => r.cached === true).length;
+          console.log(
+            `Notification details (fetch #${currentFetchVersion}): ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`,
+          );
 
-        // Log cache statistics for monitoring
-        const cacheStats = authorCache.getStats();
-        console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
+          // Log cache statistics for monitoring
+          const cacheStats = authorCache.getStats();
+          console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
 
-        // Double-check before final save
-        const currentStoredNotifications = await storage.getNotifications();
-        const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
+          // Double-check before final save
+          const currentStoredNotifications = await storage.getNotifications();
+          const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
 
-        if (currentFetchVersion >= storedVersion) {
-          // Update storage with all completed details
-          await storage.setNotifications(detailedNotifications);
-          console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
-        } else {
-          console.log(`Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`);
-        }
-      }).catch(error => {
-        console.error(`Error fetching notification details (fetch #${currentFetchVersion}):`, error);
-      });
+          if (currentFetchVersion >= storedVersion) {
+            // Update storage with all completed details
+            await storage.setNotifications(detailedNotifications);
+            console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+          } else {
+            console.log(
+              `Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`,
+            );
+          }
+        })
+        .catch((error) => {
+          console.error(`Error fetching notification details (fetch #${currentFetchVersion}):`, error);
+        });
 
       // Show desktop notifications for new items (using basic data)
       await showDesktopNotificationsForNew(basicProcessed);
@@ -324,7 +350,7 @@ async function stopPolling() {
 /**
  * Handle alarm events
  */
-alarms.onAlarm.addListener(async(alarm) => {
+alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_NAME) {
     await checkNotifications();
   }
@@ -334,10 +360,12 @@ alarms.onAlarm.addListener(async(alarm) => {
  * Handle messages from popup
  */
 runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message).then(sendResponse).catch((error) => {
-    console.error('Message handling error:', error);
-    sendResponse({ error: error.message });
-  });
+  handleMessage(message)
+    .then(sendResponse)
+    .catch((error) => {
+      console.error('Message handling error:', error);
+      sendResponse({ error: error.message });
+    });
   return true; // Keep channel open for async response
 });
 
@@ -460,7 +488,7 @@ async function openNotification(notificationId) {
   await tabs.create({ url });
 
   // Mark as read in background (don't block the opening)
-  markAsRead(notificationId).catch(error => {
+  markAsRead(notificationId).catch((error) => {
     console.error('Failed to mark as read:', error);
   });
 
@@ -513,7 +541,7 @@ async function showDesktopNotificationsForNew(notifications) {
     }
 
     // Filter and show only new notifications
-    const newNotifications = notifications.filter(n => n.isNew);
+    const newNotifications = notifications.filter((n) => n.isNew);
 
     // Show desktop notification for each new item
     for (const notif of newNotifications) {
@@ -555,14 +583,14 @@ async function showDesktopNotification(notif) {
 /**
  * Handle notification click - open the notification URL
  */
-notifications.onClicked.addListener(async(notificationId) => {
+notifications.onClicked.addListener(async (notificationId) => {
   try {
     // Extract notification ID from the chrome notification ID
     const githubNotifId = notificationId.replace('github-notif-', '');
 
     // Get all notifications to find the one that was clicked
     const notificationsList = await storage.getNotifications();
-    const notification = notificationsList.find(n => n.id === githubNotifId);
+    const notification = notificationsList.find((n) => n.id === githubNotifId);
 
     if (notification) {
       // Build and open URL using centralized builder
@@ -573,7 +601,7 @@ notifications.onClicked.addListener(async(notificationId) => {
       await github.markAsRead(githubNotifId);
 
       // Update stored notifications
-      const updatedNotifications = notificationsList.filter(n => n.id !== githubNotifId);
+      const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
       await storage.setNotifications(updatedNotifications);
       await updateBadge(updatedNotifications.length);
     }

@@ -9,18 +9,18 @@ import { NOTIFICATION_TYPE_LABELS } from './constants.js';
  */
 export function formatReason(reason) {
   const reasons = {
-    'subscribed': 'Subscribed',
-    'participating': 'Participating',
-    'mentioned': 'Mentioned',
-    'team_mention': 'Team Mentioned',
-    'comment': 'Commented',
-    'review_requested': 'Review Requested',
-    'security_alert': 'Security Alert',
-    'state_change': 'State Changed',
-    'assign': 'Assigned',
-    'author': 'You Authored',
-    'manual': 'Manual',
-    'ci_activity': 'CI Activity',
+    subscribed: 'Subscribed',
+    participating: 'Participating',
+    mentioned: 'Mentioned',
+    team_mention: 'Team Mentioned',
+    comment: 'Commented',
+    review_requested: 'Review Requested',
+    security_alert: 'Security Alert',
+    state_change: 'State Changed',
+    assign: 'Assigned',
+    author: 'You Authored',
+    manual: 'Manual',
+    ci_activity: 'CI Activity',
   };
   return reasons[reason] || reason || 'Unknown';
 }
@@ -38,14 +38,14 @@ export function formatType(type) {
 export function formatState(state) {
   if (!state) return '';
   const states = {
-    'open': 'Open',
-    'closed': 'Closed',
-    'merged': 'Merged',
-    'success': 'Success',
-    'failure': 'Failure',
-    'cancelled': 'Cancelled',
-    'skipped': 'Skipped',
-    'pending': 'Pending',
+    open: 'Open',
+    closed: 'Closed',
+    merged: 'Merged',
+    success: 'Success',
+    failure: 'Failure',
+    cancelled: 'Cancelled',
+    skipped: 'Skipped',
+    pending: 'Pending',
   };
   return states[state] || state;
 }

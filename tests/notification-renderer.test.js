@@ -30,7 +30,8 @@ vi.mock('../src/lib/icons.js', () => ({
   getIconSVG: vi.fn(() => '<svg></svg>'),
 }));
 
-const { formatTimeAgo, initRenderer, getCachedNotifications, createNotificationsHash } = await import('../src/popup/notification-renderer.js');
+const { formatTimeAgo, initRenderer, getCachedNotifications, createNotificationsHash } =
+  await import('../src/popup/notification-renderer.js');
 
 describe('notification-renderer', () => {
   describe('formatTimeAgo', () => {
@@ -157,9 +158,7 @@ describe('notification-renderer helper functions', () => {
     });
 
     it('should create hash from single notification', () => {
-      const notifications = [
-        { id: '123', updated_at: '2024-01-01T00:00:00Z', author: { login: 'user1' } },
-      ];
+      const notifications = [{ id: '123', updated_at: '2024-01-01T00:00:00Z', author: { login: 'user1' } }];
       expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:user1');
     });
 
@@ -173,9 +172,7 @@ describe('notification-renderer helper functions', () => {
     });
 
     it('should handle notifications without author', () => {
-      const notifications = [
-        { id: '123', updated_at: '2024-01-01T00:00:00Z' },
-      ];
+      const notifications = [{ id: '123', updated_at: '2024-01-01T00:00:00Z' }];
       expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:');
     });
 

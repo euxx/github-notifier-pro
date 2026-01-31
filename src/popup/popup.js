@@ -78,7 +78,7 @@ let lastAlarmTime = null;
 async function updateCountdown() {
   try {
     const allAlarms = await alarms.getAll();
-    const notificationAlarm = allAlarms.find(a => a.name === 'check-notifications');
+    const notificationAlarm = allAlarms.find((a) => a.name === 'check-notifications');
 
     if (!notificationAlarm || !notificationAlarm.scheduledTime) {
       refreshCountdownEl.textContent = '';
@@ -256,7 +256,8 @@ async function markAllAsRead() {
   // Immediate visual feedback
   const originalText = markAllBtn.innerHTML;
   markAllBtn.disabled = true;
-  markAllBtn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>';
+  markAllBtn.innerHTML =
+    '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>';
 
   try {
     const result = await sendMessage(MESSAGE_TYPES.MARK_ALL_AS_READ);
@@ -361,7 +362,7 @@ async function login(authMethod = 'oauth', token = null) {
 
   if (result.success) {
     usernameEl.textContent = result.username;
-    await showView('main');  // Show main view first
+    await showView('main'); // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
     renderNotifications(state.notifications, true); // Then render notifications
     // Start countdown timer after successful login
@@ -470,7 +471,7 @@ async function init() {
   });
 
   // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async(_e) => {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (_e) => {
     const currentTheme = await storage.getTheme();
     if (currentTheme === 'system') {
       applyTheme('system');
@@ -481,15 +482,15 @@ async function init() {
 
   if (state.isAuthenticated) {
     // Set username with fallback
-    const username = state.username || await storage.getUsername() || 'User';
+    const username = state.username || (await storage.getUsername()) || 'User';
     usernameEl.textContent = username;
 
     renderNotifications(state.notifications, true); // Re-sort on init
-    await showView('main');  // This will apply saved width
+    await showView('main'); // This will apply saved width
     // Start countdown timer for next refresh
     startCountdown();
   } else {
-    await showView('login');  // This will set 400px width
+    await showView('login'); // This will set 400px width
   }
 }
 
@@ -512,13 +513,13 @@ popupWidthInput.addEventListener('change', handleWidthChange);
 popupWidthInput.addEventListener('blur', handleWidthChange);
 widthDecreaseBtn.addEventListener('click', decreaseWidth);
 widthIncreaseBtn.addEventListener('click', increaseWidth);
-hoverCardsToggle.addEventListener('change', async() => {
+hoverCardsToggle.addEventListener('change', async () => {
   showHoverCards = hoverCardsToggle.checked;
   await storage.setShowHoverCards(showHoverCards);
 
   // Hide any currently visible hover cards when disabling
   if (!showHoverCards) {
-    document.querySelectorAll('.notification-hover-card.visible').forEach(card => {
+    document.querySelectorAll('.notification-hover-card.visible').forEach((card) => {
       card.classList.remove('visible');
     });
   }
@@ -532,7 +533,7 @@ hoverCardsToggle.addEventListener('change', async() => {
 });
 
 // Desktop notification settings
-desktopNotificationsToggle.addEventListener('change', async() => {
+desktopNotificationsToggle.addEventListener('change', async () => {
   const enabled = desktopNotificationsToggle.checked;
   await storage.setEnableDesktopNotifications(enabled);
 });
@@ -568,7 +569,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Pre-apply theme to prevent flash on load
-(async() => {
+(async () => {
   await preloadTheme();
   // Enable transitions after initial theme is applied
   requestAnimationFrame(() => {
