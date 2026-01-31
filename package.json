@@ -10,7 +10,17 @@
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write \"src/**/*.{js,html,css}\" \"tests/**/*.js\"",
-    "format:check": "prettier --check \"src/**/*.{js,html,css}\" \"tests/**/*.js\""
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\" \"tests/**/*.js\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{html,css}": [
+      "prettier --write"
+    ]
   },
   "keywords": [
     "github",
@@ -29,6 +39,8 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "vitest": "^4.0.18"
   }
