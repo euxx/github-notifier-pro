@@ -8,87 +8,7 @@ import { action, alarms, runtime, storage as browserStorage, tabs, notifications
 import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES, NOTIFICATION_TYPES, NOTIFICATION_TYPE_ICONS } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 import { buildNotificationUrl } from '../lib/url-builder.js';
-
-/**
- * LRU (Least Recently Used) Cache implementation
- * Automatically evicts least recently used items when size limit is reached
- */
-class LRUCache {
-  constructor(maxSize = 100) {
-    this.maxSize = maxSize;
-    this.cache = new Map(); // Map maintains insertion order in JavaScript
-  }
-
-  /**
-   * Get value from cache
-   * Moves item to end (most recently used)
-   */
-  get(key) {
-    if (!this.cache.has(key)) {
-      return undefined;
-    }
-
-    // Move to end (most recently used)
-    const value = this.cache.get(key);
-    this.cache.delete(key);
-    this.cache.set(key, value);
-
-    return value;
-  }
-
-  /**
-   * Set value in cache
-   * Evicts least recently used item if cache is full
-   */
-  set(key, value) {
-    // If key exists, delete it first (will re-add at end)
-    if (this.cache.has(key)) {
-      this.cache.delete(key);
-    }
-
-    // If cache is full, remove oldest item (first in Map)
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
-    }
-
-    // Add new item at end (most recently used)
-    this.cache.set(key, value);
-  }
-
-  /**
-   * Check if key exists in cache
-   */
-  has(key) {
-    return this.cache.has(key);
-  }
-
-  /**
-   * Get cache size
-   */
-  get size() {
-    return this.cache.size;
-  }
-
-  /**
-   * Clear all cache entries
-   */
-  clear() {
-    this.cache.clear();
-  }
-
-  /**
-   * Get cache statistics for debugging
-   */
-  getStats() {
-    return {
-      size: this.cache.size,
-      maxSize: this.maxSize,
-      utilization: (this.cache.size / this.maxSize * 100).toFixed(1) + '%',
-      keys: Array.from(this.cache.keys())
-    };
-  }
-}
+import { LRUCache } from '../lib/lru-cache.js';
 
 /**
  * In-memory LRU cache for author information
@@ -154,8 +74,9 @@ async function updateBadge(count) {
 
 /**
  * Helper: Update notification details from API response
+ * @exported for testing
  */
-function updateNotificationDetails(baseData, details, notifType) {
+export function updateNotificationDetails(baseData, details, notifType) {
   // Set state/conclusion based on type
   if (notifType === NOTIFICATION_TYPES.CHECK_SUITE) {
     baseData.conclusion = details.conclusion;
@@ -191,8 +112,9 @@ function updateNotificationDetails(baseData, details, notifType) {
 
 /**
  * Helper: Copy cached details to new notification data
+ * @exported for testing
  */
-function copyCachedDetails(baseData, existing) {
+export function copyCachedDetails(baseData, existing) {
   ['state', 'merged', 'conclusion', 'status', 'detailsFailed', 'author', 'comment_count', 'number', 'created_at', 'body', 'html_url'].forEach(key => {
     if (existing[key] !== undefined) {
       baseData[key] = existing[key];
@@ -376,8 +298,9 @@ async function checkNotifications() {
 
 /**
  * Get icon name for notification type
+ * @exported for testing
  */
-function getIconForType(type) {
+export function getIconForType(type) {
   return NOTIFICATION_TYPE_ICONS[type] || 'notification';
 }
 

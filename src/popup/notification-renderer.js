@@ -48,8 +48,9 @@ export function clearNotificationCache() {
  * Create a lightweight hash of notifications for change detection
  * @param {Array} notifications - Array of notification objects
  * @returns {string} Hash string
+ * @exported for testing
  */
-function createNotificationsHash(notifications) {
+export function createNotificationsHash(notifications) {
   if (!notifications || notifications.length === 0) return 'empty';
   return notifications.map(n => `${n.id}:${n.updated_at}:${n.author?.login || ''}`).join('|');
 }
