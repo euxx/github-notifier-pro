@@ -8,7 +8,9 @@
     "dev:firefox": "rm -rf dist/firefox-dev && mkdir -p dist/firefox-dev && cp manifest-firefox.json dist/firefox-dev/manifest.json && cp -r src dist/firefox-dev/ && cp -r images dist/firefox-dev/ && echo '🦊 Firefox dev environment ready at dist/firefox-dev/'",
     "test": "vitest run",
     "lint": "eslint src/ tests/",
-    "lint:fix": "eslint src/ tests/ --fix"
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "prettier --write \"src/**/*.{js,html,css}\" \"tests/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\" \"tests/**/*.js\""
   },
   "keywords": [
     "github",
@@ -25,7 +27,9 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
     "globals": "^17.2.0",
+    "prettier": "^3.8.1",
     "vitest": "^4.0.18"
   }
 }
