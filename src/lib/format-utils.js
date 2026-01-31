@@ -79,7 +79,7 @@ export function getNotificationStatus(notif) {
  * Uses string replacement instead of DOM manipulation for better performance
  */
 export function escapeHtml(text) {
-  if (!text) return '';
+  if (text === null || text === undefined) return '';
   return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -92,5 +92,5 @@ export function escapeHtml(text) {
  * Escape HTML attributes to prevent XSS
  */
 export function escapeAttr(text) {
-  return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return escapeHtml(text);
 }
