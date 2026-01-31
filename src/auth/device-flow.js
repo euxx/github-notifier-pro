@@ -16,7 +16,7 @@ const statusTextEl = document.getElementById('status-text');
 const countdownEl = document.getElementById('countdown');
 
 let verificationUri = '';
-let cancelled = false;
+const cancelled = false;
 
 // Initialize theme
 initTheme(storage.getTheme);
@@ -71,7 +71,7 @@ async function startDeviceFlow() {
         const minutes = Math.floor(progress.remainingTime / 60);
         statusTextEl.textContent = `Waiting for authorization... (~${minutes} min remaining)`;
       },
-      onCancel: () => cancelled
+      onCancel: () => cancelled,
     });
 
     // Success!
@@ -106,7 +106,7 @@ async function startDeviceFlow() {
 }
 
 // Copy device code
-copyBtn.addEventListener('click', async () => {
+copyBtn.addEventListener('click', async() => {
   const code = deviceCodeEl.textContent;
   try {
     await navigator.clipboard.writeText(code);

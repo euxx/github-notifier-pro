@@ -17,7 +17,7 @@ let config = {
   emptyState: null,
   markAllBtn: null,
   getShowHoverCards: () => true,
-  sendMessage: async () => {},
+  sendMessage: async() => {},
   onUserAction: () => {},
 };
 
@@ -183,7 +183,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
     </div>
     <div class="notification-content">
       <div class="notification-main">
-        <div class="notification-title" data-title="${escapeAttr(notif.title)}${releaseBody ? '\n\n' + escapeAttr(releaseBody) : ''}"${showHoverCards ? '' : ` title="${escapeAttr(notif.title)}${releaseBody ? '\n\n' + escapeAttr(releaseBody) : ''}"`}>
+        <div class="notification-title" data-title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"${showHoverCards ? '' : ` title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"`}>
           ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(releaseBody.substring(0, 200))}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
         </div>
       </div>
@@ -249,7 +249,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   }
 
   // Click to open notification
-  li.addEventListener('click', async (e) => {
+  li.addEventListener('click', async(e) => {
     if (e.target.closest('.btn-mark-read')) {
       return;
     }
@@ -259,7 +259,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
   // Mark as read button with optimistic update
   const markReadBtn = li.querySelector('.btn-mark-read');
-  markReadBtn.addEventListener('click', async (e) => {
+  markReadBtn.addEventListener('click', async(e) => {
     e.stopPropagation();
 
     if (li.classList.contains('marking-read')) {
@@ -286,7 +286,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         li.remove();
 
         // Check if any notifications from this group remain
-        const groupItems = notificationsList.querySelectorAll(`.notification-item[data-id]`);
+        const groupItems = notificationsList.querySelectorAll('.notification-item[data-id]');
         let hasNotificationsInGroup = false;
 
         for (const item of groupItems) {

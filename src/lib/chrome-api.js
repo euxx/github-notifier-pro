@@ -28,9 +28,9 @@ export const storage = {
       return new Promise((resolve) => {
         api.storage.local.clear(resolve);
       });
-    }
+    },
   },
-  onChanged: api.storage.onChanged
+  onChanged: api.storage.onChanged,
 };
 
 // Runtime API
@@ -45,7 +45,7 @@ export const runtime = {
   onInstalled: api.runtime.onInstalled,
   getURL(path) {
     return api.runtime.getURL(path);
-  }
+  },
 };
 
 // Action API
@@ -64,7 +64,7 @@ export const action = {
     return new Promise((resolve) => {
       api.action.setTitle(details, resolve);
     });
-  }
+  },
 };
 
 // Alarms API
@@ -84,7 +84,7 @@ export const alarms = {
       api.alarms.getAll(resolve);
     });
   },
-  onAlarm: api.alarms.onAlarm
+  onAlarm: api.alarms.onAlarm,
 };
 
 // Tabs API
@@ -93,7 +93,7 @@ export const tabs = {
     return new Promise((resolve) => {
       api.tabs.create(createProperties, resolve);
     });
-  }
+  },
 };
 
 // Notifications API
@@ -108,5 +108,5 @@ export const notifications = {
       api.notifications.clear(notificationId, resolve);
     });
   },
-  onClicked: api.notifications.onClicked
+  onClicked: api.notifications.onClicked,
 };

@@ -143,23 +143,21 @@ const { getIconForType, updateNotificationDetails, copyCachedDetails } = await i
 
 // Capture the message handler when service-worker registers it
 let messageHandler = null;
-let alarmHandler = null;
-let notificationClickHandler = null;
 
 mockRuntime.onMessage.addListener.mockImplementation((handler) => {
   messageHandler = handler;
 });
 
-mockAlarms.onAlarm.addListener.mockImplementation((handler) => {
-  alarmHandler = handler;
+mockAlarms.onAlarm.addListener.mockImplementation((_handler) => {
+  // Alarm handler captured but not used in tests
 });
 
-mockNotifications.onClicked.addListener.mockImplementation((handler) => {
-  notificationClickHandler = handler;
+mockNotifications.onClicked.addListener.mockImplementation((_handler) => {
+  // Notification click handler captured but not used in tests
 });
 
 describe('service-worker', () => {
-  beforeEach(async () => {
+  beforeEach(async() => {
     // Reset all mocks
     vi.clearAllMocks();
 
@@ -208,7 +206,7 @@ describe('service-worker', () => {
       expect(mockRuntime.onInstalled.addListener).toHaveBeenCalled();
     });
 
-    it('should show ? badge when not authenticated', async () => {
+    it('should show ? badge when not authenticated', async() => {
       // Wait for initialization
       await new Promise(resolve => setTimeout(resolve, 10));
 
@@ -218,7 +216,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - LOGIN', () => {
-    it('should login with PAT token', async () => {
+    it('should login with PAT token', async() => {
       mockGithub.fetchUsername.mockResolvedValue('testuser');
       mockGithub.token = 'ghp_test';
       mockGithub.username = 'testuser';
@@ -230,7 +228,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'login', authMethod: 'pat', token: 'ghp_test' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       // Wait for async handling
@@ -244,7 +242,7 @@ describe('service-worker', () => {
       }));
     });
 
-    it('should return error on login failure', async () => {
+    it('should return error on login failure', async() => {
       mockGithub.fetchUsername.mockRejectedValue(new Error('Invalid token'));
 
       const sendResponse = vi.fn();
@@ -252,7 +250,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'login', authMethod: 'pat', token: 'invalid' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -265,7 +263,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - LOGOUT', () => {
-    it('should logout and clear state', async () => {
+    it('should logout and clear state', async() => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'logout' }, {}, sendResponse);
@@ -281,7 +279,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - GET_STATE', () => {
-    it('should return current state', async () => {
+    it('should return current state', async() => {
       mockGithub.isAuthenticated = true;
       mockGithub.username = 'testuser';
       mockStorageFunctions.getNotifications.mockResolvedValue([
@@ -301,7 +299,7 @@ describe('service-worker', () => {
       }));
     });
 
-    it('should fetch username from storage if not in memory', async () => {
+    it('should fetch username from storage if not in memory', async() => {
       mockGithub.isAuthenticated = true;
       mockGithub.username = null;
       mockStorageFunctions.getUsername.mockResolvedValue('storeduser');
@@ -321,7 +319,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - GET_RATE_LIMIT', () => {
-    it('should return rate limit info', async () => {
+    it('should return rate limit info', async() => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'getRateLimit' }, {}, sendResponse);
@@ -336,7 +334,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - OPEN_NOTIFICATION', () => {
-    it('should open notification URL in new tab', async () => {
+    it('should open notification URL in new tab', async() => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         {
           id: '123',
@@ -353,7 +351,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'openNotification', notificationId: '123' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -366,7 +364,7 @@ describe('service-worker', () => {
       }));
     });
 
-    it('should throw error for non-existent notification', async () => {
+    it('should throw error for non-existent notification', async() => {
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
       const sendResponse = vi.fn();
@@ -374,7 +372,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'openNotification', notificationId: 'nonexistent' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -386,7 +384,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - MARK_AS_READ', () => {
-    it('should mark notification as read and update storage', async () => {
+    it('should mark notification as read and update storage', async() => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         { id: '123', title: 'Test' },
         { id: '456', title: 'Another' },
@@ -398,7 +396,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'markAsRead', notificationId: '123' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -411,7 +409,7 @@ describe('service-worker', () => {
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it('should return error on API failure', async () => {
+    it('should return error on API failure', async() => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         { id: '123', title: 'Test' },
       ]);
@@ -422,7 +420,7 @@ describe('service-worker', () => {
       messageHandler(
         { action: 'markAsRead', notificationId: '123' },
         {},
-        sendResponse
+        sendResponse,
       );
 
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -435,7 +433,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - MARK_ALL_AS_READ', () => {
-    it('should mark all notifications as read', async () => {
+    it('should mark all notifications as read', async() => {
       mockGithub.markAllAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
@@ -452,7 +450,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - REFRESH', () => {
-    it('should refresh notifications and reset alarm', async () => {
+    it('should refresh notifications and reset alarm', async() => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue([]);
 
@@ -472,7 +470,7 @@ describe('service-worker', () => {
   });
 
   describe('handleMessage - unknown action', () => {
-    it('should return error for unknown action', async () => {
+    it('should return error for unknown action', async() => {
       const sendResponse = vi.fn();
 
       messageHandler({ action: 'unknownAction' }, {}, sendResponse);
@@ -486,7 +484,7 @@ describe('service-worker', () => {
   });
 
   describe('badge updates', () => {
-    it('should show empty badge when count is 0', async () => {
+    it('should show empty badge when count is 0', async() => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue([]);
 
@@ -498,7 +496,7 @@ describe('service-worker', () => {
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '' });
     });
 
-    it('should show count on badge when notifications exist', async () => {
+    it('should show count on badge when notifications exist', async() => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         { id: '1' },
         { id: '2' },

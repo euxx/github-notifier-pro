@@ -51,7 +51,7 @@ async function retryWithStrategy(fetchFn, options = {}) {
     baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY,
     backoff = 'exponential',
     retryOn = [401, 429],
-    checkResponse = true
+    checkResponse = true,
   } = options;
 
   let lastError;
@@ -334,7 +334,7 @@ class GitHubAPI {
       deviceData.device_code,
       deviceData.interval,
       onProgress,
-      onCancel
+      onCancel,
     );
 
     // Step 3: Save token and get username
@@ -381,7 +381,7 @@ class GitHubAPI {
       this.userInfo = {
         login: data.login,
         avatar_url: data.avatar_url,
-        html_url: data.html_url
+        html_url: data.html_url,
       };
       return this.username;
     }
@@ -422,7 +422,7 @@ class GitHubAPI {
     // Add timestamp to prevent caching
     url.searchParams.set('_t', Date.now().toString());
 
-    const response = await retryWithStrategy(async () => {
+    const response = await retryWithStrategy(async() => {
       const resp = await fetchWithTimeout(url.toString(), {
         headers: this.headers,
         cache: 'no-store', // Force no cache
@@ -438,7 +438,7 @@ class GitHubAPI {
       baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
       backoff: 'exponential',
       retryOn: [429, 500],
-      checkResponse: false // Already checking resp.ok above
+      checkResponse: false, // Already checking resp.ok above
     });
 
     this.updateRateLimit(response);
@@ -486,7 +486,7 @@ class GitHubAPI {
 
     const match = patterns.find(p => p.keywords.some(kw => lower.includes(kw)));
     return match ? { conclusion: match.conclusion, status: match.status }
-                 : { conclusion: null, status: 'completed' };
+      : { conclusion: null, status: 'completed' };
   }
 
   /**
@@ -520,7 +520,7 @@ class GitHubAPI {
                 const notifTime = new Date(notification.updated_at).getTime();
                 const matchingRun = runsData.workflow_runs?.find(run =>
                   run.name === workflowName &&
-                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW
+                  Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW,
                 );
 
                 if (matchingRun?.actor) {
@@ -529,7 +529,7 @@ class GitHubAPI {
                     conclusion: result.conclusion,
                     status: result.status,
                     user: matchingRun.actor,
-                    number: matchingRun.run_number
+                    number: matchingRun.run_number,
                   };
                 }
               }
@@ -542,7 +542,7 @@ class GitHubAPI {
             html_url,
             conclusion: result.conclusion,
             status: result.status,
-            user: this.userInfo || repo.owner
+            user: this.userInfo || repo.owner,
           };
         }
 
@@ -551,7 +551,7 @@ class GitHubAPI {
       }
     }
 
-    const response = await retryWithStrategy(async () => {
+    const response = await retryWithStrategy(async() => {
       const resp = await fetchWithTimeout(notification.subject.url, {
         headers: this.headers,
       }, API_TIMEOUTS.NOTIFICATION_DETAILS);
@@ -566,7 +566,7 @@ class GitHubAPI {
       baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
       backoff: 'exponential',
       retryOn: [429, 500],
-      checkResponse: false // Already checking resp.ok above
+      checkResponse: false, // Already checking resp.ok above
     });
 
     this.updateRateLimit(response);
@@ -579,7 +579,7 @@ class GitHubAPI {
   async markAsRead(threadId) {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
-    const response = await retryWithStrategy(async () => {
+    const response = await retryWithStrategy(async() => {
       return await fetch(url, {
         method: 'PATCH',
         headers: this.headers,
@@ -589,7 +589,7 @@ class GitHubAPI {
       baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
       backoff: 'linear',
       retryOn: [401, 500],
-      checkResponse: true
+      checkResponse: true,
     });
 
     this.updateRateLimit(response);
@@ -604,7 +604,7 @@ class GitHubAPI {
       this.lastUpdate = new Date().toISOString();
     }
 
-    const response = await retryWithStrategy(async () => {
+    const response = await retryWithStrategy(async() => {
       return await fetch(`${GITHUB_API_BASE}/notifications`, {
         method: 'PUT',
         headers: {
@@ -620,7 +620,7 @@ class GitHubAPI {
       baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
       backoff: 'linear',
       retryOn: [401, 500],
-      checkResponse: true
+      checkResponse: true,
     });
 
     this.updateRateLimit(response);

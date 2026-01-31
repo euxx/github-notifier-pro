@@ -30,7 +30,7 @@ vi.mock('../src/lib/icons.js', () => ({
   getIconSVG: vi.fn(() => '<svg></svg>'),
 }));
 
-const { formatTimeAgo, initRenderer, getCachedNotifications, clearNotificationCache, createNotificationsHash } = await import('../src/popup/notification-renderer.js');
+const { formatTimeAgo, initRenderer, getCachedNotifications, createNotificationsHash } = await import('../src/popup/notification-renderer.js');
 
 describe('notification-renderer', () => {
   describe('formatTimeAgo', () => {
@@ -301,7 +301,7 @@ describe('notification-renderer helper functions', () => {
       if (!body) return '';
       const trimmed = body.trim();
       if (trimmed.length <= maxLength) return trimmed;
-      return trimmed.substring(0, maxLength) + '...';
+      return `${trimmed.substring(0, maxLength)}...`;
     }
 
     it('should return empty string for null/undefined', () => {
@@ -321,7 +321,7 @@ describe('notification-renderer helper functions', () => {
     it('should truncate long text at 200 characters', () => {
       const longText = 'a'.repeat(250);
       const result = truncateBody(longText);
-      expect(result).toBe('a'.repeat(200) + '...');
+      expect(result).toBe(`${'a'.repeat(200)}...`);
       expect(result.length).toBe(203); // 200 + '...'
     });
 

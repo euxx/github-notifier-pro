@@ -11,14 +11,14 @@ import {
   MIN_POPUP_WIDTH,
   MAX_POPUP_WIDTH,
   POPUP_WIDTH_STEP,
-  TIMING_THRESHOLDS
+  TIMING_THRESHOLDS,
 } from '../lib/constants.js';
 import { applyTheme } from '../lib/theme.js';
 import {
   initRenderer,
   renderNotifications,
   getCachedNotifications,
-  clearNotificationCache
+  clearNotificationCache,
 } from './notification-renderer.js';
 
 // Elements
@@ -224,18 +224,7 @@ async function increaseWidth() {
 }
 
 /**
- * Apply saved popup size
- */
-async function applyPopupSize() {
-  const width = await storage.getPopupWidth();
 
-  document.body.style.width = `${width}px`;
-
-  // Update input value
-  popupWidthInput.value = width;
-}
-
-/**
  * Send message to background script
  */
 async function sendMessage(action, data = {}) {
@@ -267,7 +256,7 @@ async function markAllAsRead() {
   // Immediate visual feedback
   const originalText = markAllBtn.innerHTML;
   markAllBtn.disabled = true;
-  markAllBtn.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>`;
+  markAllBtn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>';
 
   try {
     const result = await sendMessage(MESSAGE_TYPES.MARK_ALL_AS_READ);
@@ -378,7 +367,7 @@ async function login(authMethod = 'oauth', token = null) {
     // Start countdown timer after successful login
     startCountdown();
   } else {
-    alert('Login failed: ' + (result.error || 'Unknown error'));
+    alert(`Login failed: ${result.error || 'Unknown error'}`);
   }
 }
 
@@ -481,7 +470,7 @@ async function init() {
   });
 
   // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async(_e) => {
     const currentTheme = await storage.getTheme();
     if (currentTheme === 'system') {
       applyTheme('system');
@@ -523,7 +512,7 @@ popupWidthInput.addEventListener('change', handleWidthChange);
 popupWidthInput.addEventListener('blur', handleWidthChange);
 widthDecreaseBtn.addEventListener('click', decreaseWidth);
 widthIncreaseBtn.addEventListener('click', increaseWidth);
-hoverCardsToggle.addEventListener('change', async () => {
+hoverCardsToggle.addEventListener('change', async() => {
   showHoverCards = hoverCardsToggle.checked;
   await storage.setShowHoverCards(showHoverCards);
 
@@ -543,7 +532,7 @@ hoverCardsToggle.addEventListener('change', async () => {
 });
 
 // Desktop notification settings
-desktopNotificationsToggle.addEventListener('change', async () => {
+desktopNotificationsToggle.addEventListener('change', async() => {
   const enabled = desktopNotificationsToggle.checked;
   await storage.setEnableDesktopNotifications(enabled);
 });
@@ -579,7 +568,7 @@ window.addEventListener('beforeunload', () => {
 });
 
 // Pre-apply theme to prevent flash on load
-(async () => {
+(async() => {
   await preloadTheme();
   // Enable transitions after initial theme is applied
   requestAnimationFrame(() => {

@@ -12,7 +12,7 @@ describe('buildNotificationUrl', () => {
         repository: { full_name: 'owner/repo' },
       };
       expect(buildNotificationUrl(notification)).toBe(
-        'https://github.com/owner/repo/issues/123'
+        'https://github.com/owner/repo/issues/123',
       );
     });
   });
@@ -73,7 +73,7 @@ describe('buildNotificationUrl', () => {
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
       expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/commit/abc123def`
+        `${GITHUB_BASE}/owner/repo/commit/abc123def`,
       );
     });
 
@@ -123,7 +123,7 @@ describe('buildNotificationUrl', () => {
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
       expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/network/dependencies`
+        `${GITHUB_BASE}/owner/repo/network/dependencies`,
       );
     });
   });
@@ -135,7 +135,7 @@ describe('buildNotificationUrl', () => {
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
       expect(buildNotificationUrl(notification)).toBe(
-        `${GITHUB_BASE}/owner/repo/security/dependabot`
+        `${GITHUB_BASE}/owner/repo/security/dependabot`,
       );
     });
   });

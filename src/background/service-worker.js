@@ -4,7 +4,7 @@
 
 import github from '../lib/github-api.js';
 import * as storage from '../lib/storage.js';
-import { action, alarms, runtime, storage as browserStorage, tabs, notifications } from '../lib/chrome-api.js';
+import { action, alarms, runtime, tabs, notifications } from '../lib/chrome-api.js';
 import { ALARM_NAME, DEFAULT_POLL_INTERVAL_MINUTES, MESSAGE_TYPES, NOTIFICATION_TYPES, NOTIFICATION_TYPE_ICONS } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 import { buildNotificationUrl } from '../lib/url-builder.js';
@@ -94,7 +94,7 @@ export function updateNotificationDetails(baseData, details, notifType) {
     const author = {
       login: authorData.login,
       avatar_url: authorData.avatar_url,
-      html_url: authorData.html_url
+      html_url: authorData.html_url,
     };
     baseData.author = author;
 
@@ -210,7 +210,7 @@ async function checkNotifications() {
       const detailedNotifications = basicProcessed.map(n => ({ ...n }));
 
       // Collect results and update storage once when all details are fetched
-      const detailPromises = notifications.map(async (n, index) => {
+      const detailPromises = notifications.map(async(n, index) => {
         const existing = existingMap.get(n.id);
         const needsUpdate = !existing || existing.updated_at !== n.updated_at;
 
@@ -235,7 +235,7 @@ async function checkNotifications() {
       });
 
       // Wait for all details in background and update storage once
-      Promise.all(detailPromises).then(async (results) => {
+      Promise.all(detailPromises).then(async(results) => {
         // Check if a newer fetch has completed while we were fetching details
         if (currentFetchVersion < notificationFetchVersion) {
           console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding detail updates`);
@@ -278,7 +278,7 @@ async function checkNotifications() {
       await action.setBadgeText({ text: '⏱' });
       await action.setBadgeBackgroundColor({ color: '#f59e0b' }); // Orange
       await action.setTitle({
-        title: `Rate limited. Resets ${rateLimitInfo.resetIn || 'soon'}`
+        title: `Rate limited. Resets ${rateLimitInfo.resetIn || 'soon'}`,
       });
     } else if (error.message && error.message.includes('timeout')) {
       // Network timeout
@@ -324,7 +324,7 @@ async function stopPolling() {
 /**
  * Handle alarm events
  */
-alarms.onAlarm.addListener(async (alarm) => {
+alarms.onAlarm.addListener(async(alarm) => {
   if (alarm.name === ALARM_NAME) {
     await checkNotifications();
   }
@@ -438,8 +438,8 @@ async function getState() {
 
   return {
     isAuthenticated: github.isAuthenticated,
-    username: username,
-    notifications: notifications,
+    username,
+    notifications,
     // Include cache statistics for debugging/monitoring
     cacheStats: authorCache.getStats(),
   };
@@ -555,7 +555,7 @@ async function showDesktopNotification(notif) {
 /**
  * Handle notification click - open the notification URL
  */
-notifications.onClicked.addListener(async (notificationId) => {
+notifications.onClicked.addListener(async(notificationId) => {
   try {
     // Extract notification ID from the chrome notification ID
     const githubNotifId = notificationId.replace('github-notif-', '');

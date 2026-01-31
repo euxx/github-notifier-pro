@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { LRUCache } from '../src/lib/lru-cache.js';
 
 describe('LRUCache', () => {

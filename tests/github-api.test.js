@@ -154,7 +154,7 @@ describe('GitHubAPI', () => {
   });
 
   describe('login with PAT', () => {
-    it('should set token and fetch username on PAT login', async () => {
+    it('should set token and fetch username on PAT login', async() => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -174,11 +174,11 @@ describe('GitHubAPI', () => {
       expect(github.userInfo.login).toBe('testuser');
     });
 
-    it('should throw error when PAT login without token', async () => {
+    it('should throw error when PAT login without token', async() => {
       await expect(github.login('pat')).rejects.toThrow('Token required for PAT authentication');
     });
 
-    it('should throw error when fetchUsername fails', async () => {
+    it('should throw error when fetchUsername fails', async() => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -204,12 +204,12 @@ describe('GitHubAPI', () => {
   });
 
   describe('getNotifications', () => {
-    it('should throw when not authenticated', async () => {
+    it('should throw when not authenticated', async() => {
       github.token = null;
       await expect(github.getNotifications()).rejects.toThrow('Not authenticated');
     });
 
-    it('should throw when rate limited', async () => {
+    it('should throw when rate limited', async() => {
       github.token = 'test-token';
       github.rateLimit.isLimited = true;
       github.rateLimit.reset = Math.floor(Date.now() / 1000) + 3600;
@@ -217,7 +217,7 @@ describe('GitHubAPI', () => {
       await expect(github.getNotifications()).rejects.toThrow(/Rate limited/);
     });
 
-    it('should fetch and return notifications', async () => {
+    it('should fetch and return notifications', async() => {
       github.token = 'test-token';
 
       const mockNotifications = [
@@ -245,7 +245,7 @@ describe('GitHubAPI', () => {
       expect(github.lastUpdate).not.toBeNull();
     });
 
-    it('should update poll interval from response', async () => {
+    it('should update poll interval from response', async() => {
       github.token = 'test-token';
 
       mockFetch.mockResolvedValueOnce({
@@ -265,7 +265,7 @@ describe('GitHubAPI', () => {
       expect(github.pollInterval).toBe(120);
     });
 
-    it('should enforce minimum poll interval', async () => {
+    it('should enforce minimum poll interval', async() => {
       github.token = 'test-token';
 
       mockFetch.mockResolvedValueOnce({
@@ -287,7 +287,7 @@ describe('GitHubAPI', () => {
   });
 
   describe('markAsRead', () => {
-    it('should call PATCH on notification thread', async () => {
+    it('should call PATCH on notification thread', async() => {
       github.token = 'test-token';
 
       mockFetch.mockResolvedValueOnce({
@@ -303,13 +303,13 @@ describe('GitHubAPI', () => {
         'https://api.github.com/notifications/threads/12345',
         expect.objectContaining({
           method: 'PATCH',
-        })
+        }),
       );
     });
   });
 
   describe('markAllAsRead', () => {
-    it('should call PUT on notifications endpoint', async () => {
+    it('should call PUT on notifications endpoint', async() => {
       github.token = 'test-token';
       github.lastUpdate = '2024-01-01T00:00:00Z';
 
@@ -327,11 +327,11 @@ describe('GitHubAPI', () => {
         expect.objectContaining({
           method: 'PUT',
           body: expect.stringContaining('last_read_at'),
-        })
+        }),
       );
     });
 
-    it('should set lastUpdate if not present', async () => {
+    it('should set lastUpdate if not present', async() => {
       github.token = 'test-token';
       github.lastUpdate = null;
 
@@ -374,7 +374,7 @@ describe('GitHubAPI', () => {
       github.token = 'test-token';
     });
 
-    it('should return html_url from buildNotificationUrl when no subject.url', async () => {
+    it('should return html_url from buildNotificationUrl when no subject.url', async() => {
       const notification = {
         subject: {
           type: 'Release',
@@ -391,7 +391,7 @@ describe('GitHubAPI', () => {
       expect(result.html_url).toBe('https://github.com/owner/repo');
     });
 
-    it('should fetch details from subject.url when present', async () => {
+    it('should fetch details from subject.url when present', async() => {
       const notification = {
         subject: {
           type: 'Issue',
@@ -419,7 +419,7 @@ describe('GitHubAPI', () => {
       expect(result.state).toBe('open');
     });
 
-    it('should handle CheckSuite notifications', async () => {
+    it('should handle CheckSuite notifications', async() => {
       const notification = {
         subject: {
           type: 'CheckSuite',
@@ -472,7 +472,7 @@ describe('retry logic', () => {
     vi.unstubAllGlobals();
   });
 
-  it('should retry on 429 (rate limit) status', async () => {
+  it('should retry on 429 (rate limit) status', async() => {
     // First call returns 429, second returns success
     mockFetch
       .mockResolvedValueOnce({
@@ -498,7 +498,7 @@ describe('retry logic', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('should retry on 500+ server errors', async () => {
+  it('should retry on 500+ server errors', async() => {
     mockFetch
       .mockResolvedValueOnce({
         ok: false,
