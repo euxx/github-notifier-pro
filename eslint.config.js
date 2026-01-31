@@ -1,10 +1,9 @@
 import js from '@eslint/js';
 import globals from 'globals';
-import prettier from 'eslint-config-prettier'
+import prettier from 'eslint-config-prettier';
 
 export default [
   js.configs.recommended,
-  prettier, // Disable ESLint rules that conflict with Prettier
   {
     languageOptions: {
       ecmaVersion: 2022,
@@ -15,22 +14,25 @@ export default [
       },
     },
     rules: {
-      // ===== Standard-like Rules =====
+      // ===== Code Quality Rules (No Formatting) =====
 
       // Possible Problems
-      'no-unused-vars': ['warn', {
-        vars: 'all',
-        args: 'after-used',
-        argsIgnorePattern: '^_',
-        caughtErrors: 'all',
-        caughtErrorsIgnorePattern: '^_',
-      }],
+      'no-unused-vars': [
+        'warn',
+        {
+          vars: 'all',
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       'no-console': 'off', // Common in browser extensions
       'no-debugger': 'warn',
       'no-constant-binary-expression': 'error',
 
-      // Best Practices (Standard style)
-      'eqeqeq': ['error', 'always', { null: 'ignore' }],
+      // Best Practices
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-caller': 'error',
       'no-eval': 'error',
       'no-extend-native': 'error',
@@ -50,17 +52,20 @@ export default [
       'no-sequences': 'error',
       'no-throw-literal': 'error',
       'no-unmodified-loop-condition': 'error',
-      'no-unused-expressions': ['error', {
-        allowShortCircuit: true,
-        allowTernary: true,
-        allowTaggedTemplates: true,
-      }],
+      'no-unused-expressions': [
+        'error',
+        {
+          allowShortCircuit: true,
+          allowTernary: true,
+          allowTaggedTemplates: true,
+        },
+      ],
       'no-useless-call': 'error',
       'no-useless-concat': 'error',
       'no-useless-return': 'error',
       'no-void': 'error',
       'no-with': 'error',
-      'yoda': ['error', 'never'],
+      yoda: ['error', 'never'],
 
       // Modern JavaScript
       'prefer-const': ['warn', { destructuring: 'all' }],
@@ -71,52 +76,10 @@ export default [
       'prefer-regex-literals': ['error', { disallowRedundantWrapping: true }],
       'object-shorthand': ['warn', 'properties'],
 
-      // Code Style (Standard style: have semicolons, but configurable)
-      'quotes': ['warn', 'single', { avoidEscape: true, allowTemplateLiterals: false }],
-      'semi': ['warn', 'always'],
-      'indent': ['warn', 2, {
-        SwitchCase: 1,
-        VariableDeclarator: 1,
-        outerIIFEBody: 1,
-        MemberExpression: 1,
-        FunctionDeclaration: { parameters: 1, body: 1 },
-        FunctionExpression: { parameters: 1, body: 1 },
-        CallExpression: { arguments: 1 },
-        ArrayExpression: 1,
-        ObjectExpression: 1,
-        ImportDeclaration: 1,
-        flatTernaryExpressions: false,
-        ignoreComments: false,
-      }],
-      'comma-dangle': ['warn', 'always-multiline'],
-      'comma-spacing': ['warn', { before: false, after: true }],
-      'comma-style': ['warn', 'last'],
-      'dot-location': ['warn', 'property'],
-      'key-spacing': ['warn', { beforeColon: false, afterColon: true }],
-      'keyword-spacing': ['warn', { before: true, after: true }],
-      'no-multiple-empty-lines': ['warn', { max: 1, maxBOF: 0, maxEOF: 0 }],
-      'no-trailing-spaces': 'warn',
-      'no-whitespace-before-property': 'warn',
-      'space-before-blocks': ['warn', 'always'],
-      'space-before-function-paren': ['warn', 'never'],
-      'space-in-parens': ['warn', 'never'],
-      'space-infix-ops': 'warn',
-      'space-unary-ops': ['warn', { words: true, nonwords: false }],
-      'spaced-comment': ['warn', 'always', {
-        line: { markers: ['*package', '!', '/', ',', '='] },
-        block: { balanced: true, markers: ['*package', '!', ',', ':', '::', 'flow-include'], exceptions: ['*'] },
-      }],
-      'eol-last': ['warn', 'always'],
-
       // ES6+
-      'arrow-spacing': ['warn', { before: true, after: true }],
-      'generator-star-spacing': ['warn', { before: true, after: true }],
       'no-duplicate-imports': 'error',
-      'rest-spread-spacing': ['warn', 'never'],
-      'template-curly-spacing': ['warn', 'never'],
-      'yield-star-spacing': ['warn', 'both'],
 
-      // WebExtension specific (manual rules)
+      // WebExtension specific
       'no-undef': 'error', // Catch undefined chrome/browser API usage
     },
   },
@@ -134,4 +97,6 @@ export default [
     // Ignore patterns
     ignores: ['dist/', 'node_modules/', '*.min.js'],
   },
+  // Disable ESLint rules that conflict with Prettier (must be last)
+  prettier,
 ];
