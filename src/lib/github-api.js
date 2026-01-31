@@ -426,7 +426,7 @@ class GitHubAPI {
       const resp = await fetchWithTimeout(url.toString(), {
         headers: this.headers,
         cache: 'no-store', // Force no cache
-      }, 30000);
+      }, API_TIMEOUTS.DEFAULT);
 
       if (!resp.ok) {
         throw new Error(`Failed to fetch notifications: ${resp.status}`);

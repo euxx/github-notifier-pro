@@ -76,11 +76,16 @@ export function getNotificationStatus(notif) {
 
 /**
  * Escape HTML to prevent XSS
+ * Uses string replacement instead of DOM manipulation for better performance
  */
 export function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
