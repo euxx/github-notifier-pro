@@ -155,6 +155,46 @@ export function copyCachedDetails(baseData, existing) {
 let notificationFetchVersion = 0;
 
 /**
+ * Fetch tasks with concurrency limit to prevent API request storms
+ * @param {Array<Function>} tasks - Array of async functions to execute
+ * @param {number} limit - Maximum concurrent tasks
+ * @returns {Promise<Array>} Results from all tasks
+ */
+async function fetchWithConcurrencyLimit(tasks, limit = 5) {
+  const results = [];
+  for (let i = 0; i < tasks.length; i += limit) {
+    const batch = tasks.slice(i, i + limit);
+    const batchResults = await Promise.all(batch.map((task) => task()));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+/**
+ * Create a task to fetch notification details
+ * @param {Object} notification - Notification object
+ * @param {number} index - Index in notifications array
+ * @param {Array} detailedNotifications - Array to update with details
+ * @returns {Function} Async function to fetch details
+ */
+function createDetailFetchTask(notification, index, detailedNotifications) {
+  return async () => {
+    try {
+      const details = await github.getNotificationDetails(notification);
+      updateNotificationDetails(detailedNotifications[index], details, notification.subject.type);
+      return { success: true, id: notification.id, index };
+    } catch (error) {
+      console.error(`Failed to fetch details for notification ${notification.id}:`, error);
+      if (notification.subject.type !== 'CheckSuite') {
+        detailedNotifications[index].state = 'open';
+      }
+      detailedNotifications[index].detailsFailed = true;
+      return { success: false, id: notification.id, index, error: error.message };
+    }
+  };
+}
+
+/**
  * Check for new notifications
  *
  * Race condition prevention:
@@ -232,69 +272,97 @@ async function checkNotifications() {
       // Create a deep copy to avoid race conditions with concurrent updates
       const detailedNotifications = basicProcessed.map((n) => ({ ...n }));
 
-      // Collect results and update storage once when all details are fetched
-      const detailPromises = notifications.map(async (n, index) => {
+      // Identify which notifications need details fetched
+      const notificationsNeedingDetails = [];
+      for (let index = 0; index < notifications.length; index++) {
+        const n = notifications[index];
         const existing = existingMap.get(n.id);
         const needsUpdate = !existing || existing.updated_at !== n.updated_at;
 
         if (needsUpdate) {
-          try {
-            const details = await github.getNotificationDetails(n);
-
-            // Update the notification copy with details
-            updateNotificationDetails(detailedNotifications[index], details, n.subject.type);
-            return { success: true, id: n.id };
-          } catch (error) {
-            console.error(`Failed to fetch details for notification ${n.id}:`, error);
-            // Mark as failed
-            if (n.subject.type !== 'CheckSuite') {
-              detailedNotifications[index].state = 'open';
-            }
-            detailedNotifications[index].detailsFailed = true;
-            return { success: false, id: n.id, error: error.message };
-          }
+          notificationsNeedingDetails.push({ notification: n, index });
         }
-        return { success: true, id: n.id, cached: true };
-      });
+      }
 
-      // Wait for all details in background and update storage once
-      Promise.all(detailPromises)
-        .then(async (results) => {
-          // Check if a newer fetch has completed while we were fetching details
-          if (currentFetchVersion < notificationFetchVersion) {
+      // Split into priority (first 10 visible) and background loading
+      const VISIBLE_COUNT = 10; // Approximately one screen of notifications
+      const priorityNotifications = notificationsNeedingDetails.slice(0, VISIBLE_COUNT);
+      const backgroundNotifications = notificationsNeedingDetails.slice(VISIBLE_COUNT);
+
+      console.log(
+        `Loading details: ${priorityNotifications.length} priority, ${backgroundNotifications.length} background`,
+      );
+
+      // Priority loading: First 10 notifications (visible on screen)
+      if (priorityNotifications.length > 0) {
+        const priorityResults = await fetchWithConcurrencyLimit(
+          priorityNotifications.map(({ notification: n, index }) =>
+            createDetailFetchTask(n, index, detailedNotifications),
+          ),
+          5, // Concurrency limit: 5 requests at a time
+        );
+
+        // Log priority loading results
+        const prioritySuccess = priorityResults.filter((r) => r.success === true).length;
+        const priorityFailed = priorityResults.filter((r) => r.success === false).length;
+        console.log(`Fetch #${currentFetchVersion} priority: ${prioritySuccess} loaded, ${priorityFailed} failed`);
+
+        // Check if superseded before updating
+        if (currentFetchVersion >= notificationFetchVersion) {
+          // Save priority notifications immediately
+          await storage.setNotifications(detailedNotifications);
+          console.log(`Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`);
+        }
+      }
+
+      // Background loading: Remaining notifications
+      // This happens asynchronously and doesn't block the priority loading
+      if (backgroundNotifications.length > 0) {
+        fetchWithConcurrencyLimit(
+          backgroundNotifications.map(({ notification: n, index }) =>
+            createDetailFetchTask(n, index, detailedNotifications),
+          ),
+          3, // Lower concurrency for background: 3 requests at a time
+        )
+          .then(async (backgroundResults) => {
+            // Check if a newer fetch has completed while we were fetching details
+            if (currentFetchVersion < notificationFetchVersion) {
+              console.log(
+                `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding background updates`,
+              );
+              return;
+            }
+
+            const allResults = [...priorityNotifications, ...backgroundResults];
+            const failedCount = allResults.filter((r) => r && r.success === false).length;
+            const successCount = allResults.filter((r) => r && r.success === true).length;
+
             console.log(
-              `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding detail updates`,
+              `Notification details (fetch #${currentFetchVersion}): ${successCount} fetched, ${failedCount} failed`,
             );
-            return; // Discard these results, newer data is already in storage
-          }
 
-          const failedCount = results.filter((r) => r.success === false).length;
-          const cachedCount = results.filter((r) => r.cached === true).length;
-          console.log(
-            `Notification details (fetch #${currentFetchVersion}): ${results.length - failedCount - cachedCount} fetched, ${cachedCount} cached, ${failedCount} failed`,
-          );
+            // Log cache statistics for monitoring
+            const cacheStats = authorCache.getStats();
+            console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
 
-          // Log cache statistics for monitoring
-          const cacheStats = authorCache.getStats();
-          console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
+            // Double-check before final save
+            const currentStoredNotifications = await storage.getNotifications();
+            const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
 
-          // Double-check before final save
-          const currentStoredNotifications = await storage.getNotifications();
-          const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
-
-          if (currentFetchVersion >= storedVersion) {
-            // Update storage with all completed details
-            await storage.setNotifications(detailedNotifications);
-            console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
-          } else {
-            console.log(
-              `Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`,
-            );
-          }
-        })
-        .catch((error) => {
-          console.error(`Error fetching notification details (fetch #${currentFetchVersion}):`, error);
-        });
+            if (currentFetchVersion >= storedVersion) {
+              // Update storage with all completed details
+              await storage.setNotifications(detailedNotifications);
+              console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+            } else {
+              console.log(
+                `Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`,
+              );
+            }
+          })
+          .catch((error) => {
+            console.error(`Error fetching background notification details (fetch #${currentFetchVersion}):`, error);
+          });
+      }
 
       // Show desktop notifications for new items (using basic data)
       await showDesktopNotificationsForNew(basicProcessed);
