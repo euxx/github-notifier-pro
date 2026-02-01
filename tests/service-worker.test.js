@@ -224,7 +224,7 @@ describe('service-worker', () => {
       mockGithub.token = 'ghp_test';
       mockGithub.username = 'testuser';
       mockGithub.isAuthenticated = true;
-      mockGithub.getNotifications.mockResolvedValue([]);
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
 
@@ -435,7 +435,7 @@ describe('service-worker', () => {
   describe('handleMessage - REFRESH', () => {
     it('should refresh notifications and reset alarm', async () => {
       mockGithub.isAuthenticated = true;
-      mockGithub.getNotifications.mockResolvedValue([]);
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
 
@@ -469,7 +469,7 @@ describe('service-worker', () => {
   describe('badge updates', () => {
     it('should show empty badge when count is 0', async () => {
       mockGithub.isAuthenticated = true;
-      mockGithub.getNotifications.mockResolvedValue([]);
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
       messageHandler({ action: 'markAllAsRead' }, {}, sendResponse);

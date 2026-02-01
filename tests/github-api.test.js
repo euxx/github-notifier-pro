@@ -241,7 +241,11 @@ describe('GitHubAPI', () => {
 
       const result = await github.getNotifications();
 
-      expect(result).toEqual(mockNotifications);
+      expect(result).toEqual({
+        items: mockNotifications,
+        hasMore: false,
+        count: 2,
+      });
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(github.lastUpdate).not.toBeNull();
     });
@@ -284,6 +288,34 @@ describe('GitHubAPI', () => {
       await github.getNotifications();
 
       expect(github.pollInterval).toBe(60); // Should be MIN_POLL_INTERVAL_SECONDS
+    });
+
+    it('should detect when there are more pages', async () => {
+      github.token = 'test-token';
+
+      const mockNotifications = Array.from({ length: 50 }, (_, i) => ({
+        id: `${i + 1}`,
+        subject: { title: `Notification ${i + 1}` },
+      }));
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockNotifications),
+        headers: {
+          get: vi.fn((name) => {
+            if (name === 'Link')
+              return '<https://api.github.com/notifications?page=2>; rel="next", <https://api.github.com/notifications?page=3>; rel="last"';
+            return null;
+          }),
+        },
+      });
+
+      const result = await github.getNotifications();
+
+      expect(result.hasMore).toBe(true);
+      expect(result.count).toBe(50);
+      expect(result.items).toHaveLength(50);
     });
   });
 
@@ -497,7 +529,7 @@ describe('retry logic', () => {
 
     const result = await promise;
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ items: [], hasMore: false, count: 0 });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -521,7 +553,7 @@ describe('retry logic', () => {
 
     const result = await promise;
 
-    expect(result).toEqual([{ id: '1' }]);
+    expect(result).toEqual({ items: [{ id: '1' }], hasMore: false, count: 1 });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

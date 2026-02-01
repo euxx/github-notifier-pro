@@ -464,14 +464,15 @@ class GitHubAPI {
     if (response.status === 200) {
       const notifications = await response.json();
 
-      // Handle pagination
+      // Check if there are more pages
       const linkHeader = response.headers.get('Link');
-      if (linkHeader && linkHeader.includes('rel="next"')) {
-        // For simplicity, just get first page for now
-        // Can extend to handle pagination if needed
-      }
+      const hasMore = linkHeader ? linkHeader.includes('rel="next"') : false;
 
-      return notifications;
+      return {
+        items: notifications,
+        hasMore,
+        count: notifications.length,
+      };
     }
 
     // 304 Not Modified

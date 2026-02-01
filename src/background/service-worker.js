@@ -64,8 +64,10 @@ async function initializeAuthorCache() {
 
 /**
  * Update badge with notification count
+ * @param {number|null} count - Number of notifications (null if not authenticated)
+ * @param {boolean} hasMore - Whether there are more notifications beyond this count
  */
-async function updateBadge(count) {
+async function updateBadge(count, hasMore = false) {
   if (count === null) {
     // Not authenticated
     await action.setBadgeText({ text: '?' });
@@ -73,7 +75,8 @@ async function updateBadge(count) {
   } else if (count === 0) {
     await action.setBadgeText({ text: '' });
   } else {
-    await action.setBadgeText({ text: count.toString() });
+    const badgeText = hasMore ? `${count}+` : count.toString();
+    await action.setBadgeText({ text: badgeText });
     await action.setBadgeBackgroundColor({ color: '#2563EB' });
   }
 }
@@ -169,9 +172,11 @@ async function checkNotifications() {
   console.log(`Starting notification fetch #${currentFetchVersion}`);
 
   try {
-    const notifications = await github.getNotifications();
+    const result = await github.getNotifications();
 
-    if (notifications) {
+    if (result) {
+      const { items: notifications, hasMore } = result;
+
       // Check if a newer fetch has already started
       if (currentFetchVersion < notificationFetchVersion) {
         console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`);
@@ -221,7 +226,7 @@ async function checkNotifications() {
 
       // Save basic data immediately - popup can display now
       await storage.setNotifications(basicProcessed);
-      await updateBadge(basicProcessed.length);
+      await updateBadge(basicProcessed.length, hasMore);
 
       // Second pass: Fetch details asynchronously for new/updated notifications
       // Create a deep copy to avoid race conditions with concurrent updates
