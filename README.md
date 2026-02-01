@@ -1,96 +1,69 @@
 # GitHub Notifier Pro
 
-A Chrome extension for GitHub notifications with offline support and smart rate limiting.
+A browser extension that brings GitHub notifications to your browser toolbar.
+
+![Chrome](https://img.shields.io/badge/Chrome-MV3-green) ![Firefox](https://img.shields.io/badge/Firefox-supported-orange)
+
+## Screenshot
+
+<!-- Add your screenshot here -->
+
+![Popup Screenshot](images/screenshot.png)
 
 ## Features
 
-- Real-time notifications with auto-refresh
-- **Desktop notifications** - Get notified instantly with system notifications
-  - Click to open notification directly
-  - Auto-dismiss after a few seconds
-- **Responsive notification metadata** - Shows additional info based on popup width
-  - Comment count, author avatar, and relative time
-  - Automatically adjusts based on available space
-  - Release notifications include content preview
-- Dark/Light/System theme support
-- **Two authentication methods:**
-  - **Device Flow OAuth** (recommended) - Secure, no secrets needed
-  - **Personal Access Token** - Quick setup
-- Offline support with cached data
-- Smart rate limiting and timeout handling
-- Clean, modern UI
+- **Real-time notifications** - Badge shows unread count, auto-refreshes in background
+- **Desktop alerts** - Optional native notifications for new items
+- **Quick actions** - Open, mark as read, or mark all as read
+- **Rich details** - Shows PR state, issue status, author avatars
+- **Secure auth** - OAuth Device Flow (no secret needed) or PAT
+
+## Permissions
+
+This extension requires:
+
+| Permission       | Purpose                          |
+| ---------------- | -------------------------------- |
+| `notifications`  | Show desktop notifications       |
+| `storage`        | Store auth token and preferences |
+| `alarms`         | Background polling               |
+| `api.github.com` | Fetch notifications              |
+| `github.com`     | OAuth authentication             |
+
+**OAuth Scopes**: `repo`, `notifications`
 
 ## Installation
 
-1. Clone this repository
-2. Open Chrome → `chrome://extensions/`
-3. Enable "Developer mode"
-4. Click "Load unpacked" → Select project directory
+### From Source
 
-## Authentication Setup
+1. Clone the repository
+2. Configure OAuth:
+   ```bash
+   cp src/config/config.example.js src/config/config.js
+   # Edit config.js with your GitHub OAuth App Client ID
+   ```
+3. Load in browser:
+   - **Chrome**: `chrome://extensions` → Enable Developer mode → Load unpacked → Select project folder
+   - **Firefox**: Run `npm run dev:firefox`, then `about:debugging` → Load Temporary Add-on → Select `dist/firefox-dev/manifest.json`
 
-### Method 1: OAuth (Recommended) 🔐
+### Build for Distribution
 
-**More secure** - Uses GitHub's Device Flow, no client secrets required!
-
-1. [Create a GitHub OAuth App](https://github.com/settings/applications/new)
-   - Application name: `GitHub Notifier Pro`
-   - Homepage URL: `https://github.com/YOUR_USERNAME/github-notifier-pro`
-   - Authorization callback URL: `http://127.0.0.1` (required but not used for Device Flow)
-2. Copy `src/config/config.example.js` to `src/config/config.js`
-3. Fill in your CLIENT_ID
-4. Click the extension icon → "Sign in with GitHub"
-5. Follow the on-screen instructions (visit link + enter code)
-
-### Method 2: Personal Access Token 🔑
-
-**Quickest** - But requires manual token management
-
-1. [Generate GitHub PAT](https://github.com/settings/tokens/new?scopes=repo,notifications) with `repo` and `notifications` scopes
-2. Click the extension icon → "Use PAT"
-3. Paste your token
-
-**Troubleshooting**: "?" = not logged in, "⏱" = rate limited (auto-recovers)
-
-## Project Structure
-
+```bash
+npm run build
+# Outputs: dist/github-notifier-pro-chrome.zip and dist/github-notifier-pro-firefox.zip
 ```
-├── manifest.json
-├── src/
-│   ├── background/service-worker.js  # Background tasks
-│   ├── auth/
-│   │   ├── device-flow.html         # Device Flow authorization page
-│   │   └── device-flow.js           # Device Flow logic
-│   ├── popup/                        # UI + settings
-│   ├── lib/                          # Core libraries
-│   │   ├── github-api.js            # GitHub API + Device Flow
-│   │   ├── storage.js               # Data persistence
-│   │   ├── theme.js                 # Theme management utility
-│   │   ├── chrome-api.js            # Chrome API wrappers
-│   │   └── constants.js
-│   ├── config/config.js             # OAuth configuration
-│   └── styles/
-│       ├── variables.css            # Theme variables
-│       ├── device-flow.css          # Device Flow UI styles
-│       └── popup.css                # Popup UI styles
-└── images/
-```
+
+## Usage
+
+### Authentication
+
+1. **OAuth (recommended)** - Click "Sign in with GitHub", enter the code on GitHub
+2. **Personal Access Token** - Generate a token with `repo` and `notifications` scopes at [GitHub Settings](https://github.com/settings/tokens)
+
 
 ## Development
 
-Built with vanilla JS and Chrome Manifest V3.
-
-**Technologies:**
-- Chrome Extensions API (Manifest V3)
-- GitHub REST API
-- GitHub Device Flow OAuth 2.0
-- ES6 Modules
-
-**Key Features:**
-- Secure authentication without client secrets
-- Optimized notification fetching with caching
-- Real-time badge updates
-- Offline-first architecture
+See [development.md](development.md) for build instructions and contribution guidelines.
 
 ## License
 
