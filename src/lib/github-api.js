@@ -14,6 +14,7 @@ import {
   NOTIFICATION_TYPES,
 } from './constants.js';
 import { buildNotificationUrl } from './url-builder.js';
+import { LRUCache } from './lru-cache.js';
 
 /**
  * Create a fetch request with timeout
@@ -137,6 +138,9 @@ class GitHubAPI {
       reset: null, // Unix timestamp
       isLimited: false,
     };
+    // Cache for notification details (issue/PR/etc.)
+    // Reduces redundant API calls for frequently accessed notifications
+    this.detailsCache = new LRUCache(100);
   }
 
   get isAuthenticated() {
@@ -401,6 +405,7 @@ class GitHubAPI {
     this.username = null;
     this.userInfo = null;
     this.lastModified = null;
+    this.detailsCache.clear();
   }
 
   /**
@@ -520,10 +525,21 @@ class GitHubAPI {
 
   /**
    * Get notification details (including URL and metadata)
+   * @param {Object} notification - Notification object
+   * @param {boolean} forceRefresh - Skip cache and force API fetch (default: false)
    */
-  async getNotificationDetails(notification) {
+  async getNotificationDetails(notification, forceRefresh = false) {
     const subjectType = notification.subject.type;
     const repo = notification.repository;
+
+    // Check cache first (if subject.url exists and not forcing refresh)
+    const cacheKey = notification.subject.url;
+    if (cacheKey && !forceRefresh) {
+      const cached = this.detailsCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
 
     if (!notification.subject.url) {
       const html_url = buildNotificationUrl(notification);
@@ -611,7 +627,14 @@ class GitHubAPI {
     );
 
     this.updateRateLimit(response);
-    return await response.json();
+    const details = await response.json();
+
+    // Cache the result for future use
+    if (cacheKey) {
+      this.detailsCache.set(cacheKey, details);
+    }
+
+    return details;
   }
 
   /**
