@@ -471,6 +471,9 @@ async function handleMessage(message) {
     case MESSAGE_TYPES.MARK_ALL_AS_READ:
       return await markAllAsRead();
 
+    case MESSAGE_TYPES.MARK_REPO_AS_READ:
+      return await markRepoAsRead(message.owner, message.repo);
+
     case MESSAGE_TYPES.REFRESH:
       await checkNotifications();
       // Reset the alarm timer without recreating it
@@ -603,6 +606,24 @@ async function markAllAsRead() {
     return { success: true };
   } catch (error) {
     console.error('Failed to mark all as read:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function markRepoAsRead(owner, repo) {
+  try {
+    await github.markRepoAsRead(owner, repo);
+
+    // Filter out notifications from this repository
+    const notifications = await storage.getNotifications();
+    const updated = notifications.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
+
+    await storage.setNotifications(updated);
+    await updateBadge(updated.length);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to mark repo as read:', error);
     return { success: false, error: error.message };
   }
 }

@@ -696,6 +696,40 @@ class GitHubAPI {
     this.updateRateLimit(response);
     return true;
   }
+
+  /**
+   * Mark all notifications in a repository as read
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   */
+  async markRepoAsRead(owner, repo) {
+    const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/notifications`;
+
+    const response = await retryWithStrategy(
+      async () => {
+        return await fetch(url, {
+          method: 'PUT',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            last_read_at: new Date().toISOString(),
+          }),
+        });
+      },
+      {
+        maxRetries: 2,
+        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+        backoff: 'linear',
+        retryOn: [401, 500],
+        checkResponse: true,
+      },
+    );
+
+    this.updateRateLimit(response);
+    return true;
+  }
 }
 
 // Singleton instance

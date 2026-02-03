@@ -92,6 +92,7 @@ const mockGithub = {
   getNotificationDetails: vi.fn(),
   markAsRead: vi.fn(),
   markAllAsRead: vi.fn(),
+  markRepoAsRead: vi.fn(),
   getRateLimitInfo: vi.fn(() => ({ resetIn: '5 min' })),
 };
 
@@ -112,6 +113,7 @@ vi.mock('../src/lib/constants.js', () => ({
     OPEN_NOTIFICATION: 'openNotification',
     MARK_AS_READ: 'markAsRead',
     MARK_ALL_AS_READ: 'markAllAsRead',
+    MARK_REPO_AS_READ: 'markRepoAsRead',
     REFRESH: 'refresh',
   },
   NOTIFICATION_TYPES: {
@@ -429,6 +431,47 @@ describe('service-worker', () => {
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '' });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+  });
+
+  describe('handleMessage - MARK_REPO_AS_READ', () => {
+    it('should mark repository notifications as read', async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test 1' },
+        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+      ]);
+      mockGithub.markRepoAsRead.mockResolvedValue(true);
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockGithub.markRepoAsRead).toHaveBeenCalledWith('owner', 'repo');
+      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
+        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+      ]);
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1' });
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+
+    it('should return error on API failure', async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test' },
+      ]);
+      mockGithub.markRepoAsRead.mockRejectedValue(new Error('API Error'));
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith({
+        success: false,
+        error: 'API Error',
+      });
     });
   });
 

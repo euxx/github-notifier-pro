@@ -443,6 +443,72 @@ async function logout() {
 }
 
 /**
+ * Mark all notifications in a repository as read
+ * @param {string} repoFullName - Repository full name (owner/repo)
+ */
+async function handleMarkRepoAsRead(repoFullName) {
+  const [owner, repo] = repoFullName.split('/');
+
+  try {
+    lastUserActionTime = Date.now();
+
+    // Call background script
+    const response = await sendMessage(MESSAGE_TYPES.MARK_REPO_AS_READ, { owner, repo });
+
+    if (response.success) {
+      // Optimistically remove repo group from UI
+      const repoHeader = document.querySelector(`.repo-group-header[data-repo="${repoFullName}"]`);
+      const items = document.querySelectorAll(`.notification-item[data-repo="${repoFullName}"]`);
+
+      // Calculate animation duration based on number of items
+      const animationDuration = ANIMATION_DURATION.FADE_OUT;
+      lastAnimationDuration = animationDuration * (items.length + 1); // +1 for header
+
+      // Animate removal
+      if (repoHeader) {
+        repoHeader.style.transition = `opacity ${ANIMATION_DURATION.FADE_OUT}ms ease, transform ${ANIMATION_DURATION.FADE_OUT}ms ease`;
+        repoHeader.style.opacity = '0';
+        repoHeader.style.transform = 'translateX(-10px)';
+      }
+
+      items.forEach((item) => {
+        item.style.transition = `opacity ${ANIMATION_DURATION.FADE_OUT}ms ease, transform ${ANIMATION_DURATION.FADE_OUT}ms ease`;
+        item.style.opacity = '0';
+        item.style.transform = 'translateX(-10px)';
+      });
+
+      // Remove after animation
+      setTimeout(async () => {
+        if (repoHeader) repoHeader.remove();
+        items.forEach((item) => item.remove());
+
+        // Check if empty
+        const remainingItems = notificationsList.querySelectorAll('.notification-item');
+        if (remainingItems.length === 0) {
+          emptyState.hidden = false;
+          markAllBtn.disabled = true;
+        }
+
+        // Reload to get updated state
+        try {
+          const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
+          renderNotifications(state.notifications, true);
+        } catch (error) {
+          console.error('Failed to reload notifications:', error);
+        }
+      }, ANIMATION_DURATION.FADE_OUT);
+    } else {
+      console.error('Failed to mark repo as read:', response.error);
+    }
+  } catch (error) {
+    console.error('Error marking repo as read:', error);
+  }
+}
+
+// Expose handler for notification-renderer
+window.handleMarkRepoAsRead = handleMarkRepoAsRead;
+
+/**
  * Pre-load theme before showing any view to prevent flash
  */
 async function preloadTheme() {

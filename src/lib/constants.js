@@ -73,6 +73,7 @@ export const MESSAGE_TYPES = {
   OPEN_NOTIFICATION: 'openNotification',
   MARK_AS_READ: 'markAsRead',
   MARK_ALL_AS_READ: 'markAllAsRead',
+  MARK_REPO_AS_READ: 'markRepoAsRead',
   REFRESH: 'refresh',
 };
 

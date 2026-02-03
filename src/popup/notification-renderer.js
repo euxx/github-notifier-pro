@@ -478,6 +478,7 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoHeader.href = group.repo.html_url;
     repoHeader.target = '_blank';
     repoHeader.rel = 'noopener noreferrer';
+    repoHeader.dataset.repo = repoFullName; // For identifying repository
     repoHeader.innerHTML = `
       <div class="repo-info">
         <svg viewBox="0 0 16 16" width="14" height="14" class="repo-icon">
@@ -485,8 +486,28 @@ export function renderNotifications(notifications, shouldResort = true) {
         </svg>
         <span class="repo-name">${escapeHtml(repoFullName)}</span>
       </div>
-      <span class="repo-count">${group.notifications.length}</span>
+      <div class="repo-actions">
+        <span class="repo-count">${group.notifications.length}</span>
+        <button class="repo-mark-read-btn" title="Mark all notifications in this repository as read" aria-label="Mark repository as read">
+          <svg viewBox="0 0 16 16" width="14" height="14">
+            <path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
+          </svg>
+        </button>
+      </div>
     `;
+
+    // Add event listener for mark as read button
+    const markReadBtn = repoHeader.querySelector('.repo-mark-read-btn');
+    markReadBtn.addEventListener('click', (e) => {
+      e.preventDefault(); // Prevent <a> default navigation
+      e.stopPropagation(); // Stop event bubbling
+
+      // Call the global handler function
+      if (window.handleMarkRepoAsRead) {
+        window.handleMarkRepoAsRead(repoFullName);
+      }
+    });
+
     notificationsList.appendChild(repoHeader);
 
     for (const notif of group.notifications) {
