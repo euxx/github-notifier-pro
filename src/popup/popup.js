@@ -10,6 +10,7 @@ import {
   MESSAGE_TYPES,
   MIN_POPUP_WIDTH,
   MAX_POPUP_WIDTH,
+  DEFAULT_POPUP_WIDTH,
   POPUP_WIDTH_STEP,
   TIMING_THRESHOLDS,
 } from '../lib/constants.js';
@@ -24,6 +25,63 @@ import {
 // Elements
 const loginView = document.getElementById('login-view');
 const mainView = document.getElementById('main-view');
+
+const POPUP_LAST_VIEW_KEY = 'popupLastView';
+const POPUP_WIDTH_KEY = 'popupWidth';
+
+// Generic localStorage wrapper with error handling
+function getStorageValue(key, defaultValue) {
+  try {
+    return localStorage.getItem(key) ?? defaultValue;
+  } catch (_error) {
+    return defaultValue;
+  }
+}
+
+function setStorageValue(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch (_error) {
+    // Ignore storage errors to avoid blocking popup rendering
+  }
+}
+
+function getCachedPopupWidth() {
+  const raw = getStorageValue(POPUP_WIDTH_KEY, DEFAULT_POPUP_WIDTH);
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    return DEFAULT_POPUP_WIDTH;
+  }
+  return Math.min(MAX_POPUP_WIDTH, Math.max(MIN_POPUP_WIDTH, parsed));
+}
+
+function setCachedPopupWidth(width) {
+  setStorageValue(POPUP_WIDTH_KEY, width);
+}
+
+function getCachedPopupView() {
+  const value = getStorageValue(POPUP_LAST_VIEW_KEY, null);
+  return value === 'login' || value === 'main' ? value : null;
+}
+
+function setCachedPopupView(view) {
+  setStorageValue(POPUP_LAST_VIEW_KEY, view);
+}
+
+function applyInitialPopupWidth() {
+  const cachedView = getCachedPopupView();
+  const cachedWidth = getCachedPopupWidth();
+
+  if (cachedView === 'login' || cachedView === null) {
+    document.body.style.width = '400px';
+  } else {
+    document.body.style.width = `${cachedWidth}px`;
+  }
+
+  document.body.classList.add('popup-ready');
+}
+
+applyInitialPopupWidth();
 
 // Track last user action to prevent race conditions with storage updates
 let lastUserActionTime = 0;
@@ -198,6 +256,7 @@ async function handleWidthChange() {
 
   popupWidthInput.value = width;
   document.body.style.width = `${width}px`;
+  setCachedPopupWidth(width);
 
   // Save to storage
   await storage.setPopupWidth(width);
@@ -242,11 +301,16 @@ async function showView(view) {
   if (view === 'login') {
     // Fixed width for login view
     document.body.style.width = '400px';
+    setCachedPopupView('login');
   } else if (view === 'main') {
     // Use saved width for main view
     const width = await storage.getPopupWidth();
     document.body.style.width = `${width}px`;
+    setCachedPopupWidth(width);
+    setCachedPopupView('main');
   }
+
+  document.body.classList.add('popup-ready');
 }
 
 /**
