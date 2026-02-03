@@ -19,6 +19,7 @@ let config = {
   getShowHoverCards: () => true,
   sendMessage: async () => {},
   onUserAction: () => {},
+  onMarkRepoAsRead: () => {},
 };
 
 /**
@@ -174,6 +175,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   const li = document.createElement('li');
   li.className = 'notification-item';
   li.dataset.id = notif.id;
+  li.dataset.repo = repoFullName;
 
   // Build icon class with state information
   let iconClass = notif.icon;
@@ -501,11 +503,7 @@ export function renderNotifications(notifications, shouldResort = true) {
     markReadBtn.addEventListener('click', (e) => {
       e.preventDefault(); // Prevent <a> default navigation
       e.stopPropagation(); // Stop event bubbling
-
-      // Call the global handler function
-      if (window.handleMarkRepoAsRead) {
-        window.handleMarkRepoAsRead(repoFullName);
-      }
+      config.onMarkRepoAsRead(repoFullName);
     });
 
     notificationsList.appendChild(repoHeader);

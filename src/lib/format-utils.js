@@ -18,7 +18,8 @@ export function formatReason(reason) {
     invitation: 'Invited',
     manual: 'Manual',
     member_feature_requested: 'Feature Requested',
-    mention: 'Mentioned',
+    mention: 'Mention',
+    mentioned: 'Mention', // Legacy - API may still return this in some cases
     review_requested: 'Review Requested',
     security_advisory_credit: 'Security Credit',
     security_alert: 'Security Alert',

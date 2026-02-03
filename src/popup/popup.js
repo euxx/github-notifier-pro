@@ -443,6 +443,16 @@ async function logout() {
 }
 
 /**
+ * Apply fade-out animation to an element
+ * @param {HTMLElement} element - Element to animate
+ */
+function applyFadeOutAnimation(element) {
+  element.style.transition = `opacity ${ANIMATION_DURATION.FADE_OUT}ms ease, transform ${ANIMATION_DURATION.FADE_OUT}ms ease`;
+  element.style.opacity = '0';
+  element.style.transform = 'translateX(-10px)';
+}
+
+/**
  * Mark all notifications in a repository as read
  * @param {string} repoFullName - Repository full name (owner/repo)
  */
@@ -466,15 +476,11 @@ async function handleMarkRepoAsRead(repoFullName) {
 
       // Animate removal
       if (repoHeader) {
-        repoHeader.style.transition = `opacity ${ANIMATION_DURATION.FADE_OUT}ms ease, transform ${ANIMATION_DURATION.FADE_OUT}ms ease`;
-        repoHeader.style.opacity = '0';
-        repoHeader.style.transform = 'translateX(-10px)';
+        applyFadeOutAnimation(repoHeader);
       }
 
       items.forEach((item) => {
-        item.style.transition = `opacity ${ANIMATION_DURATION.FADE_OUT}ms ease, transform ${ANIMATION_DURATION.FADE_OUT}ms ease`;
-        item.style.opacity = '0';
-        item.style.transform = 'translateX(-10px)';
+        applyFadeOutAnimation(item);
       });
 
       // Remove after animation
@@ -505,9 +511,6 @@ async function handleMarkRepoAsRead(repoFullName) {
   }
 }
 
-// Expose handler for notification-renderer
-window.handleMarkRepoAsRead = handleMarkRepoAsRead;
-
 /**
  * Pre-load theme before showing any view to prevent flash
  */
@@ -534,6 +537,7 @@ async function init() {
       lastAnimationDuration = duration;
       lastUserActionTime = Date.now();
     },
+    onMarkRepoAsRead: handleMarkRepoAsRead,
   });
 
   // Listen for system theme changes
