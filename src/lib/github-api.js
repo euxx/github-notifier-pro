@@ -129,6 +129,7 @@ class GitHubAPI {
     this.userInfo = null; // Store complete user info for fallback avatar
     this.pollInterval = 60;
     this.lastUpdate = null;
+    this.lastModified = null; // Last-Modified header for optimized polling
     // Rate limiting state
     this.rateLimit = {
       limit: null,
@@ -399,6 +400,7 @@ class GitHubAPI {
     this.token = null;
     this.username = null;
     this.userInfo = null;
+    this.lastModified = null;
   }
 
   /**
@@ -419,24 +421,31 @@ class GitHubAPI {
 
     // Add query parameters
     // participating=false means get all notifications (not just ones you're involved in)
-    // all=false means only unread (default behavior)
+    // all=false means only unread notifications
+    // per_page=50 is the maximum allowed
     url.searchParams.set('participating', 'false');
+    url.searchParams.set('all', 'false');
+    url.searchParams.set('per_page', '50');
 
-    // Add timestamp to prevent caching
-    url.searchParams.set('_t', Date.now().toString());
+    // Build headers with If-Modified-Since for optimized polling
+    const headers = { ...this.headers };
+    if (this.lastModified) {
+      headers['If-Modified-Since'] = this.lastModified;
+    }
 
     const response = await retryWithStrategy(
       async () => {
         const resp = await fetchWithTimeout(
           url.toString(),
           {
-            headers: this.headers,
+            headers,
             cache: 'no-store', // Force no cache
           },
           API_TIMEOUTS.DEFAULT,
         );
 
-        if (!resp.ok) {
+        // Allow 304 Not Modified as a valid response
+        if (!resp.ok && resp.status !== 304) {
           throw new Error(`Failed to fetch notifications: ${resp.status}`);
         }
 
@@ -459,6 +468,17 @@ class GitHubAPI {
       this.pollInterval = Math.max(parseInt(pollHeader, 10), MIN_POLL_INTERVAL_SECONDS);
     }
 
+    // Save Last-Modified header for next request
+    const lastModified = response.headers.get('Last-Modified');
+    if (lastModified) {
+      this.lastModified = lastModified;
+    }
+
+    // 304 Not Modified - no new notifications
+    if (response.status === 304) {
+      return null;
+    }
+
     this.lastUpdate = new Date().toISOString();
 
     if (response.status === 200) {
@@ -475,7 +495,6 @@ class GitHubAPI {
       };
     }
 
-    // 304 Not Modified
     return null;
   }
 

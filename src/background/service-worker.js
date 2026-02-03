@@ -214,6 +214,12 @@ async function checkNotifications() {
   try {
     const result = await github.getNotifications();
 
+    // null means 304 Not Modified - no new notifications
+    if (result === null) {
+      console.log(`Fetch #${currentFetchVersion}: 304 Not Modified - no changes`);
+      return;
+    }
+
     if (result) {
       const { items: notifications, hasMore } = result;
 
