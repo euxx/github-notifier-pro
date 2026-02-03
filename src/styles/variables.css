@@ -23,8 +23,9 @@
   --icon-pr-open: #2da44e; /* Brighter green for open PRs */
   --icon-pr-merged: #8250df; /* GitHub purple for merged PRs */
   --icon-pr-closed: #a0222e; /* Dimmer red for closed PRs */
-  --icon-release: #7d8590; /* Slightly brighter gray for releases */
-  --icon-discussion: #bf8700; /* GitHub orange for discussions */
+  --icon-default-color: #7d8590; /* Default icon color */
+  --icon-release: var(--icon-default-color); /* uses --icon-default-color */
+  --icon-discussion: var(--icon-default-color); /* uses --icon-default-color */
 }
 
 /* Dark Theme - GitHub Notifications Style */
@@ -46,8 +47,9 @@ body.dark-theme {
   --icon-pr-open: #2ea043; /* Darker green for open PRs */
   --icon-pr-merged: #a371f7; /* GitHub purple for merged PRs */
   --icon-pr-closed: #c44149; /* Dimmer red for closed PRs */
-  --icon-release: #848d97; /* Slightly brighter gray for releases */
-  --icon-discussion: #d29922; /* GitHub orange for discussions */
+  --icon-default-color: #848d97; /* Default icon color */
+  --icon-release: var(--icon-default-color); /* uses --icon-default-color */
+  --icon-discussion: var(--icon-default-color); /* uses --icon-default-color */
 }
 
 body.dark-theme .setting-select {
