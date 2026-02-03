@@ -6,21 +6,27 @@ import { NOTIFICATION_TYPE_LABELS } from './constants.js';
 
 /**
  * Format notification reason to human-readable text
+ * Based on: https://docs.github.com/en/rest/activity/notifications
  */
 export function formatReason(reason) {
   const reasons = {
-    subscribed: 'Subscribed',
-    participating: 'Participating',
-    mentioned: 'Mentioned',
-    team_mention: 'Team Mentioned',
-    comment: 'Commented',
-    review_requested: 'Review Requested',
-    security_alert: 'Security Alert',
-    state_change: 'State Changed',
+    approval_requested: 'Approval Requested',
     assign: 'Assigned',
     author: 'You Authored',
-    manual: 'Manual',
     ci_activity: 'CI Activity',
+    comment: 'Commented',
+    invitation: 'Invited',
+    manual: 'Manual',
+    member_feature_requested: 'Feature Requested',
+    mention: 'Mentioned',
+    review_requested: 'Review Requested',
+    security_advisory_credit: 'Security Credit',
+    security_alert: 'Security Alert',
+    state_change: 'State Changed',
+    subscribed: 'Subscribed',
+    team_mention: 'Team Mentioned',
+    // Not in official docs but appears in API responses
+    participating: 'Participating',
   };
   return reasons[reason] || reason || 'Unknown';
 }

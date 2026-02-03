@@ -10,18 +10,22 @@ import {
 
 describe('formatReason', () => {
   it.each([
-    ['subscribed', 'Subscribed'],
-    ['participating', 'Participating'],
-    ['mentioned', 'Mentioned'],
-    ['team_mention', 'Team Mentioned'],
-    ['comment', 'Commented'],
-    ['review_requested', 'Review Requested'],
-    ['security_alert', 'Security Alert'],
-    ['state_change', 'State Changed'],
+    ['approval_requested', 'Approval Requested'],
     ['assign', 'Assigned'],
     ['author', 'You Authored'],
-    ['manual', 'Manual'],
     ['ci_activity', 'CI Activity'],
+    ['comment', 'Commented'],
+    ['invitation', 'Invited'],
+    ['manual', 'Manual'],
+    ['member_feature_requested', 'Feature Requested'],
+    ['mention', 'Mentioned'],
+    ['review_requested', 'Review Requested'],
+    ['security_advisory_credit', 'Security Credit'],
+    ['security_alert', 'Security Alert'],
+    ['state_change', 'State Changed'],
+    ['subscribed', 'Subscribed'],
+    ['team_mention', 'Team Mentioned'],
+    ['participating', 'Participating'],
   ])('should format "%s" as "%s"', (input, expected) => {
     expect(formatReason(input)).toBe(expected);
   });
