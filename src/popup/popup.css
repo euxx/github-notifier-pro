@@ -321,89 +321,6 @@ body.transitions-enabled * {
   font-size: 14px;
 }
 
-/* User Menu */
-.user-menu {
-  position: relative;
-}
-
-.username-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.username-btn:hover {
-  background: var(--bg-hover);
-}
-
-.username {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.username-btn .chevron {
-  color: var(--text-secondary);
-  transition: transform 0.2s;
-}
-
-.username-btn:hover .chevron {
-  color: var(--text-primary);
-}
-
-/* User Dropdown */
-.user-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 160px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  z-index: 1000;
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.dropdown-item:first-child {
-  border-radius: 8px 8px 0 0;
-}
-
-.dropdown-item:last-child {
-  border-radius: 0 0 8px 8px;
-}
-
-.dropdown-item:hover {
-  background: var(--bg-secondary);
-}
-
-.dropdown-item svg {
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
 .header-right {
   display: flex;
   align-items: center;
@@ -1185,7 +1102,7 @@ body.dark-theme .notification-hover-card {
   background-size: 12px;
 }
 
-.setting-selec .setting-input:focus {
+.setting-select:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
@@ -1196,47 +1113,6 @@ body.dark-theme .notification-hover-card {
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.4;
-}
-
-/* Setting Slider */
-.setting-slider {
-  width: 100%;
-  height: 6px;
-  -webkit-appearance: none;
-  appearance: none;
-  border-radius: 3px;
-  background: var(--border-color);
-  outline: none;
-  cursor: pointer;
-}
-
-.setting-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-
-.setting-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-}
-
-.setting-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  cursor: pointer;
-  border: none;
-  transition: transform 0.15s;
-}
-
-.setting-slider::-moz-range-thumb:hover {
-  transform: scale(1.1);
 }
 
 .setting-value {
