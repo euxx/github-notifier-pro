@@ -417,6 +417,10 @@ body.transitions-enabled * {
   white-space: nowrap;
 }
 
+#mark-all-btn {
+  margin-right: -5px;
+}
+
 /* Notifications */
 #notifications-container {
   flex: 1;
