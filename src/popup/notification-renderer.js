@@ -221,9 +221,9 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
             : ''
         }
         ${
-          notif.created_at || notif.updated_at
+          notif.updated_at
             ? `
-          <span class="notification-time">${formatTimeAgo(notif.created_at || notif.updated_at)}</span>
+          <span class="notification-time">${formatTimeAgo(notif.updated_at)}</span>
         `
             : ''
         }
