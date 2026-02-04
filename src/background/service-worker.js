@@ -23,6 +23,20 @@ import { LRUCache } from '../lib/lru-cache.js';
  */
 const authorCache = new LRUCache(100);
 
+const CACHED_DETAIL_FIELDS = [
+  'state',
+  'merged',
+  'conclusion',
+  'status',
+  'detailsFailed',
+  'author',
+  'comment_count',
+  'number',
+  'created_at',
+  'body',
+  'html_url',
+];
+
 /**
  * Initialize extension state from storage
  */
@@ -124,19 +138,7 @@ export function updateNotificationDetails(baseData, details, notifType) {
  * @exported for testing
  */
 export function copyCachedDetails(baseData, existing) {
-  [
-    'state',
-    'merged',
-    'conclusion',
-    'status',
-    'detailsFailed',
-    'author',
-    'comment_count',
-    'number',
-    'created_at',
-    'body',
-    'html_url',
-  ].forEach((key) => {
+  CACHED_DETAIL_FIELDS.forEach((key) => {
     if (existing[key] !== undefined) {
       baseData[key] = existing[key];
     }
