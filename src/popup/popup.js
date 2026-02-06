@@ -124,6 +124,35 @@ const hoverCardsToggle = document.getElementById('hover-cards-toggle');
 // Desktop notification settings
 const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
 
+/**
+ * Check if browser notification permission is granted
+ */
+function checkNotificationPermission() {
+  if (typeof Notification === 'undefined') {
+    console.warn('Notification API not available');
+    return 'unsupported';
+  }
+  return Notification.permission;
+}
+
+/**
+ * Request browser notification permission
+ */
+async function requestNotificationPermission() {
+  if (typeof Notification === 'undefined') {
+    console.warn('Notification API not available');
+    return 'unsupported';
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    return permission;
+  } catch (error) {
+    console.error('Failed to request notification permission:', error);
+    return 'denied';
+  }
+}
+
 // Store hover cards setting
 let showHoverCards = true;
 
@@ -208,7 +237,18 @@ async function showSettings() {
   // Load desktop notification settings
   const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
   desktopNotificationsToggle.checked = enableDesktopNotifications;
+  // Check browser notification permission status
+  const permission = checkNotificationPermission();
 
+  // Update toggle state based on permission
+  if (permission === 'denied') {
+    desktopNotificationsToggle.disabled = true;
+    desktopNotificationsToggle.parentElement.title =
+      'Browser notification permission denied. Please enable it in browser settings.';
+  } else if (permission === 'unsupported') {
+    desktopNotificationsToggle.disabled = true;
+    desktopNotificationsToggle.parentElement.title = 'Browser notifications not supported.';
+  }
   // Hide header and footer
   document.querySelector('.header').hidden = true;
   document.querySelector('.footer').hidden = true;
@@ -669,7 +709,36 @@ hoverCardsToggle.addEventListener('change', async () => {
 // Desktop notification settings
 desktopNotificationsToggle.addEventListener('change', async () => {
   const enabled = desktopNotificationsToggle.checked;
-  await storage.setEnableDesktopNotifications(enabled);
+
+  if (enabled) {
+    // Check current permission
+    let permission = checkNotificationPermission();
+
+    // Request permission if not granted
+    if (permission === 'default' || permission === 'prompt') {
+      permission = await requestNotificationPermission();
+    }
+
+    // Only enable if permission granted
+    if (permission === 'granted') {
+      await storage.setEnableDesktopNotifications(true);
+    } else {
+      // Permission denied or unavailable
+      desktopNotificationsToggle.checked = false;
+      await storage.setEnableDesktopNotifications(false);
+
+      if (permission === 'denied') {
+        alert(
+          'Browser notification permission was denied. Please enable it in your browser settings to use desktop notifications.',
+        );
+      } else if (permission === 'unsupported') {
+        alert('Browser notifications are not supported in this browser.');
+      }
+    }
+  } else {
+    // User disabled the toggle
+    await storage.setEnableDesktopNotifications(false);
+  }
 });
 
 // User menu

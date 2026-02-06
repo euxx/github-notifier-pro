@@ -670,9 +670,16 @@ async function showDesktopNotification(notif) {
       iconUrl: runtime.getURL('images/icon.png'),
       title: displayTitle, // Primary: #123 Title
       message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
-      priority: 2,
-      requireInteraction: false, // Allow auto-dismiss
+      // Note: 'priority' and 'requireInteraction' are not supported in Firefox
+      // Only include them for Chrome/Chromium browsers
     };
+
+    // Add Chrome-specific options (Firefox doesn't support these)
+    const isChrome = typeof chrome !== 'undefined' && typeof browser === 'undefined';
+    if (isChrome) {
+      notificationOptions.priority = 2;
+      notificationOptions.requireInteraction = false; // Allow auto-dismiss
+    }
 
     // Create notification
     const notificationId = `github-notif-${notif.id}`;
