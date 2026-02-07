@@ -105,6 +105,7 @@ vi.mock('../src/lib/github-api.js', () => ({
 vi.mock('../src/lib/constants.js', () => ({
   ALARM_NAME: 'check-notifications',
   DEFAULT_POLL_INTERVAL_MINUTES: 1,
+  MIN_POLL_INTERVAL_SECONDS: 60,
   MESSAGE_TYPES: {
     LOGIN: 'login',
     LOGOUT: 'logout',

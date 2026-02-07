@@ -8,6 +8,7 @@ import { action, alarms, runtime, tabs, notifications } from '../lib/chrome-api.
 import {
   ALARM_NAME,
   DEFAULT_POLL_INTERVAL_MINUTES,
+  MIN_POLL_INTERVAL_SECONDS,
   MESSAGE_TYPES,
   NOTIFICATION_TYPES,
   NOTIFICATION_TYPE_ICONS,
@@ -213,6 +214,9 @@ async function checkNotifications() {
   const currentFetchVersion = ++notificationFetchVersion;
   console.log(`Starting notification fetch #${currentFetchVersion}`);
 
+  // Track previous poll interval to detect changes
+  const previousPollInterval = github.pollInterval;
+
   try {
     const result = await github.getNotifications();
 
@@ -374,6 +378,22 @@ async function checkNotifications() {
 
       // Show desktop notifications for new items (using basic data)
       await showDesktopNotificationsForNew(basicProcessed);
+
+      // Check if poll interval changed and update alarm accordingly
+      if (github.pollInterval !== previousPollInterval) {
+        const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
+        const newPollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+        console.log(
+          `Poll interval changed: ${previousPollInterval}s → ${github.pollInterval}s (${newPollIntervalMinutes} min)`,
+        );
+
+        // Update the alarm with new interval
+        await alarms.clear(ALARM_NAME);
+        await alarms.create(ALARM_NAME, {
+          delayInMinutes: newPollIntervalMinutes,
+          periodInMinutes: newPollIntervalMinutes,
+        });
+      }
     }
   } catch (error) {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
@@ -415,9 +435,14 @@ export function getIconForType(type) {
  * Start polling for notifications
  */
 async function startPolling() {
+  // Use poll interval from GitHub API response (in seconds), converted to minutes
+  // Clamp to Chrome's minimum alarm interval (1 minute)
+  const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
+  const pollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+
   await alarms.create(ALARM_NAME, {
-    delayInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
-    periodInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+    delayInMinutes: pollIntervalMinutes,
+    periodInMinutes: pollIntervalMinutes,
   });
 }
 
@@ -481,11 +506,16 @@ async function handleMessage(message) {
       // Reset the alarm timer without recreating it
       // This ensures the countdown shows the full period
       if (github.isAuthenticated) {
+        // Use poll interval from GitHub API response (in seconds), converted to minutes
+        // Clamp to Chrome's minimum alarm interval (1 minute)
+        const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
+        const pollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+
         // Clear and recreate to reset the timer
         await alarms.clear(ALARM_NAME);
         await alarms.create(ALARM_NAME, {
-          delayInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
-          periodInMinutes: DEFAULT_POLL_INTERVAL_MINUTES,
+          delayInMinutes: pollIntervalMinutes,
+          periodInMinutes: pollIntervalMinutes,
         });
       }
       return { success: true };
