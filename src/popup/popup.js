@@ -113,6 +113,7 @@ const settingsIconBtn = document.getElementById('settings-icon-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const markAllBtn = document.getElementById('mark-all-btn');
 const usernameEl = document.getElementById('username');
+const avatarEl = document.getElementById('user-avatar');
 const notificationsList = document.getElementById('notifications-list');
 const emptyState = document.getElementById('empty-state');
 
@@ -488,6 +489,19 @@ async function refresh() {
 }
 
 /**
+ * Set user avatar
+ * @param {Object} userInfo - User info object with avatar_url
+ */
+function setUserAvatar(userInfo) {
+  if (userInfo?.avatar_url) {
+    avatarEl.src = userInfo.avatar_url;
+    avatarEl.hidden = false;
+  } else {
+    avatarEl.hidden = true;
+  }
+}
+
+/**
  * Login
  */
 async function login(authMethod = 'oauth', token = null) {
@@ -495,6 +509,10 @@ async function login(authMethod = 'oauth', token = null) {
 
   if (result.success) {
     usernameEl.textContent = result.username;
+
+    // Set user avatar
+    const userInfo = await storage.getUserInfo();
+    setUserAvatar(userInfo);
 
     // Set login method tooltip
     const { tooltip } = getAuthMethodLabels(authMethod);
@@ -696,6 +714,10 @@ async function init() {
     // Set username with fallback
     const username = state.username || (await storage.getUsername()) || 'User';
     usernameEl.textContent = username;
+
+    // Set user avatar
+    const userInfo = await storage.getUserInfo();
+    setUserAvatar(userInfo);
 
     // Set login method tooltip
     const authMethod = await storage.getAuthMethod();

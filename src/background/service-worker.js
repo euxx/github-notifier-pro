@@ -548,6 +548,7 @@ async function handleLogin(authMethod = 'oauth', token = null) {
     // Save credentials
     await storage.setToken(github.token);
     await storage.setUsername(github.username);
+    await storage.setUserInfo(github.userInfo); // Save full user info including avatar
     await storage.setAuthMethod(authMethod);
 
     // Start polling

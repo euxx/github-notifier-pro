@@ -70,6 +70,8 @@ const mockStorageFunctions = {
   setToken: vi.fn(),
   getUsername: vi.fn(),
   setUsername: vi.fn(),
+  getUserInfo: vi.fn(),
+  setUserInfo: vi.fn(),
   getNotifications: vi.fn(),
   setNotifications: vi.fn(),
   getAuthMethod: vi.fn(),

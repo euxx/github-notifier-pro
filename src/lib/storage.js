@@ -11,6 +11,7 @@ const api = typeof browser !== 'undefined' ? browser : chrome;
 const STORAGE_KEYS = {
   TOKEN: 'token',
   USERNAME: 'username',
+  USER_INFO: 'userInfo', // {login, avatar_url, html_url}
   AUTH_METHOD: 'authMethod', // 'oauth' or 'pat'
   NOTIFICATIONS: 'notifications',
   LAST_CHECK: 'lastCheck',
@@ -92,6 +93,14 @@ export async function getUsername() {
 
 export async function setUsername(username) {
   return set(STORAGE_KEYS.USERNAME, username);
+}
+
+export async function getUserInfo() {
+  return get(STORAGE_KEYS.USER_INFO);
+}
+
+export async function setUserInfo(userInfo) {
+  return set(STORAGE_KEYS.USER_INFO, userInfo);
 }
 
 export async function getNotifications() {

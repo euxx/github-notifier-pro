@@ -276,8 +276,8 @@ body.transitions-enabled * {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -298,7 +298,7 @@ body.transitions-enabled * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -315,10 +315,19 @@ body.transitions-enabled * {
   gap: 8px;
 }
 
+.user-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .user-info .username {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 14px;
+  line-height: 1;
 }
 
 .header-right {
