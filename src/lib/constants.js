@@ -57,7 +57,14 @@ export const POPUP_MIN_HEIGHT = 300;
 export const POPUP_MAX_HEIGHT = 600;
 
 // Token Validation
-export const TOKEN_PREFIXES = ['ghp_', 'github_pat_'];
+// Reference: https://github.blog/2021-04-05-behind-githubs-new-authentication-token-formats/
+// Only tokens that can access the /notifications API endpoint
+export const TOKEN_PREFIXES = [
+  'ghp_', // Personal Access Token (classic) - with notifications/repo scope
+  'gho_', // OAuth Access Token - with notifications/repo scope
+  'ghu_', // GitHub App User Token - with notifications permission
+  'github_pat_', // Fine-grained Personal Access Token - with repository access
+];
 
 // Cache Configuration
 export const CACHE_DURATION = {

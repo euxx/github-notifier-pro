@@ -506,8 +506,12 @@ async function handlePATLogin() {
     return;
   }
 
-  if (!token.startsWith(TOKEN_PREFIXES[0]) && !token.startsWith(TOKEN_PREFIXES[1])) {
-    alert(`Invalid token format. Token should start with "${TOKEN_PREFIXES[0]}" or "${TOKEN_PREFIXES[1]}"`);
+  // Check if token starts with any valid GitHub token prefix
+  const hasValidPrefix = TOKEN_PREFIXES.some((prefix) => token.startsWith(prefix));
+
+  if (!hasValidPrefix) {
+    const prefixList = TOKEN_PREFIXES.join('", "');
+    alert(`Invalid token format. Token should start with one of: "${prefixList}"`);
     return;
   }
 
