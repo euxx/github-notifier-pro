@@ -557,3 +557,114 @@ describe('retry logic', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('pollForToken expiresIn handling', () => {
+  let mockFetch;
+
+  beforeEach(() => {
+    // Reset github state
+    github.token = null;
+    github.username = null;
+    github.pollInterval = 60;
+
+    // Mock fetch globally
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+
+    // Use fake timers
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('should use 15 minutes default when expiresIn is not provided', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          access_token: 'gho_test_token',
+        }),
+    });
+
+    const pollPromise = github.pollForToken('device_code_123', 5 /* interval */, null /* expiresIn */);
+
+    // Should calculate maxAttempts = 900s / 5s = 180
+    // Fast-forward through polling with immediate success
+    await vi.advanceTimersByTimeAsync(5000);
+    const token = await pollPromise;
+
+    expect(token).toBe('gho_test_token');
+  });
+
+  it('should use provided expiresIn value (900s)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          access_token: 'gho_test_token',
+        }),
+    });
+
+    const pollPromise = github.pollForToken('device_code_123', 5 /* interval */, 900 /* expiresIn */);
+
+    // Should calculate maxAttempts = 900s / 5s = 180
+    await vi.advanceTimersByTimeAsync(5000);
+    const token = await pollPromise;
+
+    expect(token).toBe('gho_test_token');
+  });
+
+  it('should use provided expiresIn value (300s)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          access_token: 'gho_test_token',
+        }),
+    });
+
+    const pollPromise = github.pollForToken('device_code_123', 5 /* interval */, 300 /* expiresIn */);
+
+    // Should calculate maxAttempts = 300s / 5s = 60
+    await vi.advanceTimersByTimeAsync(5000);
+    const token = await pollPromise;
+
+    expect(token).toBe('gho_test_token');
+  });
+
+  it('should timeout after expiresIn duration when no token received', async () => {
+    // Mock authorization_pending response (returns 200 OK with error in JSON)
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          error: 'authorization_pending',
+        }),
+    });
+
+    const expiresIn = 30; // 30 seconds
+    const interval = 5;
+    const maxAttempts = Math.ceil(expiresIn / interval); // 6 attempts
+
+    const pollPromise = github.pollForToken('device_code_123', interval, expiresIn);
+
+    // Use Promise.race to advance timers and handle rejection together
+    const timeoutPromise = (async () => {
+      for (let i = 0; i < maxAttempts; i++) {
+        await vi.advanceTimersByTimeAsync(interval * 1000);
+      }
+    })();
+
+    await Promise.race([timeoutPromise, pollPromise.catch(() => {})]);
+
+    await expect(pollPromise).rejects.toThrow('Authorization timeout - please try again');
+  });
+});

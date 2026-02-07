@@ -241,8 +241,11 @@ class GitHubAPI {
   /**
    * Poll for access token using device code
    */
-  async pollForToken(deviceCode, interval = 5, onProgress = null, onCancel = null) {
-    const maxAttempts = 120; // 10 minutes (600s / 5s)
+  async pollForToken(deviceCode, interval = 5, expiresIn = null, onProgress = null, onCancel = null) {
+    // Use expires_in if provided, otherwise default to 15 minutes
+    const DEFAULT_EXPIRES_IN = 900; // 15 minutes
+    const effectiveExpiresIn = expiresIn || DEFAULT_EXPIRES_IN;
+    const maxAttempts = Math.ceil(effectiveExpiresIn / interval);
     let currentInterval = interval;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -339,7 +342,13 @@ class GitHubAPI {
     }
 
     // Step 2: Poll for token (with cancel support)
-    const accessToken = await this.pollForToken(deviceData.device_code, deviceData.interval, onProgress, onCancel);
+    const accessToken = await this.pollForToken(
+      deviceData.device_code,
+      deviceData.interval,
+      deviceData.expires_in,
+      onProgress,
+      onCancel,
+    );
 
     // Step 3: Save token and get username
     this.token = accessToken;
