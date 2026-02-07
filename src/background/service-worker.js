@@ -7,8 +7,8 @@ import * as storage from '../lib/storage.js';
 import { action, alarms, runtime, tabs, notifications } from '../lib/chrome-api.js';
 import {
   ALARM_NAME,
-  DEFAULT_POLL_INTERVAL_MINUTES,
   MIN_POLL_INTERVAL_SECONDS,
+  MAX_POLL_INTERVAL_SECONDS,
   MESSAGE_TYPES,
   NOTIFICATION_TYPES,
   NOTIFICATION_TYPE_ICONS,
@@ -382,10 +382,9 @@ async function checkNotifications() {
 
       // Check if poll interval changed and update alarm accordingly
       if (github.pollInterval !== previousPollInterval) {
-        const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
-        const newPollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+        const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } = getClampedPollInterval();
         console.log(
-          `Poll interval changed: ${previousPollInterval}s → ${github.pollInterval}s (${newPollIntervalMinutes} min)`,
+          `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
         );
 
         // Update the alarm with new interval
@@ -433,13 +432,24 @@ export function getIconForType(type) {
 }
 
 /**
+ * Calculate clamped poll interval from GitHub API response
+ * Clamps between MIN_POLL_INTERVAL_SECONDS (60s/1min) and MAX_POLL_INTERVAL_SECONDS (600s/10min)
+ * @returns {{seconds: number, minutes: number}} Poll interval in seconds and minutes
+ */
+function getClampedPollInterval() {
+  const pollIntervalSeconds = Math.min(
+    Math.max(github.pollInterval || 0, MIN_POLL_INTERVAL_SECONDS),
+    MAX_POLL_INTERVAL_SECONDS,
+  );
+  const pollIntervalMinutes = Math.ceil(pollIntervalSeconds / 60);
+  return { seconds: pollIntervalSeconds, minutes: pollIntervalMinutes };
+}
+
+/**
  * Start polling for notifications
  */
 async function startPolling() {
-  // Use poll interval from GitHub API response (in seconds), converted to minutes
-  // Clamp to Chrome's minimum alarm interval (1 minute)
-  const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
-  const pollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+  const { minutes: pollIntervalMinutes } = getClampedPollInterval();
 
   await alarms.create(ALARM_NAME, {
     delayInMinutes: pollIntervalMinutes,
@@ -507,10 +517,7 @@ async function handleMessage(message) {
       // Reset the alarm timer without recreating it
       // This ensures the countdown shows the full period
       if (github.isAuthenticated) {
-        // Use poll interval from GitHub API response (in seconds), converted to minutes
-        // Clamp to Chrome's minimum alarm interval (1 minute)
-        const pollIntervalSeconds = github.pollInterval || MIN_POLL_INTERVAL_SECONDS;
-        const pollIntervalMinutes = Math.max(Math.ceil(pollIntervalSeconds / 60), DEFAULT_POLL_INTERVAL_MINUTES);
+        const { minutes: pollIntervalMinutes } = getClampedPollInterval();
 
         // Clear and recreate to reset the timer
         await alarms.clear(ALARM_NAME);

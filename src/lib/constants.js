@@ -10,7 +10,8 @@ export const DEFAULT_POLL_INTERVAL_MINUTES = 1; // Chrome minimum is 1 minute
 // API Configuration
 export const GITHUB_API_BASE = 'https://api.github.com';
 export const GITHUB_SITE_BASE = 'https://github.com';
-export const MIN_POLL_INTERVAL_SECONDS = 60;
+export const MIN_POLL_INTERVAL_SECONDS = 60; // 1 minute minimum
+export const MAX_POLL_INTERVAL_SECONDS = 600; // 10 minutes maximum (prevent excessive delays)
 
 // UI Animation Timings (milliseconds)
 export const ANIMATION_DURATION = {

@@ -242,7 +242,7 @@ class GitHubAPI {
    * Poll for access token using device code
    */
   async pollForToken(deviceCode, interval = 5, onProgress = null, onCancel = null) {
-    const maxAttempts = 180; // 15 minutes (900s / 5s)
+    const maxAttempts = 120; // 10 minutes (600s / 5s)
     let currentInterval = interval;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
