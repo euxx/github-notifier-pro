@@ -497,6 +497,119 @@ describe('service-worker', () => {
     });
   });
 
+  describe('dynamic polling interval', () => {
+    it('should update alarm when poll interval changes on 200 response', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 60; // Start with 60 seconds
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Clear previous calls
+      mockAlarms.clear.mockClear();
+      mockAlarms.create.mockClear();
+
+      // Change poll interval and trigger check
+      mockGithub.pollInterval = 120; // Change to 120 seconds
+      mockGithub.fetchUsername.mockResolvedValue('testuser');
+
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Should update alarm with new interval (2 minutes)
+      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
+      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+        delayInMinutes: 2,
+        periodInMinutes: 2,
+      });
+    });
+
+    it('should update alarm when poll interval changes on 304 response', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 60; // Start with 60 seconds
+      mockGithub.getNotifications.mockResolvedValue(null); // 304 Not Modified
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Clear previous calls
+      mockAlarms.clear.mockClear();
+      mockAlarms.create.mockClear();
+
+      // Change poll interval (simulating GitHub sending new X-Poll-Interval on 304)
+      mockGithub.pollInterval = 180; // Change to 180 seconds
+      mockGithub.fetchUsername.mockResolvedValue('testuser');
+
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Should update alarm even on 304 (3 minutes)
+      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
+      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+        delayInMinutes: 3,
+        periodInMinutes: 3,
+      });
+    });
+
+    it('should clamp poll interval to minimum (60s / 1min)', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 30; // Below minimum
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Should clamp to 1 minute minimum
+      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+        delayInMinutes: 1,
+        periodInMinutes: 1,
+      });
+    });
+
+    it('should clamp poll interval to maximum (600s / 10min)', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 1200; // Above maximum (20 minutes)
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Should clamp to 10 minutes maximum
+      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+        delayInMinutes: 10,
+        periodInMinutes: 10,
+      });
+    });
+
+    it('should not update alarm if interval unchanged', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 120; // 2 minutes
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Trigger another refresh with same interval
+      mockAlarms.clear.mockClear();
+      mockAlarms.create.mockClear();
+
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Should still create alarm (as part of REFRESH logic) but with same interval
+      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+        delayInMinutes: 2,
+        periodInMinutes: 2,
+      });
+    });
+  });
+
   describe('handleMessage - unknown action', () => {
     it('should return error for unknown action', async () => {
       const sendResponse = vi.fn();

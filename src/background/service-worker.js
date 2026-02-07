@@ -220,6 +220,22 @@ async function checkNotifications() {
   try {
     const result = await github.getNotifications();
 
+    // Check if poll interval changed (even on 304) and update alarm accordingly
+    // GitHub may send new X-Poll-Interval in 304 responses
+    if (github.pollInterval !== previousPollInterval) {
+      const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } = getClampedPollInterval();
+      console.log(
+        `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
+      );
+
+      // Update the alarm with new interval
+      await alarms.clear(ALARM_NAME);
+      await alarms.create(ALARM_NAME, {
+        delayInMinutes: newPollIntervalMinutes,
+        periodInMinutes: newPollIntervalMinutes,
+      });
+    }
+
     // null means 304 Not Modified - no new notifications
     if (result === null) {
       console.log(`Fetch #${currentFetchVersion}: 304 Not Modified - no changes`);
@@ -379,21 +395,6 @@ async function checkNotifications() {
 
       // Show desktop notifications for new items (using basic data)
       await showDesktopNotificationsForNew(basicProcessed);
-
-      // Check if poll interval changed and update alarm accordingly
-      if (github.pollInterval !== previousPollInterval) {
-        const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } = getClampedPollInterval();
-        console.log(
-          `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
-        );
-
-        // Update the alarm with new interval
-        await alarms.clear(ALARM_NAME);
-        await alarms.create(ALARM_NAME, {
-          delayInMinutes: newPollIntervalMinutes,
-          periodInMinutes: newPollIntervalMinutes,
-        });
-      }
     }
   } catch (error) {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
