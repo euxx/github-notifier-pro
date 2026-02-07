@@ -306,8 +306,9 @@ async function checkNotifications() {
       );
 
       // Priority loading: First 10 notifications (visible on screen)
+      let priorityResults = []; // Define in outer scope for background logging
       if (priorityNotifications.length > 0) {
-        const priorityResults = await fetchWithConcurrencyLimit(
+        priorityResults = await fetchWithConcurrencyLimit(
           priorityNotifications.map(({ notification: n, index }) =>
             createDetailFetchTask(n, index, detailedNotifications),
           ),
@@ -345,7 +346,7 @@ async function checkNotifications() {
               return;
             }
 
-            const allResults = [...priorityNotifications, ...backgroundResults];
+            const allResults = [...priorityResults, ...backgroundResults];
             const failedCount = allResults.filter((r) => r && r.success === false).length;
             const successCount = allResults.filter((r) => r && r.success === true).length;
 
