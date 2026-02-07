@@ -22,6 +22,18 @@ import {
   clearNotificationCache,
 } from './notification-renderer.js';
 
+/**
+ * Get auth method labels and tooltip
+ * @param {string} authMethod - 'oauth' or 'pat'
+ * @returns {{shortLabel: string, fullLabel: string, tooltip: string}}
+ */
+function getAuthMethodLabels(authMethod) {
+  const shortLabel = authMethod === 'oauth' ? 'OAuth' : 'PAT';
+  const fullLabel = authMethod === 'oauth' ? 'OAuth' : 'Personal Access Token';
+  const tooltip = `Logged in via ${fullLabel}`;
+  return { shortLabel, fullLabel, tooltip };
+}
+
 // Elements
 const loginView = document.getElementById('login-view');
 const mainView = document.getElementById('main-view');
@@ -237,8 +249,10 @@ async function showSettings() {
 
   // Load and display username
   const username = await storage.getUsername();
+  const authMethod = await storage.getAuthMethod();
+  const { shortLabel, tooltip } = getAuthMethodLabels(authMethod);
   if (settingsUsernameEl && username) {
-    settingsUsernameEl.textContent = username;
+    settingsUsernameEl.innerHTML = `${username} <span style="font-size: 0.85em; color: var(--text-secondary); opacity: 0.7;" title="${tooltip}">(${shortLabel})</span>`;
   }
 
   // Load popup width setting
@@ -481,6 +495,11 @@ async function login(authMethod = 'oauth', token = null) {
 
   if (result.success) {
     usernameEl.textContent = result.username;
+
+    // Set login method tooltip
+    const { tooltip } = getAuthMethodLabels(authMethod);
+    usernameEl.title = tooltip;
+
     await showView('main'); // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
     renderNotifications(state.notifications, true); // Then render notifications
@@ -677,6 +696,11 @@ async function init() {
     // Set username with fallback
     const username = state.username || (await storage.getUsername()) || 'User';
     usernameEl.textContent = username;
+
+    // Set login method tooltip
+    const authMethod = await storage.getAuthMethod();
+    const { tooltip } = getAuthMethodLabels(authMethod);
+    usernameEl.title = tooltip;
 
     renderNotifications(state.notifications, true); // Re-sort on init
     await showView('main'); // This will apply saved width
