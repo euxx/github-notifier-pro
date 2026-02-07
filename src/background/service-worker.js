@@ -741,6 +741,13 @@ notifications.onClicked.addListener(async (notificationId) => {
     const notificationsList = await storage.getNotifications();
     const notification = notificationsList.find((n) => n.id === githubNotifId);
 
+    // Remove from storage FIRST to prevent re-creation from race conditions
+    const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
+    await storage.setNotifications(updatedNotifications);
+
+    // Clear the notification immediately (Firefox compatibility)
+    await notifications.clear(notificationId);
+
     if (notification) {
       // Build and open URL using centralized builder
       const url = buildNotificationUrl(notification);
@@ -749,14 +756,9 @@ notifications.onClicked.addListener(async (notificationId) => {
       // Mark as read
       await github.markAsRead(githubNotifId);
 
-      // Update stored notifications
-      const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
-      await storage.setNotifications(updatedNotifications);
+      // Update badge
       await updateBadge(updatedNotifications.length);
     }
-
-    // Clear the notification
-    await notifications.clear(notificationId);
   } catch (error) {
     console.error('Failed to handle notification click:', error);
   }
