@@ -6,7 +6,7 @@ import * as storage from '../lib/storage.js';
 import github from '../lib/github-api.js';
 import { initTheme } from '../lib/theme.js';
 import { runtime } from '../lib/chrome-api.js';
-import { ANIMATION_DURATION } from '../lib/constants.js';
+import { ANIMATION_DURATION, MESSAGE_TYPES } from '../lib/constants.js';
 
 const deviceCodeEl = document.getElementById('device-code');
 const copyBtn = document.getElementById('copy-btn');
@@ -81,10 +81,25 @@ async function startDeviceFlow() {
     const token = github.token;
     const username = github.username;
 
-    // Save to storage
-    await storage.setToken(token);
-    await storage.setUsername(username);
-    await storage.setAuthMethod('oauth');
+    // Send LOGIN message to background service worker with the token
+    // This ensures the service worker updates its auth state immediately
+    try {
+      const response = await runtime.sendMessage({
+        action: MESSAGE_TYPES.LOGIN,
+        authMethod: 'oauth',
+        token,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to notify background worker');
+      }
+    } catch (error) {
+      console.error('Failed to notify background worker:', error);
+      // Fall back to storage-only approach
+      await storage.setToken(token);
+      await storage.setUsername(username);
+      await storage.setAuthMethod('oauth');
+    }
 
     // Notify user
     statusEl.className = 'status success';
