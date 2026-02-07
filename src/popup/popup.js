@@ -169,6 +169,7 @@ async function updateCountdown() {
 
     if (!notificationAlarm || !notificationAlarm.scheduledTime) {
       refreshCountdownEl.textContent = '';
+      refreshCountdownEl.title = '';
       lastAlarmTime = null;
       return;
     }
@@ -185,14 +186,28 @@ async function updateCountdown() {
 
     if (remaining <= 0) {
       refreshCountdownEl.textContent = '';
+      refreshCountdownEl.title = '';
       return;
     }
 
     const seconds = Math.ceil(remaining / 1000);
     refreshCountdownEl.textContent = `${seconds}s`;
+
+    // Update tooltip with poll interval information
+    if (notificationAlarm.periodInMinutes) {
+      const intervalMinutes = notificationAlarm.periodInMinutes;
+      const intervalText = intervalMinutes === 1 ? '1 minute' : `${intervalMinutes} minutes`;
+
+      // Show reason when interval is longer than default
+      const reasonSuffix = intervalMinutes > 1 ? ' (requested by GitHub)' : '';
+      refreshCountdownEl.title = `Refreshes every ${intervalText}${reasonSuffix}`;
+    } else {
+      refreshCountdownEl.title = '';
+    }
   } catch (error) {
     console.error('Error updating countdown:', error);
     refreshCountdownEl.textContent = '';
+    refreshCountdownEl.title = '';
   }
 }
 
