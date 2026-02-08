@@ -272,6 +272,7 @@ async function showSettings() {
   // Load popup width setting
   const width = await storage.getPopupWidth();
   popupWidthInput.value = width;
+  updateWidthButtons(width);
 
   // Load hover cards setting
   const showCards = await storage.getShowHoverCards();
@@ -341,6 +342,7 @@ async function handleWidthChange() {
   popupWidthInput.value = width;
   document.body.style.width = `${width}px`;
   setCachedPopupWidth(width);
+  updateWidthButtons(width);
 
   // Save to storage
   await storage.setPopupWidth(width);
@@ -364,6 +366,12 @@ async function increaseWidth() {
   const newWidth = Math.min(MAX_POPUP_WIDTH, currentWidth + POPUP_WIDTH_STEP);
   popupWidthInput.value = newWidth;
   await handleWidthChange();
+}
+
+function updateWidthButtons(width) {
+  if (!widthDecreaseBtn || !widthIncreaseBtn) return;
+  widthDecreaseBtn.disabled = width <= MIN_POPUP_WIDTH;
+  widthIncreaseBtn.disabled = width >= MAX_POPUP_WIDTH;
 }
 
 /**

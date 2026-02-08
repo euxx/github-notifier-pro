@@ -1009,18 +1009,18 @@ body.dark-theme .settings-view {
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  padding: 3px;
-  border-radius: 8px;
+  padding: 0;
+  border-radius: 0;
   border: none;
-  background: var(--control-bg);
+  background: transparent;
 }
 
 .width-input {
-  width: 56px;
+  width: 50px;
   height: 24px;
-  padding: 0 4px;
-  border: none;
-  border-radius: 6px;
+  padding: 0 0 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   font-size: 12px;
   text-align: center;
   background: var(--control-bg);
@@ -1029,12 +1029,14 @@ body.dark-theme .settings-view {
 
 .width-input:focus {
   outline: none;
-  background: var(--control-focus);
+  border-color: var(--control-focus);
 }
 
 .width-input::-webkit-inner-spin-button,
 .width-input::-webkit-outer-spin-button {
-  opacity: 0.3;
+  opacity: 0.2;
+  transform: scaleX(0.6);
+  transform-origin: right center;
   transition: opacity 0.15s;
 }
 
@@ -1042,7 +1044,7 @@ body.dark-theme .settings-view {
 .width-input:hover::-webkit-outer-spin-button,
 .width-input:focus-visible::-webkit-inner-spin-button,
 .width-input:focus-visible::-webkit-outer-spin-button {
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
 .width-unit {
@@ -1063,6 +1065,11 @@ body.dark-theme .settings-view {
 
 .width-btn:hover:not(:disabled) {
   background: var(--control-hover);
+}
+
+.width-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .setting-row-column {
