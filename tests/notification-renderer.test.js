@@ -30,8 +30,15 @@ vi.mock('../src/lib/icons.js', () => ({
   getIconSVG: vi.fn(() => '<svg></svg>'),
 }));
 
-const { formatTimeAgo, initRenderer, getCachedNotifications, createNotificationsHash } =
-  await import('../src/popup/notification-renderer.js');
+const {
+  formatTimeAgo,
+  initRenderer,
+  getCachedNotifications,
+  createNotificationsHash,
+  buildIconClass,
+  formatCommentCount,
+  truncateReleaseBody,
+} = await import('../src/popup/notification-renderer.js');
 
 describe('notification-renderer', () => {
   describe('formatTimeAgo', () => {
@@ -241,10 +248,6 @@ describe('notification-renderer helper functions', () => {
   });
 
   describe('comment pluralization', () => {
-    function formatCommentCount(count) {
-      return `${count} comment${count > 1 ? 's' : ''}`;
-    }
-
     it('should use singular for 1 comment', () => {
       expect(formatCommentCount(1)).toBe('1 comment');
     });
@@ -257,18 +260,6 @@ describe('notification-renderer helper functions', () => {
   });
 
   describe('icon class building', () => {
-    function buildIconClass(notif) {
-      let iconClass = notif.icon;
-      if (notif.icon === 'pr' || notif.icon === 'issue') {
-        if (notif.merged) {
-          iconClass += ' merged';
-        } else if (notif.state) {
-          iconClass += ` ${notif.state}`;
-        }
-      }
-      return iconClass;
-    }
-
     it('should return base icon class for non-PR/issue', () => {
       expect(buildIconClass({ icon: 'release' })).toBe('release');
       expect(buildIconClass({ icon: 'discussion' })).toBe('discussion');
@@ -294,37 +285,30 @@ describe('notification-renderer helper functions', () => {
   });
 
   describe('release body truncation', () => {
-    function truncateBody(body, maxLength = 200) {
-      if (!body) return '';
-      const trimmed = body.trim();
-      if (trimmed.length <= maxLength) return trimmed;
-      return `${trimmed.substring(0, maxLength)}...`;
-    }
-
     it('should return empty string for null/undefined', () => {
-      expect(truncateBody(null)).toBe('');
-      expect(truncateBody(undefined)).toBe('');
+      expect(truncateReleaseBody(null)).toBe('');
+      expect(truncateReleaseBody(undefined)).toBe('');
     });
 
     it('should trim whitespace', () => {
-      expect(truncateBody('  text  ')).toBe('text');
+      expect(truncateReleaseBody('  text  ')).toBe('text');
     });
 
     it('should not truncate short text', () => {
       const shortText = 'Short description';
-      expect(truncateBody(shortText)).toBe(shortText);
+      expect(truncateReleaseBody(shortText)).toBe(shortText);
     });
 
     it('should truncate long text at 200 characters', () => {
       const longText = 'a'.repeat(250);
-      const result = truncateBody(longText);
-      expect(result).toBe(`${'a'.repeat(200)}...`);
-      expect(result.length).toBe(203); // 200 + '...'
+      const result = truncateReleaseBody(longText);
+      expect(result).toBe('a'.repeat(200));
+      expect(result.length).toBe(200);
     });
 
-    it('should not add ellipsis for exactly 200 characters', () => {
+    it('should not truncate exactly 200 characters', () => {
       const exactText = 'a'.repeat(200);
-      expect(truncateBody(exactText)).toBe(exactText);
+      expect(truncateReleaseBody(exactText)).toBe(exactText);
     });
   });
 });

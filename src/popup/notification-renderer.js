@@ -6,6 +6,48 @@ import { ANIMATION_DURATION, NOTIFICATION_TYPES, MESSAGE_TYPES, TIME_CONVERSION 
 import { formatReason, getNotificationStatus, escapeHtml, escapeAttr } from '../lib/format-utils.js';
 import { getIconSVG } from '../lib/icons.js';
 
+/**
+ * Build icon class with state information
+ * @param {Object} notif - Notification object
+ * @returns {string} Icon class string
+ * @exported for testing
+ */
+export function buildIconClass(notif) {
+  let iconClass = notif.icon;
+  if (notif.icon === 'pr' || notif.icon === 'issue') {
+    if (notif.merged) {
+      iconClass += ' merged';
+    } else if (notif.state) {
+      iconClass += ` ${notif.state}`;
+    }
+  }
+  return iconClass;
+}
+
+/**
+ * Format comment count with proper pluralization
+ * @param {number} count - Number of comments
+ * @returns {string} Formatted comment count
+ * @exported for testing
+ */
+export function formatCommentCount(count) {
+  return `${count} comment${count > 1 ? 's' : ''}`;
+}
+
+/**
+ * Truncate release body to maximum length
+ * @param {string|null|undefined} body - Release body text
+ * @param {number} maxLength - Maximum length (default: 200)
+ * @returns {string} Truncated body
+ * @exported for testing
+ */
+export function truncateReleaseBody(body, maxLength = 200) {
+  if (!body) return '';
+  const trimmed = body.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return trimmed.substring(0, maxLength);
+}
+
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
 let cachedNotificationsHash = null;
@@ -91,7 +133,7 @@ function createHoverCard(notif) {
   const fullTime = new Date(notif.updated_at).toLocaleString();
   metadataParts.push(`<span title="${fullTime}">${formatTimeAgo(notif.updated_at)}</span>`);
   if (hasComments) {
-    metadataParts.push(`${notif.comment_count} comment${notif.comment_count > 1 ? 's' : ''}`);
+    metadataParts.push(formatCommentCount(notif.comment_count));
   }
 
   return `
@@ -178,17 +220,11 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   li.dataset.repo = repoFullName;
 
   // Build icon class with state information
-  let iconClass = notif.icon;
-  if (notif.icon === 'pr' || notif.icon === 'issue') {
-    if (notif.merged) {
-      iconClass += ' merged';
-    } else if (notif.state) {
-      iconClass += ` ${notif.state}`;
-    }
-  }
+  const iconClass = buildIconClass(notif);
 
   // Pre-compute release body for performance
   const releaseBody = notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : '';
+  const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : '';
 
   li.innerHTML = `
     <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">
@@ -197,7 +233,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
     <div class="notification-content">
       <div class="notification-main">
         <div class="notification-title" data-title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"${showHoverCards ? '' : ` title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"`}>
-          ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(releaseBody.substring(0, 200))}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
+          ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(truncatedBody)}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
         </div>
       </div>
       <div class="notification-meta">
