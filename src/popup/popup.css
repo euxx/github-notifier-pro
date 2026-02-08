@@ -891,13 +891,30 @@ body.dark-theme .notification-hover-card {
 }
 
 .footer a {
-  color: var(--primary-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .footer a:hover {
-  text-decoration: underline;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.footer-link-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+  margin-top: 2px;
 }
 
 @keyframes spin {
