@@ -1204,6 +1204,16 @@ body.dark-theme .notification-hover-card {
   text-align: left;
 }
 
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon-left {
+  flex-shrink: 0;
+}
+
 .setting-item {
   margin-bottom: 16px;
 }
