@@ -123,6 +123,7 @@ const settingsBackBtn = document.getElementById('settings-back-btn');
 const themeSelect = document.getElementById('theme-select');
 const settingsLogoutBtn = document.getElementById('settings-logout-btn');
 const settingsUsernameEl = document.getElementById('settings-username');
+const settingsAvatarEl = document.getElementById('settings-avatar');
 const notificationsContainer = document.getElementById('notifications-container');
 const refreshCountdownEl = document.getElementById('refresh-countdown');
 
@@ -254,6 +255,16 @@ async function showSettings() {
   const { shortLabel, tooltip } = getAuthMethodLabels(authMethod);
   if (settingsUsernameEl && username) {
     settingsUsernameEl.innerHTML = `${username} <span style="font-size: 0.85em; color: var(--text-secondary); opacity: 0.7;" title="${tooltip}">(${shortLabel})</span>`;
+  }
+
+  // Load and display user avatar
+  const userInfo = await storage.getUserInfo();
+  if (settingsAvatarEl && userInfo?.avatar_url) {
+    settingsAvatarEl.src = userInfo.avatar_url;
+    settingsAvatarEl.alt = userInfo.login || 'User';
+    settingsAvatarEl.hidden = false;
+  } else if (settingsAvatarEl) {
+    settingsAvatarEl.hidden = true;
   }
 
   // Load popup width setting

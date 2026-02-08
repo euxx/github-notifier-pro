@@ -939,6 +939,33 @@ body.dark-theme .notification-hover-card {
   border-bottom: 1px solid var(--border-color);
 }
 
+.setting-row:first-child {
+  padding-top: 0; /* Remove top padding for first row to align with settings-content padding */
+  padding-left: 7px;
+}
+
+/* User info in settings */
+.setting-user-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px 12px 0;
+}
+
+.settings-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.settings-user-details {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Width controls */
 .width-controls {
   display: flex;

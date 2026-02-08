@@ -13,6 +13,9 @@ A browser extension that brings GitHub notifications to your browser toolbar.
 ## Features
 
 - **Real-time notifications** - Badge shows unread count, auto-refreshes in background
+- **Adaptive polling** - Automatically adjusts refresh interval (60s-10min) based on GitHub's X-Poll-Interval header
+- **Smart caching** - Uses HTTP 304 responses to minimize API calls and bandwidth
+- **Rate limit protection** - Tracks GitHub API limits with visual indicators and automatic retry
 - **Desktop alerts** - Optional native notifications for new items
 - **Quick actions** - Open, mark as read, or mark all as read
 - **Rich details** - Shows PR state, issue status, author avatars
@@ -27,6 +30,7 @@ This extension requires:
 | `notifications`  | Show desktop notifications       |
 | `storage`        | Store auth token and preferences |
 | `alarms`         | Background polling               |
+| `identity`       | OAuth authentication flow        |
 | `api.github.com` | Fetch notifications              |
 | `github.com`     | OAuth authentication             |
 
