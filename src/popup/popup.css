@@ -1000,8 +1000,8 @@ body.dark-theme .notification-hover-card {
   margin-left: auto;
   padding: 3px;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border: none;
+  background: var(--bg-hover);
 }
 
 .width-input {
@@ -1012,13 +1012,21 @@ body.dark-theme .notification-hover-card {
   border-radius: 6px;
   font-size: 12px;
   text-align: center;
-  background: transparent;
+  background: var(--bg-primary);
   color: var(--text-primary);
 }
 
 .width-input:focus {
   outline: none;
-  box-shadow: inset 0 0 0 1px var(--text-secondary);
+  background: var(--border-color);
+}
+
+body.dark-theme .width-input {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.dark-theme .width-input:focus {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .width-input::-webkit-inner-spin-button,
@@ -1095,9 +1103,8 @@ body.dark-theme .notification-hover-card {
   display: inline-flex;
   gap: 4px;
   padding: 3px;
-  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: var(--bg-primary);
+  background: var(--bg-hover);
 }
 
 .theme-option {
