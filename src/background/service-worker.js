@@ -338,8 +338,13 @@ async function checkNotifications() {
 
         // Check if superseded before updating
         if (currentFetchVersion >= notificationFetchVersion) {
+          // Merge with current storage to avoid overwriting user deletions
+          const currentStored = await storage.getNotifications();
+          const currentStoredIds = new Set(currentStored.map((n) => n.id));
+          const safeDetailed = detailedNotifications.filter((n) => currentStoredIds.has(n.id));
+
           // Save priority notifications immediately
-          await storage.setNotifications(detailedNotifications);
+          await storage.setNotifications(safeDetailed);
           console.log(`Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`);
         }
       }
@@ -379,8 +384,12 @@ async function checkNotifications() {
             const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
 
             if (currentFetchVersion >= storedVersion) {
+              // Merge with current storage to avoid overwriting user deletions
+              const currentStoredIds = new Set(currentStoredNotifications.map((n) => n.id));
+              const safeDetailed = detailedNotifications.filter((n) => currentStoredIds.has(n.id));
+
               // Update storage with all completed details
-              await storage.setNotifications(detailedNotifications);
+              await storage.setNotifications(safeDetailed);
               console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
             } else {
               console.log(
