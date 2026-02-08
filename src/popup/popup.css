@@ -996,29 +996,49 @@ body.dark-theme .notification-hover-card {
 .width-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-left: auto;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
 }
 
 .width-input {
-  width: 70px;
-  padding: 4px 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 13px;
+  width: 56px;
+  height: 24px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
   text-align: center;
-  background: var(--bg-primary);
+  background: transparent;
   color: var(--text-primary);
 }
 
 .width-input:focus {
   outline: none;
-  border-color: var(--primary-color);
+  box-shadow: inset 0 0 0 1px var(--text-secondary);
+}
+
+.width-input::-webkit-inner-spin-button,
+.width-input::-webkit-outer-spin-button {
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.width-input:hover::-webkit-inner-spin-button,
+.width-input:hover::-webkit-outer-spin-button,
+.width-input:focus-visible::-webkit-inner-spin-button,
+.width-input:focus-visible::-webkit-outer-spin-button {
+  opacity: 0.6;
 }
 
 .width-unit {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
+  padding-right: 2px;
+  padding-bottom: 4px;
 }
 
 .width-btn {
