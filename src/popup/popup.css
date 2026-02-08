@@ -909,6 +909,17 @@ body.dark-theme .notification-hover-card {
   min-height: 100%;
   flex: 1;
   background: var(--bg-primary);
+  --control-bg: rgba(0, 0, 0, 0.06);
+  --control-hover: rgba(0, 0, 0, 0.1);
+  --control-active: rgba(0, 0, 0, 0.16);
+  --control-focus: rgba(0, 0, 0, 0.22);
+}
+
+body.dark-theme .settings-view {
+  --control-bg: rgba(255, 255, 255, 0.08);
+  --control-hover: rgba(255, 255, 255, 0.14);
+  --control-active: rgba(255, 255, 255, 0.22);
+  --control-focus: rgba(255, 255, 255, 0.28);
 }
 
 .settings-header {
@@ -1001,7 +1012,7 @@ body.dark-theme .notification-hover-card {
   padding: 3px;
   border-radius: 8px;
   border: none;
-  background: var(--bg-hover);
+  background: var(--control-bg);
 }
 
 .width-input {
@@ -1012,21 +1023,13 @@ body.dark-theme .notification-hover-card {
   border-radius: 6px;
   font-size: 12px;
   text-align: center;
-  background: var(--bg-primary);
+  background: var(--control-bg);
   color: var(--text-primary);
 }
 
 .width-input:focus {
   outline: none;
-  background: var(--border-color);
-}
-
-body.dark-theme .width-input {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-body.dark-theme .width-input:focus {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--control-focus);
 }
 
 .width-input::-webkit-inner-spin-button,
@@ -1043,6 +1046,9 @@ body.dark-theme .width-input:focus {
 }
 
 .width-unit {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
   font-size: 11px;
   color: var(--text-secondary);
   padding-right: 2px;
@@ -1056,7 +1062,7 @@ body.dark-theme .width-input:focus {
 }
 
 .width-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
+  background: var(--control-hover);
 }
 
 .setting-row-column {
@@ -1104,7 +1110,7 @@ body.dark-theme .width-input:focus {
   gap: 4px;
   padding: 3px;
   border-radius: 8px;
-  background: var(--bg-hover);
+  background: var(--control-bg);
 }
 
 .theme-option {
@@ -1134,12 +1140,12 @@ body.dark-theme .width-input:focus {
 
 .theme-option:hover .theme-option-label {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: var(--control-hover);
 }
 
 .theme-option input:checked + .theme-option-label {
   color: var(--text-primary);
-  background: var(--border-color);
+  background: var(--control-hover);
 }
 
 .theme-option-icon {
@@ -1177,7 +1183,7 @@ body.dark-theme .width-input:focus {
   height: 20px;
   border-radius: 999px;
   border: none;
-  background: var(--border-color);
+  background: var(--control-hover);
   display: inline-flex;
   align-items: center;
   padding: 2px;
@@ -1199,11 +1205,11 @@ body.dark-theme .width-input:focus {
 }
 
 .toggle-switch:hover .toggle-slider {
-  background: var(--text-tertiary);
+  background: var(--control-active);
 }
 
 .toggle-switch input[type='checkbox']:checked + .toggle-slider {
-  background: var(--text-secondary);
+  background: var(--control-active);
 }
 
 .toggle-switch input[type='checkbox']:checked + .toggle-slider::after {
@@ -1212,7 +1218,7 @@ body.dark-theme .width-input:focus {
 }
 
 .toggle-switch input[type='checkbox']:focus-visible + .toggle-slider {
-  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.12);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .toggle-switch:has(input[type='checkbox']:disabled) {
