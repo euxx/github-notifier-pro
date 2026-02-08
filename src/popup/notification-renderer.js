@@ -48,6 +48,11 @@ export function truncateReleaseBody(body, maxLength = 200) {
   return trimmed.substring(0, maxLength);
 }
 
+function buildAuthorProfileUrl(login) {
+  if (!login) return null;
+  return `https://github.com/${encodeURIComponent(login)}`;
+}
+
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
 let cachedNotificationsHash = null;
@@ -127,6 +132,7 @@ function createHoverCard(notif) {
   const hasAuthor = notif.author?.login;
   const hasComments = notif.comment_count > 0;
   const hasDescription = notif.body?.trim();
+  const authorProfileUrl = hasAuthor ? buildAuthorProfileUrl(notif.author.login) : null;
 
   const metadataParts = [];
   metadataParts.push(`<span class="hover-card-reason">${formatReason(notif.reason)}</span>`);
@@ -142,10 +148,12 @@ function createHoverCard(notif) {
         hasAuthor
           ? `
         <div class="hover-card-header">
-          <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
-          <div class="hover-card-author">
-            <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
-          </div>
+          <a class="hover-card-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
+            <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
+            <div class="hover-card-author">
+              <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
+            </div>
+          </a>
         </div>
       `
           : ''
@@ -225,6 +233,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   // Pre-compute release body for performance
   const releaseBody = notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : '';
   const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : '';
+  const authorProfileUrl = notif.author?.login ? buildAuthorProfileUrl(notif.author.login) : null;
 
   li.innerHTML = `
     <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">
@@ -252,7 +261,9 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         ${
           notif.author
             ? `
-          <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
+          <a class="author-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
+            <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
+          </a>
         `
             : ''
         }
@@ -314,7 +325,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
   // Click to open notification
   li.addEventListener('click', async (e) => {
-    if (e.target.closest('.btn-mark-read')) {
+    if (e.target.closest('.btn-mark-read') || e.target.closest('a')) {
       return;
     }
     await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: notif.id });

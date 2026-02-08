@@ -75,8 +75,16 @@
       <header class="header">
         <div class="header-left">
           <div class="user-info">
-            <img class="user-avatar" id="user-avatar" alt="User avatar" hidden />
-            <span class="username" id="username"></span>
+            <a
+              class="profile-link user-profile-link"
+              id="user-profile-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img class="user-avatar" id="user-avatar" alt="User avatar" hidden />
+              <span class="username" id="username"></span>
+            </a>
             <button class="btn-icon" id="settings-icon-btn" title="Settings">
               <svg viewBox="0 0 16 16" width="16" height="16">
                 <path
@@ -140,9 +148,26 @@
         </div>
         <div class="settings-content">
           <div class="setting-row setting-user-info">
-            <img class="settings-avatar" id="settings-avatar" src="" alt="" hidden />
+            <a
+              class="profile-link settings-avatar-link"
+              id="settings-avatar-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img class="settings-avatar" id="settings-avatar" src="" alt="" hidden />
+            </a>
             <div class="settings-user-details">
-              <span class="setting-account-name" id="settings-username">Loading...</span>
+              <a
+                class="profile-link settings-username-link"
+                id="settings-username-link"
+                href="#"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="setting-account-name" id="settings-username">Loading...</span>
+              </a>
+              <span class="settings-auth-method" id="settings-auth-method"></span>
             </div>
             <button class="btn btn-secondary btn-compact btn-with-icon" id="settings-logout-btn">
               <svg

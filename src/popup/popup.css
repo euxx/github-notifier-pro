@@ -323,6 +323,22 @@ body.dark-theme #main-view {
   gap: 8px;
 }
 
+.profile-link {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-link .username:hover,
+.profile-link .setting-account-name:hover {
+  text-decoration: underline;
+}
+
+.user-profile-link {
+  gap: 8px;
+}
+
 .user-avatar {
   width: 20px;
   height: 20px;
@@ -581,6 +597,18 @@ body.dark-theme .notification-hover-card {
   border-bottom: 1px solid var(--border-color);
 }
 
+.hover-card-profile-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.hover-card-author-name:hover {
+  text-decoration: underline;
+}
+
 .hover-card-avatar {
   width: 16px;
   height: 16px;
@@ -744,7 +772,7 @@ body.dark-theme .notification-hover-card {
 
 /* Hide meta elements by default on narrow screens */
 .notification-comments,
-.author-avatar,
+.author-profile-link,
 .notification-time {
   display: none;
 }
@@ -754,6 +782,12 @@ body.dark-theme .notification-hover-card {
   height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.author-profile-link {
+  color: inherit;
+  text-decoration: none;
+  align-items: center;
 }
 
 .notification-time {
@@ -777,8 +811,8 @@ body.dark-theme .notification-hover-card {
 /* Responsive breakpoints */
 /* 500px+ : Show author avatar */
 @container (min-width: 500px) {
-  .author-avatar {
-    display: block;
+  .author-profile-link {
+    display: inline-flex;
   }
 }
 
@@ -799,8 +833,8 @@ body.dark-theme .notification-hover-card {
 /* Fallback for browsers without container query support */
 @supports not (container-type: inline-size) {
   @media (min-width: 500px) {
-    .author-avatar {
-      display: block;
+    .author-profile-link {
+      display: inline-flex;
     }
   }
 
@@ -1017,6 +1051,11 @@ body.dark-theme .settings-view {
   padding: 12px 6px 12px 0;
 }
 
+.settings-avatar-link {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
 .settings-avatar {
   width: 24px;
   height: 24px;
@@ -1028,7 +1067,34 @@ body.dark-theme .settings-view {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-username-link {
+  min-width: 0;
+}
+
+.settings-user-details .setting-account-name {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.settings-auth-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--control-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  white-space: nowrap;
+  margin-left: 6px;
+  margin-top: 2px;
 }
 
 /* Width controls */
@@ -1123,7 +1189,7 @@ body.dark-theme .settings-view {
 }
 
 .setting-account-name {
-  padding-left: 6px;
+  padding-left: 0;
 }
 
 .setting-row .setting-select {

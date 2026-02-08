@@ -23,15 +23,54 @@ import {
 } from './notification-renderer.js';
 
 /**
- * Get auth method labels and tooltip
+ * Get auth method labels
  * @param {string} authMethod - 'oauth' or 'pat'
- * @returns {{shortLabel: string, fullLabel: string, tooltip: string}}
+ * @returns {{shortLabel: string, fullLabel: string}}
  */
 function getAuthMethodLabels(authMethod) {
   const shortLabel = authMethod === 'oauth' ? 'OAuth' : 'PAT';
   const fullLabel = authMethod === 'oauth' ? 'OAuth' : 'Personal Access Token';
-  const tooltip = `Logged in via ${fullLabel}`;
-  return { shortLabel, fullLabel, tooltip };
+  return { shortLabel, fullLabel };
+}
+
+/**
+ * Build user profile URL
+ * @param {string} username - GitHub username
+ * @param {Object} userInfo - User info object with login and html_url
+ * @returns {string|null} Profile URL or null
+ */
+function buildUserProfileUrl(username, userInfo) {
+  // Prefer html_url for GitHub Enterprise support
+  if (userInfo?.html_url) {
+    return userInfo.html_url;
+  }
+
+  // Fallback to building URL from username (GitHub.com only)
+  const login = username || userInfo?.login;
+  if (!login || login === 'User') return null;
+  return `https://github.com/${encodeURIComponent(login)}`;
+}
+
+/**
+ * Update all profile links with user information
+ * @param {string} username - GitHub username
+ * @param {Object} userInfo - User info object
+ */
+function updateProfileLinks(username, userInfo) {
+  const url = buildUserProfileUrl(username, userInfo);
+  const displayName = username || userInfo?.login || 'User';
+  const ariaLabel = displayName !== 'User' ? `Open ${displayName} profile` : 'Open GitHub profile';
+
+  [userProfileLink, settingsAvatarLink, settingsUsernameLink].forEach((link) => {
+    if (!link) return;
+    if (url) {
+      link.href = url;
+      link.setAttribute('aria-label', ariaLabel);
+    } else {
+      link.removeAttribute('href');
+      link.removeAttribute('aria-label');
+    }
+  });
 }
 
 // Elements
@@ -114,6 +153,7 @@ const refreshBtn = document.getElementById('refresh-btn');
 const markAllBtn = document.getElementById('mark-all-btn');
 const usernameEl = document.getElementById('username');
 const avatarEl = document.getElementById('user-avatar');
+const userProfileLink = document.getElementById('user-profile-link');
 const notificationsList = document.getElementById('notifications-list');
 const emptyState = document.getElementById('empty-state');
 
@@ -124,6 +164,9 @@ const themeRadios = document.querySelectorAll('input[name="theme"]');
 const settingsLogoutBtn = document.getElementById('settings-logout-btn');
 const settingsUsernameEl = document.getElementById('settings-username');
 const settingsAvatarEl = document.getElementById('settings-avatar');
+const settingsAvatarLink = document.getElementById('settings-avatar-link');
+const settingsUsernameLink = document.getElementById('settings-username-link');
+const settingsAuthMethodEl = document.getElementById('settings-auth-method');
 const notificationsContainer = document.getElementById('notifications-container');
 const refreshCountdownEl = document.getElementById('refresh-countdown');
 
@@ -267,19 +310,34 @@ async function showSettings() {
   // Load and display username
   const username = await storage.getUsername();
   const authMethod = await storage.getAuthMethod();
-  const { shortLabel, tooltip } = getAuthMethodLabels(authMethod);
+  const { shortLabel, fullLabel } = getAuthMethodLabels(authMethod);
   if (settingsUsernameEl && username) {
-    settingsUsernameEl.innerHTML = `${username} <span style="font-size: 0.85em; color: var(--text-secondary); opacity: 0.7;" title="${tooltip}">(${shortLabel})</span>`;
+    settingsUsernameEl.textContent = username;
+  }
+  if (settingsAuthMethodEl) {
+    settingsAuthMethodEl.textContent = shortLabel || '';
+    if (fullLabel) {
+      settingsAuthMethodEl.title = fullLabel;
+    } else {
+      settingsAuthMethodEl.removeAttribute('title');
+    }
   }
 
   // Load and display user avatar
   const userInfo = await storage.getUserInfo();
+  updateProfileLinks(username, userInfo);
   if (settingsAvatarEl && userInfo?.avatar_url) {
     settingsAvatarEl.src = userInfo.avatar_url;
     settingsAvatarEl.alt = userInfo.login || 'User';
     settingsAvatarEl.hidden = false;
+    if (settingsAvatarLink) {
+      settingsAvatarLink.hidden = false;
+    }
   } else if (settingsAvatarEl) {
     settingsAvatarEl.hidden = true;
+    if (settingsAvatarLink) {
+      settingsAvatarLink.hidden = true;
+    }
   }
 
   // Load popup width setting
@@ -548,10 +606,7 @@ async function login(authMethod = 'oauth', token = null) {
     // Set user avatar
     const userInfo = await storage.getUserInfo();
     setUserAvatar(userInfo);
-
-    // Set login method tooltip
-    const { tooltip } = getAuthMethodLabels(authMethod);
-    usernameEl.title = tooltip;
+    updateProfileLinks(result.username, userInfo);
 
     await showView('main'); // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
@@ -754,13 +809,9 @@ async function init() {
     const userInfo = await storage.getUserInfo();
     setUserAvatar(userInfo);
 
-    // Set login method tooltip
-    const authMethod = await storage.getAuthMethod();
-    const { tooltip } = getAuthMethodLabels(authMethod);
-    usernameEl.title = tooltip;
-
     renderNotifications(state.notifications, true); // Re-sort on init
     await showView('main'); // This will apply saved width
+    updateProfileLinks(username, userInfo);
     // Start countdown timer for next refresh
     startCountdown();
   } else {
