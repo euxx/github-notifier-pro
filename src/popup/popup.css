@@ -55,6 +55,14 @@ body.transitions-enabled * {
   flex: 1;
 }
 
+#main-view {
+  --list-divider: rgba(0, 0, 0, 0.1);
+}
+
+body.dark-theme #main-view {
+  --list-divider: rgba(255, 255, 255, 0.1);
+}
+
 /* Login View */
 .login-container {
   display: flex;
@@ -299,7 +307,7 @@ body.transitions-enabled * {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--list-divider);
 }
 
 .header-left {
@@ -371,7 +379,7 @@ body.transitions-enabled * {
   justify-content: space-between;
   padding: 8px 16px 6px 16px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--list-divider);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -478,7 +486,7 @@ body.transitions-enabled * {
   align-items: center;
   gap: 10px;
   padding: 8px 16px 8px 16px;
-  border-bottom: 1px solid var(--bg-hover);
+  border-bottom: 1px solid var(--list-divider);
   cursor: pointer;
 }
 
@@ -516,7 +524,7 @@ body.transitions-enabled * {
 }
 
 .notification-item:last-of-type {
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: none;
 }
 
 .notification-item:hover {
@@ -875,7 +883,7 @@ body.dark-theme .notification-hover-card {
 /* Footer */
 .footer {
   padding: 12px 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--list-divider);
   text-align: center;
   margin-top: auto;
   flex-shrink: 0;
@@ -913,6 +921,7 @@ body.dark-theme .notification-hover-card {
   --control-hover: rgba(0, 0, 0, 0.1);
   --control-active: rgba(0, 0, 0, 0.16);
   --control-focus: rgba(0, 0, 0, 0.22);
+  --row-divider: rgba(0, 0, 0, 0.1);
 }
 
 body.dark-theme .settings-view {
@@ -920,6 +929,7 @@ body.dark-theme .settings-view {
   --control-hover: rgba(255, 255, 255, 0.14);
   --control-active: rgba(255, 255, 255, 0.22);
   --control-focus: rgba(255, 255, 255, 0.28);
+  --row-divider: rgba(255, 255, 255, 0.1);
 }
 
 .settings-header {
@@ -927,7 +937,7 @@ body.dark-theme .settings-view {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--row-divider);
 }
 
 .settings-title {
@@ -948,7 +958,7 @@ body.dark-theme .settings-view {
   gap: 12px;
   padding: 12px 6px 12px 0;
   padding-left: 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--row-divider);
 }
 
 .setting-row:first-child {
