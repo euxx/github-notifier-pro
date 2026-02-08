@@ -14,7 +14,18 @@ import {
   NOTIFICATION_TYPES,
 } from './constants.js';
 import { buildNotificationUrl } from './url-builder.js';
-import { LRUCache } from './lru-cache.js';
+import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from './lru-cache.js';
+
+/**
+ * Retry configuration for mutation requests (mark as read, etc.)
+ */
+const RETRY_MUTATION_OPTIONS = {
+  maxRetries: 2,
+  baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
+  backoff: 'linear',
+  retryOn: [401, 500],
+  checkResponse: true,
+};
 
 /**
  * Create a fetch request with timeout
@@ -32,14 +43,14 @@ async function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUTS.DEFAUL
       ...options,
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
     return response;
   } catch (error) {
-    clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
       throw new Error('Request timeout');
     }
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -140,7 +151,7 @@ class GitHubAPI {
     };
     // Cache for notification details (issue/PR/etc.)
     // Reduces redundant API calls for frequently accessed notifications
-    this.detailsCache = new LRUCache(100);
+    this.detailsCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
   }
 
   get isAuthenticated() {
@@ -652,21 +663,12 @@ class GitHubAPI {
   async markAsRead(threadId) {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
-    const response = await retryWithStrategy(
-      async () => {
-        return await fetch(url, {
-          method: 'PATCH',
-          headers: this.headers,
-        });
-      },
-      {
-        maxRetries: 2,
-        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-        backoff: 'linear',
-        retryOn: [401, 500],
-        checkResponse: true,
-      },
-    );
+    const response = await retryWithStrategy(async () => {
+      return await fetch(url, {
+        method: 'PATCH',
+        headers: this.headers,
+      });
+    }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
     return true;
@@ -680,27 +682,18 @@ class GitHubAPI {
       this.lastUpdate = new Date().toISOString();
     }
 
-    const response = await retryWithStrategy(
-      async () => {
-        return await fetch(`${GITHUB_API_BASE}/notifications`, {
-          method: 'PUT',
-          headers: {
-            ...this.headers,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            last_read_at: this.lastUpdate,
-          }),
-        });
-      },
-      {
-        maxRetries: 2,
-        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-        backoff: 'linear',
-        retryOn: [401, 500],
-        checkResponse: true,
-      },
-    );
+    const response = await retryWithStrategy(async () => {
+      return await fetch(`${GITHUB_API_BASE}/notifications`, {
+        method: 'PUT',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          last_read_at: this.lastUpdate,
+        }),
+      });
+    }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
     return true;
@@ -714,27 +707,18 @@ class GitHubAPI {
   async markRepoAsRead(owner, repo) {
     const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/notifications`;
 
-    const response = await retryWithStrategy(
-      async () => {
-        return await fetch(url, {
-          method: 'PUT',
-          headers: {
-            ...this.headers,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            last_read_at: new Date().toISOString(),
-          }),
-        });
-      },
-      {
-        maxRetries: 2,
-        baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-        backoff: 'linear',
-        retryOn: [401, 500],
-        checkResponse: true,
-      },
-    );
+    const response = await retryWithStrategy(async () => {
+      return await fetch(url, {
+        method: 'PUT',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          last_read_at: new Date().toISOString(),
+        }),
+      });
+    }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
     return true;

@@ -15,7 +15,7 @@ import {
 } from '../lib/constants.js';
 import { formatReason } from '../lib/format-utils.js';
 import { buildNotificationUrl } from '../lib/url-builder.js';
-import { LRUCache } from '../lib/lru-cache.js';
+import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from '../lib/lru-cache.js';
 
 /**
  * Desktop notification constants
@@ -28,6 +28,16 @@ export const GITHUB_NOTIFICATIONS_URL = 'https://github.com/notifications';
 const NOTIFICATION_ICON_PATH = 'images/icon.png';
 const CHROME_PRIORITY_NORMAL = 2; // Individual notifications
 const CHROME_PRIORITY_LOW = 1; // Aggregated notifications
+
+/**
+ * Badge background colors for different states
+ */
+const BADGE_COLORS = {
+  UNAUTHENTICATED: '#6B7280', // Gray - not logged in
+  NORMAL: '#2563EB', // Blue - has notifications
+  RATE_LIMITED: '#f59e0b', // Orange - rate limit error
+  TIMEOUT: '#ef4444', // Red - timeout error
+};
 
 /**
  * Detect Chrome/Chromium browser
@@ -52,7 +62,7 @@ function applyChromeNotificationOptions(options, priority) {
  * Stores up to 100 author objects to prevent unbounded memory growth
  * Key: author login, Value: { login, avatar_url, html_url }
  */
-const authorCache = new LRUCache(100);
+const authorCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
 
 const CACHED_DETAIL_FIELDS = [
   'state',
@@ -116,13 +126,13 @@ async function updateBadge(count, hasMore = false) {
   if (count === null) {
     // Not authenticated
     await action.setBadgeText({ text: '?' });
-    await action.setBadgeBackgroundColor({ color: '#6B7280' });
+    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.UNAUTHENTICATED });
   } else if (count === 0) {
     await action.setBadgeText({ text: '' });
   } else {
     const badgeText = hasMore ? `${count}+` : count.toString();
     await action.setBadgeText({ text: badgeText });
-    await action.setBadgeBackgroundColor({ color: '#2563EB' });
+    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.NORMAL });
   }
 }
 
@@ -218,13 +228,25 @@ function createDetailFetchTask(notification, index, detailedNotifications) {
       return { success: true, id: notification.id, index };
     } catch (error) {
       console.error(`Failed to fetch details for notification ${notification.id}:`, error);
-      if (notification.subject.type !== 'CheckSuite') {
+      if (notification.subject.type !== NOTIFICATION_TYPES.CHECK_SUITE) {
         detailedNotifications[index].state = 'open';
       }
       detailedNotifications[index].detailsFailed = true;
       return { success: false, id: notification.id, index, error: error.message };
     }
   };
+}
+
+/**
+ * Filter notifications to only those that still exist in storage
+ * Prevents overwriting user deletions during concurrent operations
+ * @param {Array} detailedNotifications - Notifications to filter
+ * @param {Array} currentStoredNotifications - Currently stored notifications
+ * @returns {Array} Filtered notifications
+ */
+function filterToCurrentlyStored(detailedNotifications, currentStoredNotifications) {
+  const currentStoredIds = new Set(currentStoredNotifications.map((n) => n.id));
+  return detailedNotifications.filter((n) => currentStoredIds.has(n.id));
 }
 
 /**
@@ -370,8 +392,7 @@ async function checkNotifications() {
         if (currentFetchVersion >= notificationFetchVersion) {
           // Merge with current storage to avoid overwriting user deletions
           const currentStored = await storage.getNotifications();
-          const currentStoredIds = new Set(currentStored.map((n) => n.id));
-          const safeDetailed = detailedNotifications.filter((n) => currentStoredIds.has(n.id));
+          const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStored);
 
           // Save priority notifications immediately
           await storage.setNotifications(safeDetailed);
@@ -415,8 +436,7 @@ async function checkNotifications() {
 
             if (currentFetchVersion >= storedVersion) {
               // Merge with current storage to avoid overwriting user deletions
-              const currentStoredIds = new Set(currentStoredNotifications.map((n) => n.id));
-              const safeDetailed = detailedNotifications.filter((n) => currentStoredIds.has(n.id));
+              const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStoredNotifications);
 
               // Update storage with all completed details
               await storage.setNotifications(safeDetailed);
@@ -443,14 +463,14 @@ async function checkNotifications() {
       // Rate limited - show timer badge with reset info
       const rateLimitInfo = github.getRateLimitInfo();
       await action.setBadgeText({ text: '⏱' });
-      await action.setBadgeBackgroundColor({ color: '#f59e0b' }); // Orange
+      await action.setBadgeBackgroundColor({ color: BADGE_COLORS.RATE_LIMITED });
       await action.setTitle({
         title: `Rate limited. Resets ${rateLimitInfo.resetIn || 'soon'}`,
       });
     } else if (error.message && error.message.includes('timeout')) {
       // Network timeout
       await action.setBadgeText({ text: '⏱' });
-      await action.setBadgeBackgroundColor({ color: '#ef4444' }); // Red
+      await action.setBadgeBackgroundColor({ color: BADGE_COLORS.TIMEOUT });
       await action.setTitle({ title: 'Request timeout - will retry' });
     } else if (error.message && (error.message.includes('NetworkError') || error.message.includes('Failed to fetch'))) {
       // Network error - keep last known state, update title only

@@ -1,4 +1,9 @@
 /**
+ * Default LRU cache size (shared constant)
+ */
+export const DEFAULT_LRU_CACHE_SIZE = 100;
+
+/**
  * LRU (Least Recently Used) Cache implementation
  * Automatically evicts least recently used items when size limit is reached
  */
