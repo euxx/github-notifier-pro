@@ -1070,6 +1070,50 @@ body.dark-theme .notification-hover-card {
   width: 120px;
 }
 
+.theme-options {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+.theme-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-option span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.theme-option:hover span {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.theme-option input:checked + span {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
 /* Toggle Switch - Checkbox Style */
 .toggle-switch {
   position: relative;

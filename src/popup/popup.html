@@ -161,12 +161,21 @@
                 <path d="M11.5 4.5L13 3" />
               </svg>
             </span>
-            <label for="theme-select" class="setting-label">Theme</label>
-            <select id="theme-select" class="setting-select">
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">System</option>
-            </select>
+            <span class="setting-label" id="theme-label">Theme</span>
+            <div id="theme-options" class="theme-options" role="radiogroup" aria-labelledby="theme-label">
+              <label class="theme-option" for="theme-light">
+                <input type="radio" name="theme" id="theme-light" value="light" />
+                <span>Light</span>
+              </label>
+              <label class="theme-option" for="theme-dark">
+                <input type="radio" name="theme" id="theme-dark" value="dark" />
+                <span>Dark</span>
+              </label>
+              <label class="theme-option" for="theme-system">
+                <input type="radio" name="theme" id="theme-system" value="system" />
+                <span>System</span>
+              </label>
+            </div>
           </div>
 
           <div class="setting-row">

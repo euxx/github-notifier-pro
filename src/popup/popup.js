@@ -120,7 +120,7 @@ const emptyState = document.getElementById('empty-state');
 // Settings view elements
 const settingsView = document.getElementById('settings-view');
 const settingsBackBtn = document.getElementById('settings-back-btn');
-const themeSelect = document.getElementById('theme-select');
+const themeRadios = document.querySelectorAll('input[name="theme"]');
 const settingsLogoutBtn = document.getElementById('settings-logout-btn');
 const settingsUsernameEl = document.getElementById('settings-username');
 const settingsAvatarEl = document.getElementById('settings-avatar');
@@ -246,8 +246,10 @@ function stopCountdown() {
  */
 async function showSettings() {
   // Load current theme
-  const theme = await storage.getTheme();
-  themeSelect.value = theme;
+  const theme = (await storage.getTheme()) || 'system';
+  themeRadios.forEach((radio) => {
+    radio.checked = radio.value === theme;
+  });
 
   // Load and display username
   const username = await storage.getUsername();
@@ -315,7 +317,8 @@ function hideSettings() {
  * Handle theme change
  */
 async function handleThemeChange() {
-  const theme = themeSelect.value;
+  const selectedTheme = document.querySelector('input[name="theme"]:checked');
+  const theme = selectedTheme ? selectedTheme.value : 'system';
 
   // Save to storage
   await storage.setTheme(theme);
@@ -758,7 +761,9 @@ patInput.addEventListener('keypress', (e) => {
 // Settings
 settingsIconBtn.addEventListener('click', showSettings);
 settingsBackBtn.addEventListener('click', hideSettings);
-themeSelect.addEventListener('change', handleThemeChange);
+themeRadios.forEach((radio) => {
+  radio.addEventListener('change', handleThemeChange);
+});
 popupWidthInput.addEventListener('change', handleWidthChange);
 popupWidthInput.addEventListener('blur', handleWidthChange);
 widthDecreaseBtn.addEventListener('click', decreaseWidth);
