@@ -321,6 +321,13 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         hoverCard.classList.remove('visible');
       }
     });
+    hoverCard.addEventListener('click', (e) => {
+      const interactiveTarget = e.target.closest('a, button, [role="button"], [data-clickable]');
+      if (!interactiveTarget) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    });
   }
 
   // Click to open notification
