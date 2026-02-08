@@ -18,6 +18,36 @@ import { buildNotificationUrl } from '../lib/url-builder.js';
 import { LRUCache } from '../lib/lru-cache.js';
 
 /**
+ * Desktop notification constants
+ * @exported for testing
+ */
+export const NOTIFICATION_ID_PREFIX = 'github-notif-';
+export const AGGREGATED_NOTIFICATION_ID = 'github-notif-more';
+export const NOTIFICATION_DELAY_MS = 1000;
+export const GITHUB_NOTIFICATIONS_URL = 'https://github.com/notifications';
+const NOTIFICATION_ICON_PATH = 'images/icon.png';
+const CHROME_PRIORITY_NORMAL = 2; // Individual notifications
+const CHROME_PRIORITY_LOW = 1; // Aggregated notifications
+
+/**
+ * Detect Chrome/Chromium browser
+ * Firefox doesn't support priority and requireInteraction notification options
+ */
+const isChrome = typeof chrome !== 'undefined' && typeof browser === 'undefined';
+
+/**
+ * Apply Chrome-specific notification options
+ * @param {object} options - Notification options object
+ * @param {number} priority - Chrome notification priority (1-2)
+ */
+function applyChromeNotificationOptions(options, priority) {
+  if (isChrome) {
+    options.priority = priority;
+    options.requireInteraction = false; // Allow auto-dismiss
+  }
+}
+
+/**
  * In-memory LRU cache for author information
  * Stores up to 100 author objects to prevent unbounded memory growth
  * Key: author login, Value: { login, avatar_url, html_url }
@@ -680,10 +710,42 @@ async function markRepoAsRead(owner, repo) {
 }
 
 /**
- * Show desktop notifications for new items
+ * Helper function to safely clear a notification
+ * Isolates clear failures to prevent them from blocking other operations
  */
-async function showDesktopNotificationsForNew(notifications) {
+async function safeClearNotification(notificationId) {
   try {
+    await notifications.clear(notificationId);
+  } catch (error) {
+    console.error(`Failed to clear notification ${notificationId}:`, error);
+  }
+}
+
+/**
+ * Helper function to delay execution
+ */
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Show desktop notifications for new items
+ * @exported for testing
+ */
+export async function showDesktopNotificationsForNew(notificationsList) {
+  try {
+    // Always clear previous aggregated notification first to prevent stale messages
+    // Do this unconditionally (even for invalid input) to ensure cleanup
+    await safeClearNotification(AGGREGATED_NOTIFICATION_ID);
+
+    // Validate parameter type
+    if (!Array.isArray(notificationsList)) {
+      return;
+    }
+
+    // Early return if empty - after cleanup
+    if (notificationsList.length === 0) {
+      return;
+    }
+
     // Check if desktop notifications are enabled
     const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
 
@@ -691,12 +753,35 @@ async function showDesktopNotificationsForNew(notifications) {
       return;
     }
 
-    // Filter and show only new notifications
-    const newNotifications = notifications.filter((n) => n.isNew);
+    // Filter new notifications
+    const newNotifications = notificationsList.filter((n) => n.isNew);
 
-    // Show desktop notification for each new item
-    for (const notif of newNotifications) {
-      await showDesktopNotification(notif);
+    if (newNotifications.length === 0) {
+      return;
+    }
+
+    // Get max notification limit from settings (validated in storage.js)
+    const maxNotifications = await storage.getMaxDesktopNotifications();
+
+    // Note: Assumes notifications are already sorted by updated_at descending (GitHub API default)
+    // Show individual notifications up to the limit with delay between each
+    const notificationsToShow = newNotifications.slice(0, maxNotifications);
+    for (let i = 0; i < notificationsToShow.length; i++) {
+      if (i > 0) {
+        // Add delay between notifications to prevent overwhelming the notification center
+        await delay(NOTIFICATION_DELAY_MS);
+      }
+      await showDesktopNotification(notificationsToShow[i]);
+    }
+
+    // If there are more notifications beyond the limit, show an aggregated notification
+    const remainingCount = newNotifications.length - maxNotifications;
+    if (remainingCount > 0) {
+      // Add delay before showing aggregated notification
+      if (notificationsToShow.length > 0) {
+        await delay(NOTIFICATION_DELAY_MS);
+      }
+      await showAggregatedNotification(remainingCount);
     }
   } catch (error) {
     console.error('Failed to show desktop notifications:', error);
@@ -705,8 +790,9 @@ async function showDesktopNotificationsForNew(notifications) {
 
 /**
  * Show a single desktop notification
+ * @exported for testing
  */
-async function showDesktopNotification(notif) {
+export async function showDesktopNotification(notif) {
   try {
     // Format title to match popup display: "#123 Title"
     let displayTitle = notif.title;
@@ -716,7 +802,7 @@ async function showDesktopNotification(notif) {
 
     const notificationOptions = {
       type: 'basic',
-      iconUrl: runtime.getURL('images/icon.png'),
+      iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
       title: displayTitle, // Primary: #123 Title
       message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
       // Note: 'priority' and 'requireInteraction' are not supported in Firefox
@@ -724,17 +810,36 @@ async function showDesktopNotification(notif) {
     };
 
     // Add Chrome-specific options (Firefox doesn't support these)
-    const isChrome = typeof chrome !== 'undefined' && typeof browser === 'undefined';
-    if (isChrome) {
-      notificationOptions.priority = 2;
-      notificationOptions.requireInteraction = false; // Allow auto-dismiss
-    }
+    applyChromeNotificationOptions(notificationOptions, CHROME_PRIORITY_NORMAL);
 
     // Create notification
-    const notificationId = `github-notif-${notif.id}`;
+    const notificationId = `${NOTIFICATION_ID_PREFIX}${notif.id}`;
     await notifications.create(notificationId, notificationOptions);
   } catch (error) {
     console.error('Failed to create desktop notification:', error);
+  }
+}
+
+/**
+ * Show an aggregated notification for remaining new notifications
+ * @exported for testing
+ */
+export async function showAggregatedNotification(remainingCount) {
+  try {
+    const notificationOptions = {
+      type: 'basic',
+      iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
+      title: 'GitHub Notifications',
+      message: `... and ${remainingCount} more new notification${remainingCount > 1 ? 's' : ''}`,
+    };
+
+    // Add Chrome-specific options (Firefox doesn't support these)
+    applyChromeNotificationOptions(notificationOptions, CHROME_PRIORITY_LOW); // Lower priority for aggregated notifications
+
+    // Create aggregated notification
+    await notifications.create(AGGREGATED_NOTIFICATION_ID, notificationOptions);
+  } catch (error) {
+    console.error('Failed to create aggregated notification:', error);
   }
 }
 
@@ -743,8 +848,21 @@ async function showDesktopNotification(notif) {
  */
 notifications.onClicked.addListener(async (notificationId) => {
   try {
-    // Extract notification ID from the chrome notification ID
-    const githubNotifId = notificationId.replace('github-notif-', '');
+    // Handle aggregated notification click - open GitHub notifications page
+    if (notificationId === AGGREGATED_NOTIFICATION_ID) {
+      // Clear notification (isolate failures to prevent blocking)
+      await safeClearNotification(notificationId);
+      // Note: We can't programmatically open the popup, so we open GitHub notifications page instead
+      await tabs.create({ url: GITHUB_NOTIFICATIONS_URL });
+      return;
+    }
+
+    // Validate and extract notification ID from the chrome notification ID
+    if (!notificationId.startsWith(NOTIFICATION_ID_PREFIX)) {
+      console.error('Invalid notification ID format:', notificationId);
+      return;
+    }
+    const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
 
     // Get all notifications to find the one that was clicked
     const notificationsList = await storage.getNotifications();
@@ -754,8 +872,8 @@ notifications.onClicked.addListener(async (notificationId) => {
     const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
     await storage.setNotifications(updatedNotifications);
 
-    // Clear the notification immediately (Firefox compatibility)
-    await notifications.clear(notificationId);
+    // Clear the notification (isolate failures to prevent blocking tab open + mark as read)
+    await safeClearNotification(notificationId);
 
     if (notification) {
       // Build and open URL using centralized builder

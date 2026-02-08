@@ -161,4 +161,33 @@ describe('Storage', () => {
       expect(storage.STORAGE_KEYS.POPUP_WIDTH).toBe('popupWidth');
     });
   });
+
+  describe('getMaxDesktopNotifications', () => {
+    it('should return default value of 5', async () => {
+      mockStorage.local.get.mockImplementation((key, callback) => {
+        callback({});
+      });
+
+      const result = await storage.getMaxDesktopNotifications();
+      expect(result).toBe(5);
+    });
+
+    it.each([
+      { input: 3, expected: 3, description: 'valid number (3)' },
+      { input: -5, expected: 1, description: 'negative numbers to 1' },
+      { input: 0, expected: 1, description: 'zero to 1' },
+      { input: 100, expected: 5, description: 'numbers above 5' },
+      { input: NaN, expected: 1, description: 'NaN and return 1' },
+      { input: 'invalid', expected: 1, description: 'non-numeric strings and return 1' },
+      { input: '3', expected: 3, description: 'numeric strings to numbers' },
+      { input: 3.8, expected: 3, description: 'decimal numbers' },
+    ])('should $description', async ({ input, expected }) => {
+      mockStorage.local.get.mockImplementation((key, callback) => {
+        callback({ maxDesktopNotifications: input });
+      });
+
+      const result = await storage.getMaxDesktopNotifications();
+      expect(result).toBe(expected);
+    });
+  });
 });

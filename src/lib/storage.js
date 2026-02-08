@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   SHOW_HOVER_CARDS: 'showHoverCards', // boolean
   // Desktop notification settings
   ENABLE_DESKTOP_NOTIFICATIONS: 'enableDesktopNotifications', // boolean
+  MAX_DESKTOP_NOTIFICATIONS: 'maxDesktopNotifications', // number (default 5)
 };
 
 /**
@@ -150,6 +151,24 @@ export async function getEnableDesktopNotifications() {
 
 export async function setEnableDesktopNotifications(enable) {
   return set(STORAGE_KEYS.ENABLE_DESKTOP_NOTIFICATIONS, enable);
+}
+
+export async function getMaxDesktopNotifications() {
+  const value = await get(STORAGE_KEYS.MAX_DESKTOP_NOTIFICATIONS, 5); // default 5
+
+  // Validate: minimum 1, maximum 5
+  const numValue = Number(value);
+  if (isNaN(numValue) || numValue < 1) {
+    return 1; // minimum 1
+  }
+  if (numValue > 5) {
+    return 5; // maximum 5
+  }
+  return Math.floor(numValue); // ensure integer
+}
+
+export async function setMaxDesktopNotifications(max) {
+  return set(STORAGE_KEYS.MAX_DESKTOP_NOTIFICATIONS, max);
 }
 
 export { STORAGE_KEYS };
