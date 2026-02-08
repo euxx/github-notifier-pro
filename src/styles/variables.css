@@ -17,6 +17,9 @@
   --bg-secondary: #f9fafb;
   --bg-primary: #ffffff;
 
+  /* Radius */
+  --radius-sm: 6px;
+
   /* Icon Colors - GitHub Style (softer) */
   --icon-issue-open: #2da44e; /* Brighter green for open issues */
   --icon-issue-closed: #8250df; /* GitHub purple for closed issues */

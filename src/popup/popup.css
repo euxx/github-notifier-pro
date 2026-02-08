@@ -106,7 +106,7 @@ body.dark-theme #main-view {
   gap: 8px;
   padding: 24px 20px;
   border: 2px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   transition: all 0.2s;
   cursor: pointer;
@@ -186,7 +186,7 @@ body.dark-theme #main-view {
 .pat-input {
   padding: 10px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   background: var(--bg-primary);
@@ -220,7 +220,7 @@ body.dark-theme #main-view {
 .pat-hint code {
   padding: 2px 4px;
   background: var(--bg-hover);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-family: ui-monospace, monospace;
 }
@@ -262,7 +262,7 @@ body.dark-theme #main-view {
 /* Buttons */
 .btn {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: none;
   font-size: 13px;
   font-weight: 500;
@@ -287,7 +287,7 @@ body.dark-theme #main-view {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -455,7 +455,7 @@ body.dark-theme #main-view {
   color: var(--text-tertiary);
   font-size: 11px;
   font-weight: 500;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: none;
   transition: opacity 0.15s ease;
 }
@@ -474,7 +474,7 @@ body.dark-theme #main-view {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
   flex-shrink: 0;
 }
@@ -556,7 +556,7 @@ body.dark-theme #main-view {
   max-height: 400px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -865,7 +865,7 @@ body.dark-theme .notification-hover-card {
   pointer-events: none;
   background: transparent;
   padding: 2px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   /* Remove transition to avoid flash */
 }
 
@@ -881,7 +881,7 @@ body.dark-theme .notification-hover-card {
 .btn-mark-read {
   padding: 4px 8px;
   font-size: 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
   color: transparent;
@@ -929,7 +929,7 @@ body.dark-theme .notification-hover-card {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 12px;
@@ -1114,7 +1114,7 @@ body.dark-theme .settings-view {
   height: 24px;
   padding: 0 6px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   text-align: center;
   background: var(--control-bg);
@@ -1203,7 +1203,7 @@ body.dark-theme .settings-view {
   display: inline-flex;
   gap: 4px;
   padding: 3px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--control-bg);
 }
 
@@ -1223,7 +1223,7 @@ body.dark-theme .settings-view {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
@@ -1377,7 +1377,7 @@ body.dark-theme .settings-view {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg-primary);
   color: var(--text-primary);
   transition:
@@ -1396,7 +1396,7 @@ body.dark-theme .settings-view {
   padding: 8px 10px;
   padding-right: 32px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -1461,7 +1461,7 @@ body.dark-theme .settings-view {
 /* Light theme scrollbar - gray-black */
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -1494,7 +1494,7 @@ body.dark-theme .settings-view {
 .error-message {
   padding: 12px;
   margin: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   text-align: center;
   animation: slideIn 0.3s ease-out;
