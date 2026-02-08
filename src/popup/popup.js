@@ -141,7 +141,17 @@ const desktopNotificationsToggle = document.getElementById('desktop-notification
 /**
  * Check if browser notification permission is granted
  */
+function hasExtensionNotifications() {
+  return (
+    (typeof chrome !== 'undefined' && !!chrome.notifications) ||
+    (typeof browser !== 'undefined' && !!browser.notifications)
+  );
+}
+
 function checkNotificationPermission() {
+  if (hasExtensionNotifications()) {
+    return 'granted';
+  }
   if (typeof Notification === 'undefined') {
     console.warn('Notification API not available');
     return 'unsupported';
@@ -153,6 +163,9 @@ function checkNotificationPermission() {
  * Request browser notification permission
  */
 async function requestNotificationPermission() {
+  if (hasExtensionNotifications()) {
+    return 'granted';
+  }
   if (typeof Notification === 'undefined') {
     console.warn('Notification API not available');
     return 'unsupported';
