@@ -1133,20 +1133,68 @@ body.dark-theme .notification-hover-card {
   align-items: center;
   cursor: pointer;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .toggle-switch input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--primary-color);
   margin: 0;
-  padding: 0;
-  vertical-align: middle;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 .toggle-slider {
-  display: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.toggle-slider::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  transform: translateX(0);
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
+}
+
+.toggle-switch:hover .toggle-slider {
+  background: var(--text-tertiary);
+}
+
+.toggle-switch input[type='checkbox']:checked + .toggle-slider {
+  background: var(--text-secondary);
+}
+
+.toggle-switch input[type='checkbox']:checked + .toggle-slider::after {
+  transform: translateX(16px);
+  background: var(--bg-primary);
+}
+
+.toggle-switch input[type='checkbox']:focus-visible + .toggle-slider {
+  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.12);
+}
+
+.toggle-switch:has(input[type='checkbox']:disabled) {
+  cursor: not-allowed;
+}
+
+.toggle-switch input[type='checkbox']:disabled + .toggle-slider {
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 .btn-compact {
