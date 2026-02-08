@@ -1046,13 +1046,14 @@ body.dark-theme .settings-view {
 .width-input {
   width: 50px;
   height: 24px;
-  padding: 0 0 0 6px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 4px;
   font-size: 12px;
   text-align: center;
   background: var(--control-bg);
   color: var(--text-primary);
+  appearance: textfield;
 }
 
 .width-input:focus {
@@ -1062,17 +1063,8 @@ body.dark-theme .settings-view {
 
 .width-input::-webkit-inner-spin-button,
 .width-input::-webkit-outer-spin-button {
-  opacity: 0.2;
-  transform: scaleX(0.6);
-  transform-origin: right center;
-  transition: opacity 0.15s;
-}
-
-.width-input:hover::-webkit-inner-spin-button,
-.width-input:hover::-webkit-outer-spin-button,
-.width-input:focus-visible::-webkit-inner-spin-button,
-.width-input:focus-visible::-webkit-outer-spin-button {
-  opacity: 0.4;
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .width-unit {
@@ -1081,8 +1073,9 @@ body.dark-theme .settings-view {
   height: 24px;
   font-size: 11px;
   color: var(--text-secondary);
-  padding-right: 2px;
-  padding-bottom: 4px;
+  padding-right: 0;
+  padding-bottom: 3px;
+  margin-right: -2px;
 }
 
 .width-btn {
