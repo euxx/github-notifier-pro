@@ -165,15 +165,40 @@
             <div id="theme-options" class="theme-options" role="radiogroup" aria-labelledby="theme-label">
               <label class="theme-option" for="theme-light">
                 <input type="radio" name="theme" id="theme-light" value="light" />
-                <span>Light</span>
+                <span class="theme-option-label">
+                  <svg class="theme-option-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <circle cx="8" cy="8" r="3" />
+                    <path d="M8 1.5v2" />
+                    <path d="M8 12.5v2" />
+                    <path d="M1.5 8h2" />
+                    <path d="M12.5 8h2" />
+                    <path d="M3 3l1.5 1.5" />
+                    <path d="M11.5 11.5L13 13" />
+                    <path d="M3 13l1.5-1.5" />
+                    <path d="M11.5 4.5L13 3" />
+                  </svg>
+                  Light
+                </span>
               </label>
               <label class="theme-option" for="theme-dark">
                 <input type="radio" name="theme" id="theme-dark" value="dark" />
-                <span>Dark</span>
+                <span class="theme-option-label">
+                  <svg class="theme-option-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <path d="M9.6 1.6a6.4 6.4 0 1 0 4.8 10.3A5.2 5.2 0 1 1 9.6 1.6Z" />
+                  </svg>
+                  Dark
+                </span>
               </label>
               <label class="theme-option" for="theme-system">
                 <input type="radio" name="theme" id="theme-system" value="system" />
-                <span>System</span>
+                <span class="theme-option-label">
+                  <svg class="theme-option-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                    <rect x="2.2" y="2.6" width="11.6" height="8.8" rx="1.6" />
+                    <path d="M6 13.5h4" />
+                    <path d="M8 11.4v2.1" />
+                  </svg>
+                  System
+                </span>
               </label>
             </div>
           </div>
