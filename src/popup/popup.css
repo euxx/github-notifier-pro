@@ -934,14 +934,40 @@ body.dark-theme .notification-hover-card {
 .setting-row {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 12px 6px 12px 0;
+  padding-left: 10px;
   border-bottom: 1px solid var(--border-color);
 }
 
 .setting-row:first-child {
   padding-top: 0; /* Remove top padding for first row to align with settings-content padding */
   padding-left: 7px;
+}
+
+.setting-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.setting-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.setting-icon .icon-fill {
+  fill: currentColor;
+  stroke: none;
 }
 
 /* User info in settings */
@@ -1021,13 +1047,20 @@ body.dark-theme .notification-hover-card {
   border-bottom: none;
 }
 
-.setting-row label,
+.setting-label,
 .setting-account-name {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
   min-width: 50px;
   flex-shrink: 0;
+}
+
+.setting-label {
+  padding-left: 0;
+}
+
+.setting-account-name {
   padding-left: 6px;
 }
 
