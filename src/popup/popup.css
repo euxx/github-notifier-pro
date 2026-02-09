@@ -57,6 +57,7 @@ body.transitions-enabled * {
 
 #main-view {
   --list-divider: rgba(0, 0, 0, 0.1);
+  --scrollbar-compensation: 0px;
 }
 
 body.dark-theme #main-view {
@@ -307,6 +308,7 @@ body.dark-theme #main-view {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
+  padding-right: calc(16px + var(--scrollbar-compensation, 0px));
   border-bottom: 1px solid var(--list-divider);
 }
 

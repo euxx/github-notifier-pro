@@ -181,6 +181,44 @@ const hoverCardsToggle = document.getElementById('hover-cards-toggle');
 // Desktop notification settings
 const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
 
+let scrollbarCompensationRaf = null;
+
+function updateScrollbarCompensation() {
+  if (!mainView || !notificationsContainer) return;
+
+  if (mainView.hidden || notificationsContainer.hidden) {
+    mainView.style.setProperty('--scrollbar-compensation', '0px');
+    return;
+  }
+
+  const scrollbarWidth = Math.max(0, notificationsContainer.offsetWidth - notificationsContainer.clientWidth);
+  const hasScrollbar = notificationsContainer.scrollHeight > notificationsContainer.clientHeight + 1;
+  const compensation = hasScrollbar ? scrollbarWidth : 0;
+  mainView.style.setProperty('--scrollbar-compensation', `${compensation}px`);
+}
+
+function scheduleScrollbarCompensation() {
+  if (scrollbarCompensationRaf !== null) return;
+  scrollbarCompensationRaf = requestAnimationFrame(() => {
+    scrollbarCompensationRaf = null;
+    updateScrollbarCompensation();
+  });
+}
+
+if (notificationsContainer && typeof ResizeObserver !== 'undefined') {
+  const resizeObserver = new ResizeObserver(() => {
+    scheduleScrollbarCompensation();
+  });
+  resizeObserver.observe(notificationsContainer);
+}
+
+if (notificationsList && typeof MutationObserver !== 'undefined') {
+  const mutationObserver = new MutationObserver(() => {
+    scheduleScrollbarCompensation();
+  });
+  mutationObserver.observe(notificationsList, { childList: true });
+}
+
 /**
  * Check if browser notification permission is granted
  */
