@@ -57,11 +57,13 @@ body.transitions-enabled * {
 
 #main-view {
   --list-divider: rgba(0, 0, 0, 0.1);
+  --row-divider: rgba(0, 0, 0, 0.07);
   --scrollbar-compensation: 0px;
 }
 
 body.dark-theme #main-view {
   --list-divider: rgba(255, 255, 255, 0.1);
+  --row-divider: rgba(255, 255, 255, 0.07);
 }
 
 /* Login View */
@@ -397,7 +399,7 @@ body.dark-theme #main-view {
   justify-content: space-between;
   padding: 8px 16px 6px 16px;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--list-divider);
+  border-top: 1px solid var(--list-divider);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -405,6 +407,10 @@ body.dark-theme #main-view {
   color: inherit;
   cursor: pointer;
   transition: background-color 0.15s;
+}
+
+.notifications-list > .repo-group-header:first-child {
+  border-top: none;
 }
 
 .repo-group-header:hover {
@@ -505,7 +511,7 @@ body.dark-theme #main-view {
   align-items: center;
   gap: 10px;
   padding: 8px 16px 8px 16px;
-  border-bottom: 1px solid var(--list-divider);
+  border-top: 0.7px solid var(--row-divider);
   cursor: pointer;
 }
 
@@ -528,22 +534,18 @@ body.dark-theme #main-view {
   padding-bottom: 0;
   margin-top: 0;
   margin-bottom: 0;
-  border-bottom-width: 0;
+  border-top-width: 0;
   overflow: hidden;
   transition:
     max-height 0.2s ease-out,
     padding 0.2s ease-out,
     margin 0.2s ease-out,
-    border-bottom-width 0.2s ease-out;
+    border-top-width 0.2s ease-out;
 }
 
 /* Smooth transitions for background color (error feedback) */
 .notification-item.rollback {
   transition: background-color 0.3s ease-out;
-}
-
-.notification-item:last-of-type {
-  border-bottom: none;
 }
 
 .notification-item:hover {
@@ -976,7 +978,8 @@ body.dark-theme .notification-hover-card {
   --control-hover: rgba(0, 0, 0, 0.1);
   --control-active: rgba(0, 0, 0, 0.16);
   --control-focus: rgba(0, 0, 0, 0.22);
-  --row-divider: rgba(0, 0, 0, 0.1);
+  --list-divider: rgba(0, 0, 0, 0.1);
+  --row-divider: rgba(0, 0, 0, 0.06);
 }
 
 body.dark-theme .settings-view {
@@ -984,7 +987,8 @@ body.dark-theme .settings-view {
   --control-hover: rgba(255, 255, 255, 0.14);
   --control-active: rgba(255, 255, 255, 0.22);
   --control-focus: rgba(255, 255, 255, 0.28);
-  --row-divider: rgba(255, 255, 255, 0.1);
+  --list-divider: rgba(255, 255, 255, 0.1);
+  --row-divider: rgba(255, 255, 255, 0.06);
 }
 
 .settings-header {
@@ -992,7 +996,7 @@ body.dark-theme .settings-view {
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--row-divider);
+  border-bottom: 1px solid var(--list-divider);
 }
 
 .settings-title {
@@ -1013,7 +1017,7 @@ body.dark-theme .settings-view {
   gap: 12px;
   padding: 12px 6px 12px 0;
   padding-left: 10px;
-  border-bottom: 1px solid var(--row-divider);
+  border-bottom: 0.7px solid var(--row-divider);
 }
 
 .setting-row:first-child {
