@@ -481,6 +481,154 @@ describe('GitHubAPI', () => {
       expect(result.conclusion).toBe('success');
       expect(result.status).toBe('completed');
     });
+
+    it('should fetch commit message when Release body is empty', async () => {
+      const notification = {
+        subject: {
+          type: 'Release',
+          title: 'v2.0.0',
+          url: 'https://api.github.com/repos/owner/repo/releases/123',
+        },
+        repository: {
+          full_name: 'owner/repo',
+        },
+      };
+
+      // Mock release details response with empty body
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            html_url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+            tag_name: 'v2.0.0',
+            body: '',
+            target_commitish: 'abc123def',
+            author: { login: 'releaser' },
+          }),
+        headers: { get: () => null },
+      });
+
+      // Mock commit details response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            commit: {
+              message: 'Release v2.0.0\n\nAdded new features and bug fixes',
+            },
+          }),
+        headers: { get: () => null },
+      });
+
+      const result = await github.getNotificationDetails(notification);
+
+      expect(result.body).toBe('Release v2.0.0\n\nAdded new features and bug fixes');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        'https://api.github.com/repos/owner/repo/commits/abc123def',
+        expect.any(Object),
+      );
+    });
+
+    it('should keep existing body when Release has content', async () => {
+      const notification = {
+        subject: {
+          type: 'Release',
+          title: 'v3.0.0',
+          url: 'https://api.github.com/repos/owner/repo/releases/456',
+        },
+        repository: {
+          full_name: 'owner/repo',
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            html_url: 'https://github.com/owner/repo/releases/tag/v3.0.0',
+            tag_name: 'v3.0.0',
+            body: 'This is the official release notes',
+            target_commitish: 'xyz789abc',
+          }),
+        headers: { get: () => null },
+      });
+
+      const result = await github.getNotificationDetails(notification);
+
+      expect(result.body).toBe('This is the official release notes');
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Should not fetch commit
+    });
+
+    it('should handle commit fetch failure gracefully', async () => {
+      const notification = {
+        subject: {
+          type: 'Release',
+          title: 'v4.0.0',
+          url: 'https://api.github.com/repos/owner/repo/releases/789',
+        },
+        repository: {
+          full_name: 'owner/repo',
+        },
+      };
+
+      // Mock release details with empty body
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            html_url: 'https://github.com/owner/repo/releases/tag/v4.0.0',
+            tag_name: 'v4.0.0',
+            body: null,
+            target_commitish: 'badcommit',
+          }),
+        headers: { get: () => null },
+      });
+
+      // Mock commit fetch failure
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+      });
+
+      const result = await github.getNotificationDetails(notification);
+
+      // Should still return release details even if commit fetch fails
+      expect(result.html_url).toBe('https://github.com/owner/repo/releases/tag/v4.0.0');
+      expect(result.body).toBeNull();
+    });
+
+    it('should not fetch commit when Release has no target_commitish', async () => {
+      const notification = {
+        subject: {
+          type: 'Release',
+          title: 'v5.0.0',
+          url: 'https://api.github.com/repos/owner/repo/releases/999',
+        },
+        repository: {
+          full_name: 'owner/repo',
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            html_url: 'https://github.com/owner/repo/releases/tag/v5.0.0',
+            tag_name: 'v5.0.0',
+            body: '',
+            // No target_commitish
+          }),
+        headers: { get: () => null },
+      });
+
+      const result = await github.getNotificationDetails(notification);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Only release details, no commit fetch
+      expect(result.body).toBe('');
+    });
   });
 
   describe('singleton export', () => {

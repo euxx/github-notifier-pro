@@ -649,6 +649,31 @@ class GitHubAPI {
     this.updateRateLimit(response);
     const details = await response.json();
 
+    // For releases with empty body, fetch commit message from target_commitish
+    if (subjectType === NOTIFICATION_TYPES.RELEASE && !details.body?.trim() && details.target_commitish) {
+      try {
+        const commitUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/commits/${details.target_commitish}`;
+        const commitResp = await fetchWithTimeout(
+          commitUrl,
+          {
+            headers: this.headers,
+          },
+          API_TIMEOUTS.NOTIFICATION_DETAILS,
+        );
+
+        if (commitResp.ok) {
+          const commitData = await commitResp.json();
+          // Use commit message as body (first line is the commit title, full message includes description)
+          if (commitData.commit?.message) {
+            details.body = commitData.commit.message;
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch commit message for release ${notification.subject.title}:`, error);
+        // Don't fail the whole operation, just skip commit message
+      }
+    }
+
     // Cache the result for future use
     if (cacheKey) {
       this.detailsCache.set(cacheKey, details);
