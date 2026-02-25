@@ -429,6 +429,28 @@ describe('service-worker', () => {
         error: 'API Error',
       });
     });
+
+    it('should preserve + badge suffix when hasMore is true', async () => {
+      // Seed hasMore state from a successful refresh result
+      mockGithub.isAuthenticated = true;
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: true, count: 0 });
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: '123', title: 'Test' },
+        { id: '456', title: 'Another' },
+      ]);
+      mockGithub.markAsRead.mockResolvedValue(true);
+
+      const refreshResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, refreshResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1+' });
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
   });
 
   describe('handleMessage - MARK_ALL_AS_READ', () => {
@@ -486,6 +508,28 @@ describe('service-worker', () => {
         success: false,
         error: 'API Error',
       });
+    });
+
+    it('should preserve + badge suffix when hasMore is true', async () => {
+      // Seed hasMore state from a successful refresh result
+      mockGithub.isAuthenticated = true;
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: true, count: 0 });
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test 1' },
+        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+      ]);
+      mockGithub.markRepoAsRead.mockResolvedValue(true);
+
+      const refreshResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, refreshResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1+' });
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
 

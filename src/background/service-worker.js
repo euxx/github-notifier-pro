@@ -78,6 +78,9 @@ const CACHED_DETAIL_FIELDS = [
   'html_url',
 ];
 
+// Tracks whether the last successful notifications fetch had additional pages.
+let hasMoreNotifications = false;
+
 /**
  * Initialize extension state from storage
  */
@@ -96,6 +99,7 @@ async function initialize() {
     await startPolling();
     await checkNotifications();
   } else {
+    hasMoreNotifications = false;
     await updateBadge(null);
   }
 }
@@ -296,6 +300,7 @@ async function checkNotifications() {
 
     if (result) {
       const { items: notifications, hasMore } = result;
+      hasMoreNotifications = hasMore;
 
       // Check if a newer fetch has already started
       if (currentFetchVersion < notificationFetchVersion) {
@@ -628,6 +633,7 @@ async function handleLogin(authMethod = 'oauth', token = null) {
 
 async function handleLogout() {
   github.logout();
+  hasMoreNotifications = false;
   await stopPolling();
   await storage.clear();
   await updateBadge(null);
@@ -687,7 +693,7 @@ async function markAsRead(notificationId) {
     const updated = notifications.filter((n) => n.id !== notificationId);
 
     await storage.setNotifications(updated);
-    await updateBadge(updated.length);
+    await updateBadge(updated.length, hasMoreNotifications);
 
     return { success: true };
   } catch (error) {
@@ -701,6 +707,7 @@ async function markAllAsRead() {
     await github.markAllAsRead();
 
     // Clear local storage
+    hasMoreNotifications = false;
     await storage.setNotifications([]);
     await updateBadge(0);
 
@@ -720,7 +727,7 @@ async function markRepoAsRead(owner, repo) {
     const updated = notifications.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
 
     await storage.setNotifications(updated);
-    await updateBadge(updated.length);
+    await updateBadge(updated.length, hasMoreNotifications);
 
     return { success: true };
   } catch (error) {
@@ -904,7 +911,7 @@ notifications.onClicked.addListener(async (notificationId) => {
       await github.markAsRead(githubNotifId);
 
       // Update badge
-      await updateBadge(updatedNotifications.length);
+      await updateBadge(updatedNotifications.length, hasMoreNotifications);
     }
   } catch (error) {
     console.error('Failed to handle notification click:', error);
