@@ -1,33 +1,33 @@
 /**
  * Browser API helpers with Promise wrappers
- * Cross-browser compatible (Chrome & Firefox)
+ * Cross-browser compatible (Chrome 99+ & Firefox 110+)
+ *
+ * Requires Chrome 99+ because runtime.sendMessage() only returns a Promise
+ * from Chrome 99 onward. All other storage/alarms/action APIs return Promises
+ * from Chrome 88+. Firefox 110+ supports Promise-based APIs throughout.
+ *
+ * We call the native APIs directly rather than wrapping them in callback-based
+ * Promises, which avoids callbacks being silently ignored by the browser.
  */
 
-// Browser compatibility layer
+// Firefox uses the `browser` namespace; Chrome uses `chrome`.
+// Both return Promises from their extension APIs at the declared minimum versions.
 const api = typeof browser !== 'undefined' ? browser : chrome;
 
 // Storage API
 export const storage = {
   local: {
     get(keys) {
-      return new Promise((resolve) => {
-        api.storage.local.get(keys, resolve);
-      });
+      return api.storage.local.get(keys);
     },
     set(items) {
-      return new Promise((resolve) => {
-        api.storage.local.set(items, resolve);
-      });
+      return api.storage.local.set(items);
     },
     remove(keys) {
-      return new Promise((resolve) => {
-        api.storage.local.remove(keys, resolve);
-      });
+      return api.storage.local.remove(keys);
     },
     clear() {
-      return new Promise((resolve) => {
-        api.storage.local.clear(resolve);
-      });
+      return api.storage.local.clear();
     },
   },
   onChanged: api.storage.onChanged,
@@ -36,9 +36,9 @@ export const storage = {
 // Runtime API
 export const runtime = {
   sendMessage(message) {
-    return new Promise((resolve) => {
-      api.runtime.sendMessage(message, resolve);
-    });
+    // In Firefox, passing a callback to browser.runtime.sendMessage is unsupported;
+    // both Chrome MV3 (99+) and Firefox return a Promise directly.
+    return api.runtime.sendMessage(message);
   },
   onMessage: api.runtime.onMessage,
   onStartup: api.runtime.onStartup,
@@ -51,38 +51,29 @@ export const runtime = {
 // Action API
 export const action = {
   setBadgeText(details) {
-    return new Promise((resolve) => {
-      api.action.setBadgeText(details, resolve);
-    });
+    return api.action.setBadgeText(details);
   },
   setBadgeBackgroundColor(details) {
-    return new Promise((resolve) => {
-      api.action.setBadgeBackgroundColor(details, resolve);
-    });
+    return api.action.setBadgeBackgroundColor(details);
   },
   setTitle(details) {
-    return new Promise((resolve) => {
-      api.action.setTitle(details, resolve);
-    });
+    return api.action.setTitle(details);
   },
 };
 
 // Alarms API
 export const alarms = {
   create(name, alarmInfo) {
-    return new Promise((resolve) => {
-      api.alarms.create(name, alarmInfo, resolve);
-    });
+    // alarms.create is fire-and-forget; passing a callback is not supported
+    // across all versions, so we call it directly and resolve immediately.
+    api.alarms.create(name, alarmInfo);
+    return Promise.resolve();
   },
   clear(name) {
-    return new Promise((resolve) => {
-      api.alarms.clear(name, resolve);
-    });
+    return api.alarms.clear(name);
   },
   getAll() {
-    return new Promise((resolve) => {
-      api.alarms.getAll(resolve);
-    });
+    return api.alarms.getAll();
   },
   onAlarm: api.alarms.onAlarm,
 };
@@ -90,23 +81,17 @@ export const alarms = {
 // Tabs API
 export const tabs = {
   create(createProperties) {
-    return new Promise((resolve) => {
-      api.tabs.create(createProperties, resolve);
-    });
+    return api.tabs.create(createProperties);
   },
 };
 
 // Notifications API
 export const notifications = {
   create(notificationId, options) {
-    return new Promise((resolve) => {
-      api.notifications.create(notificationId, options, resolve);
-    });
+    return api.notifications.create(notificationId, options);
   },
   clear(notificationId) {
-    return new Promise((resolve) => {
-      api.notifications.clear(notificationId, resolve);
-    });
+    return api.notifications.clear(notificationId);
   },
   onClicked: api.notifications.onClicked,
 };

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Create mock Chrome storage API
+// Create mock Chrome storage API (Promise-based, matching Chrome MV3 / Firefox)
 const mockStorage = {
   local: {
     get: vi.fn(),
@@ -23,27 +23,21 @@ describe('Storage', () => {
 
   describe('get', () => {
     it('should return stored value', async () => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({ testKey: 'testValue' });
-      });
+      mockStorage.local.get.mockResolvedValue({ testKey: 'testValue' });
 
       const result = await storage.get('testKey');
       expect(result).toBe('testValue');
     });
 
     it('should return default value when key not found', async () => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({});
-      });
+      mockStorage.local.get.mockResolvedValue({});
 
       const result = await storage.get('missingKey', 'defaultValue');
       expect(result).toBe('defaultValue');
     });
 
     it('should return null as default when no default provided', async () => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({});
-      });
+      mockStorage.local.get.mockResolvedValue({});
 
       const result = await storage.get('missingKey');
       expect(result).toBeNull();
@@ -52,33 +46,27 @@ describe('Storage', () => {
 
   describe('set', () => {
     it('should set value in storage', async () => {
-      mockStorage.local.set.mockImplementation((data, callback) => {
-        callback();
-      });
+      mockStorage.local.set.mockResolvedValue(undefined);
 
       await storage.set('testKey', 'testValue');
 
-      expect(mockStorage.local.set).toHaveBeenCalledWith({ testKey: 'testValue' }, expect.any(Function));
+      expect(mockStorage.local.set).toHaveBeenCalledWith({ testKey: 'testValue' });
     });
   });
 
   describe('remove', () => {
     it('should remove key from storage', async () => {
-      mockStorage.local.remove.mockImplementation((key, callback) => {
-        callback();
-      });
+      mockStorage.local.remove.mockResolvedValue(undefined);
 
       await storage.remove('testKey');
 
-      expect(mockStorage.local.remove).toHaveBeenCalledWith('testKey', expect.any(Function));
+      expect(mockStorage.local.remove).toHaveBeenCalledWith('testKey');
     });
   });
 
   describe('getMultiple', () => {
     it('should get multiple values', async () => {
-      mockStorage.local.get.mockImplementation((keys, callback) => {
-        callback({ key1: 'value1', key2: 'value2' });
-      });
+      mockStorage.local.get.mockResolvedValue({ key1: 'value1', key2: 'value2' });
 
       const result = await storage.getMultiple(['key1', 'key2']);
 
@@ -88,21 +76,17 @@ describe('Storage', () => {
 
   describe('setMultiple', () => {
     it('should set multiple values', async () => {
-      mockStorage.local.set.mockImplementation((data, callback) => {
-        callback();
-      });
+      mockStorage.local.set.mockResolvedValue(undefined);
 
       await storage.setMultiple({ key1: 'value1', key2: 'value2' });
 
-      expect(mockStorage.local.set).toHaveBeenCalledWith({ key1: 'value1', key2: 'value2' }, expect.any(Function));
+      expect(mockStorage.local.set).toHaveBeenCalledWith({ key1: 'value1', key2: 'value2' });
     });
   });
 
   describe('clear', () => {
     it('should clear all storage', async () => {
-      mockStorage.local.clear.mockImplementation((callback) => {
-        callback();
-      });
+      mockStorage.local.clear.mockResolvedValue(undefined);
 
       await storage.clear();
 
@@ -112,17 +96,15 @@ describe('Storage', () => {
 
   describe('convenience methods', () => {
     beforeEach(() => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
+      mockStorage.local.get.mockImplementation((key) => {
         const data = {
           token: 'ghp_test',
           notifications: [{ id: '1' }],
         };
-        callback({ [key]: data[key] });
+        return Promise.resolve({ [key]: data[key] });
       });
 
-      mockStorage.local.set.mockImplementation((data, callback) => {
-        callback();
-      });
+      mockStorage.local.set.mockResolvedValue(undefined);
     });
 
     it('getToken should return token', async () => {
@@ -132,13 +114,11 @@ describe('Storage', () => {
 
     it('setToken should set token', async () => {
       await storage.setToken('new_token');
-      expect(mockStorage.local.set).toHaveBeenCalledWith({ token: 'new_token' }, expect.any(Function));
+      expect(mockStorage.local.set).toHaveBeenCalledWith({ token: 'new_token' });
     });
 
     it('getNotifications should return notifications with default', async () => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({});
-      });
+      mockStorage.local.get.mockResolvedValue({});
       const result = await storage.getNotifications();
       expect(result).toEqual([]);
     });
@@ -146,7 +126,7 @@ describe('Storage', () => {
     it('setNotifications should set notifications', async () => {
       const notifications = [{ id: '1' }, { id: '2' }];
       await storage.setNotifications(notifications);
-      expect(mockStorage.local.set).toHaveBeenCalledWith({ notifications }, expect.any(Function));
+      expect(mockStorage.local.set).toHaveBeenCalledWith({ notifications });
     });
   });
 
@@ -164,9 +144,7 @@ describe('Storage', () => {
 
   describe('getMaxDesktopNotifications', () => {
     it('should return default value of 5', async () => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({});
-      });
+      mockStorage.local.get.mockResolvedValue({});
 
       const result = await storage.getMaxDesktopNotifications();
       expect(result).toBe(5);
@@ -182,9 +160,7 @@ describe('Storage', () => {
       { input: '3', expected: 3, description: 'numeric strings to numbers' },
       { input: 3.8, expected: 3, description: 'decimal numbers' },
     ])('should $description', async ({ input, expected }) => {
-      mockStorage.local.get.mockImplementation((key, callback) => {
-        callback({ maxDesktopNotifications: input });
-      });
+      mockStorage.local.get.mockResolvedValue({ maxDesktopNotifications: input });
 
       const result = await storage.getMaxDesktopNotifications();
       expect(result).toBe(expected);

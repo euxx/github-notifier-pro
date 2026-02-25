@@ -1,11 +1,14 @@
 /**
  * Storage utility for browser extensions
- * Cross-browser compatible (Chrome & Firefox)
+ * Cross-browser compatible (Chrome 99+ & Firefox 110+)
+ *
+ * Both Chrome 88+ and Firefox return Promises from storage APIs.
+ * We use them directly instead of callback-based wrappers.
  */
 
 import { DEFAULT_POPUP_WIDTH } from './constants.js';
 
-// Browser compatibility layer
+// Firefox uses the `browser` namespace; Chrome uses `chrome`.
 const api = typeof browser !== 'undefined' ? browser : chrome;
 
 const STORAGE_KEYS = {
@@ -27,56 +30,43 @@ const STORAGE_KEYS = {
  * Get value from storage
  */
 export async function get(key, defaultValue = null) {
-  return new Promise((resolve) => {
-    api.storage.local.get(key, (result) => {
-      resolve(result[key] ?? defaultValue);
-    });
-  });
+  const result = await api.storage.local.get(key);
+  return result[key] ?? defaultValue;
 }
 
 /**
  * Set value in storage
  */
 export async function set(key, value) {
-  return new Promise((resolve) => {
-    api.storage.local.set({ [key]: value }, resolve);
-  });
+  return api.storage.local.set({ [key]: value });
 }
 
 /**
  * Remove value from storage
  */
 export async function remove(key) {
-  return new Promise((resolve) => {
-    api.storage.local.remove(key, resolve);
-  });
+  return api.storage.local.remove(key);
 }
 
 /**
  * Get multiple values
  */
 export async function getMultiple(keys) {
-  return new Promise((resolve) => {
-    api.storage.local.get(keys, resolve);
-  });
+  return api.storage.local.get(keys);
 }
 
 /**
  * Set multiple values
  */
 export async function setMultiple(data) {
-  return new Promise((resolve) => {
-    api.storage.local.set(data, resolve);
-  });
+  return api.storage.local.set(data);
 }
 
 /**
  * Clear all storage
  */
 export async function clear() {
-  return new Promise((resolve) => {
-    api.storage.local.clear(resolve);
-  });
+  return api.storage.local.clear();
 }
 
 // Convenience methods for specific data

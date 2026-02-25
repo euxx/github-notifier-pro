@@ -3,6 +3,7 @@
   "name": "GitHub Notifier Pro",
   "version": "1.0.0",
   "description": "Get GitHub notifications in your browser",
+  "minimum_chrome_version": "99",
 
   "permissions": [
     "alarms",
