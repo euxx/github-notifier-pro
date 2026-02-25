@@ -819,6 +819,34 @@ describe('service-worker helper functions', () => {
       expect(baseData.body).toBe('Description');
       expect(baseData.html_url).toBe('https://github.com/issue/42');
     });
+
+    it('should copy empty-string body (not skip it as falsy)', () => {
+      const baseData = { body: 'old body' };
+      const details = { body: '' };
+
+      updateNotificationDetails(baseData, details, 'Issue');
+
+      // An empty string body is a valid API response and must overwrite the cached value
+      expect(baseData.body).toBe('');
+    });
+
+    it('should copy null body (explicit null means no content, overwrites stale cache)', () => {
+      const baseData = { body: 'old body' };
+      const details = { body: null };
+
+      updateNotificationDetails(baseData, details, 'Issue');
+
+      expect(baseData.body).toBeNull();
+    });
+
+    it('should not copy body when field is absent (undefined means API did not return it)', () => {
+      const baseData = { body: 'keep me' };
+      const details = {}; // body is undefined / not in response
+
+      updateNotificationDetails(baseData, details, 'Issue');
+
+      expect(baseData.body).toBe('keep me');
+    });
   });
 
   describe('copyCachedDetails', () => {

@@ -174,7 +174,7 @@ export function updateNotificationDetails(baseData, details, notifType) {
   if (details.comments !== undefined) baseData.comment_count = details.comments;
   if (details.number !== undefined) baseData.number = details.number;
   if (details.created_at) baseData.created_at = details.created_at;
-  if (details.body) baseData.body = details.body;
+  if (details.body !== undefined) baseData.body = details.body;
   if (details.html_url) baseData.html_url = details.html_url; // Cache the HTML URL for quick access
 }
 
