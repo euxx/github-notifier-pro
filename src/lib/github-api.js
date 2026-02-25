@@ -225,17 +225,21 @@ class GitHubAPI {
    * Request device code for Device Flow OAuth
    */
   async requestDeviceCode() {
-    const response = await fetch(`${GITHUB_SITE_BASE}/login/device/code`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+    const response = await fetchWithTimeout(
+      `${GITHUB_SITE_BASE}/login/device/code`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: CLIENT_ID,
+          scope: 'repo notifications',
+        }),
       },
-      body: JSON.stringify({
-        client_id: CLIENT_ID,
-        scope: 'repo notifications',
-      }),
-    });
+      API_TIMEOUTS.DEFAULT,
+    );
 
     if (!response.ok) {
       throw new Error('Failed to request device code');
@@ -284,18 +288,22 @@ class GitHubAPI {
       }
 
       try {
-        const response = await fetch(`${GITHUB_SITE_BASE}/login/oauth/access_token`, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
+        const response = await fetchWithTimeout(
+          `${GITHUB_SITE_BASE}/login/oauth/access_token`,
+          {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              client_id: CLIENT_ID,
+              device_code: deviceCode,
+              grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+            }),
           },
-          body: JSON.stringify({
-            client_id: CLIENT_ID,
-            device_code: deviceCode,
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-          }),
-        });
+          API_TIMEOUTS.DEFAULT,
+        );
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -322,8 +330,13 @@ class GitHubAPI {
         // Other errors (expired_token, access_denied, etc.)
         throw new Error(data.error_description || data.error);
       } catch (error) {
-        // Network errors - retry
-        if (attempt < maxAttempts - 1) {
+        // Only retry on transient network/timeout errors:
+        // - TypeError: network failure (fetch rejected before getting a response)
+        // - 'Request timeout': AbortController fired inside fetchWithTimeout
+        // Business errors (access_denied, expired_token, etc.) are thrown
+        // explicitly above and must NOT be retried.
+        const isTransient = error instanceof TypeError || error.message === 'Request timeout';
+        if (isTransient && attempt < maxAttempts - 1) {
           continue;
         }
         throw error;

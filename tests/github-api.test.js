@@ -816,3 +816,86 @@ describe('pollForToken expiresIn handling', () => {
     await expect(pollPromise).rejects.toThrow('Authorization timeout - please try again');
   });
 });
+
+describe('Device Flow error handling', () => {
+  let mockFetch;
+
+  beforeEach(() => {
+    github.token = null;
+    github.username = null;
+    github.pollInterval = 60;
+
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('should throw immediately for terminal errors like access_denied (no retry)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ error: 'access_denied', error_description: 'Access was denied' }),
+    });
+
+    const pollPromise = github.pollForToken('device_code_123', 5, 60);
+    // Attach the rejection assertion before advancing timers to prevent
+    // an unhandled rejection between the two awaits
+    const rejection = expect(pollPromise).rejects.toThrow('Access was denied');
+
+    // Advance past the first wait interval to trigger the first poll
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await rejection;
+    // Must not retry on a terminal business error
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should retry on network errors (TypeError) and succeed on next attempt', async () => {
+    const networkError = new TypeError('Failed to fetch');
+    mockFetch
+      .mockRejectedValueOnce(networkError) // First attempt: network failure
+      .mockResolvedValue({
+        // Second attempt: success
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ access_token: 'gho_test_token' }),
+      });
+
+    const pollPromise = github.pollForToken('device_code_123', 5, 60);
+
+    // Advance through first wait + retry wait
+    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    const token = await pollPromise;
+    expect(token).toBe('gho_test_token');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should throw Request timeout when requestDeviceCode stalls', async () => {
+    // Simulate a fetch that hangs indefinitely (server stalled)
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => {
+          reject(new DOMException('The signal is aborted', 'AbortError'));
+        });
+      });
+    });
+
+    const codePromise = github.requestDeviceCode();
+    // Attach the rejection assertion before advancing timers to prevent
+    // an unhandled rejection between the two awaits
+    const rejection = expect(codePromise).rejects.toThrow('Request timeout');
+
+    // Advance past the 30s default timeout in fetchWithTimeout
+    await vi.advanceTimersByTimeAsync(31000);
+
+    await rejection;
+  });
+});
