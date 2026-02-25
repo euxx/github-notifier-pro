@@ -18,6 +18,9 @@ import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from './constants.js';
  * @param {string} [notification.html_url] - Cached HTML URL (takes precedence if present)
  * @param {string} [notification.url] - API URL (for extracting commit SHA)
  * @returns {string} GitHub URL for the notification
+ * @throws {Error} If notification is missing or repository data cannot produce a usable URL.
+ *   Callers that open browser tabs should wrap this in try/catch and handle the failure
+ *   gracefully (e.g. show an error, skip opening the tab).
  *
  * @example
  * buildNotificationUrl({
@@ -28,12 +31,26 @@ import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from './constants.js';
  * // Returns: 'https://github.com/owner/repo/pull/123'
  */
 export function buildNotificationUrl(notification) {
+  if (!notification) {
+    throw new Error('Cannot build notification URL: notification is missing');
+  }
+
   if (notification.html_url) {
     return notification.html_url;
   }
 
   const repo = notification.repository;
-  const fullName = repo.full_name;
+  const fullName = repo?.full_name;
+
+  // If full_name is absent but html_url is available, fall back to the repo page
+  if (!fullName) {
+    if (repo?.html_url) {
+      return repo.html_url;
+    }
+    // No usable URL — throw so the caller can skip silently instead of opening about:blank
+    throw new Error('Cannot build notification URL: repository data is incomplete');
+  }
+
   const type = notification.type;
 
   switch (type) {
@@ -65,7 +82,8 @@ export function buildNotificationUrl(notification) {
       return buildDependabotUrl(fullName);
 
     default:
-      return repo.html_url;
+      // Fall back to the repo root; if html_url is absent construct it from full_name
+      return repo.html_url ?? `${GITHUB_SITE_BASE}/${fullName}`;
   }
 }
 

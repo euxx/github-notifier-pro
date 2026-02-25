@@ -175,6 +175,9 @@ const {
   GITHUB_NOTIFICATIONS_URL,
 } = await import('../src/background/service-worker.js');
 
+// Get a handle on the url-builder mock to allow per-test overrides
+const { buildNotificationUrl: mockBuildNotificationUrl } = await import('../src/lib/url-builder.js');
+
 describe('service-worker', () => {
   beforeEach(async () => {
     // Reset all mocks
@@ -391,6 +394,25 @@ describe('service-worker', () => {
       expect(sendResponse).toHaveBeenCalledWith({
         error: 'Notification not found',
       });
+    });
+
+    it('should return error response when notification has no usable URL', async () => {
+      // Simulate buildNotificationUrl throwing on corrupted repository data
+      vi.mocked(mockBuildNotificationUrl).mockImplementationOnce(() => {
+        throw new Error('Cannot build notification URL: repository data is incomplete');
+      });
+
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '999', type: 'Issue', repository: {} }]);
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: 'openNotification', notificationId: '999' }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockTabs.create).not.toHaveBeenCalled();
+      // Verify an error response was sent without pinning the message wording.
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(String) }));
     });
   });
 
@@ -1232,6 +1254,31 @@ describe('service-worker helper functions', () => {
       expect(mockTabs.create).toHaveBeenCalledWith({ url: 'https://github.com/owner/repo' });
       expect(mockGithub.markAsRead).toHaveBeenCalledWith('123');
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
+    });
+
+    it('should not open tab and log error when buildNotificationUrl throws on click', async () => {
+      const testNotification = {
+        id: '456',
+        subject: { type: 'Issue', title: 'Test' },
+        repository: { name: 'repo' }, // no full_name/html_url — corrupt
+      };
+
+      mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
+
+      // Force buildNotificationUrl to throw for this test
+      vi.mocked(mockBuildNotificationUrl).mockImplementationOnce(() => {
+        throw new Error('repository data is incomplete');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await clickNotification(`${NOTIFICATION_ID_PREFIX}456`);
+
+      // Behavioral assertions: error is logged, no tab opened
+      expect(mockTabs.create).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
     });
   });
 });

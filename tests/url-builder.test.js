@@ -133,12 +133,48 @@ describe('buildNotificationUrl', () => {
   });
 
   describe('Unknown notification types', () => {
-    it('should fallback to repository URL', () => {
+    it('should fallback to repository html_url', () => {
       const notification = {
         type: 'UnknownType',
         repository: { full_name: 'owner/repo', html_url: `${GITHUB_BASE}/owner/repo` },
       };
       expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo`);
+    });
+
+    it('should construct URL from full_name when html_url is absent', () => {
+      // Covers the `repo.html_url ?? \`${GITHUB_SITE_BASE}/${fullName}\`` branch
+      const notification = {
+        type: 'UnknownType',
+        repository: { full_name: 'owner/repo' }, // no html_url
+      };
+      expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo`);
+    });
+  });
+
+  describe('corrupt / incomplete notification objects', () => {
+    it('should return repository html_url when full_name is missing', () => {
+      const notification = {
+        type: 'Issue',
+        repository: { html_url: `${GITHUB_BASE}/owner/repo` }, // no full_name
+      };
+      expect(buildNotificationUrl(notification)).toBe(`${GITHUB_BASE}/owner/repo`);
+    });
+
+    it('should throw when repository is missing entirely', () => {
+      const notification = { type: 'Issue' }; // no repository
+      expect(() => buildNotificationUrl(notification)).toThrow();
+    });
+
+    it('should throw when notification itself is null or undefined', () => {
+      expect(() => buildNotificationUrl(null)).toThrow();
+      expect(() => buildNotificationUrl(undefined)).toThrow();
+    });
+
+    it('should throw when repository exists but has no usable URL fields (corrupted storage pattern)', () => {
+      // Storage can produce repository objects that have a name but lack both full_name and html_url.
+      // Assert behavior (throws), not the message text, so wording changes don't break this test.
+      const corrupted = { id: '123', type: 'Issue', repository: { name: 'repo' } };
+      expect(() => buildNotificationUrl(corrupted)).toThrow();
     });
   });
 });

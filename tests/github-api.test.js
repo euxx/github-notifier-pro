@@ -424,6 +424,17 @@ describe('GitHubAPI', () => {
       expect(result.html_url).toBe('https://github.com/owner/repo');
     });
 
+    it('should propagate error when buildNotificationUrl throws on notification with no repository', async () => {
+      // When subject.url is absent and repository is missing, buildNotificationUrl throws.
+      // getNotificationDetails has no catch — the error should propagate to the caller.
+      const notification = {
+        subject: { type: 'Issue', title: 'Test' }, // no url
+        // no repository
+      };
+
+      await expect(github.getNotificationDetails(notification)).rejects.toThrow();
+    });
+
     it('should fetch details from subject.url when present', async () => {
       const notification = {
         subject: {
