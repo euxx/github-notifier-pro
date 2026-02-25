@@ -30,6 +30,10 @@ vi.mock('../src/lib/icons.js', () => ({
   getIconSVG: vi.fn(() => '<svg></svg>'),
 }));
 
+const { escapeHtml, formatReason } = await import('../src/lib/format-utils.js');
+// Real (unmocked) escapeHtml for integration-style assertions
+const { escapeHtml: realEscapeHtml } = await vi.importActual('../src/lib/format-utils.js');
+
 const {
   formatTimeAgo,
   initRenderer,
@@ -38,6 +42,7 @@ const {
   buildIconClass,
   formatCommentCount,
   truncateReleaseBody,
+  createHoverCard,
 } = await import('../src/popup/notification-renderer.js');
 
 describe('notification-renderer', () => {
@@ -244,6 +249,33 @@ describe('notification-renderer helper functions', () => {
       expect(getHoverCardParts(notifWithBody).hasDescription).toBeTruthy();
       expect(getHoverCardParts(notifWithEmptyBody).hasDescription).toBeFalsy();
       expect(getHoverCardParts(notifWithoutBody).hasDescription).toBeFalsy();
+    });
+
+    it('should call escapeHtml with the formatReason output (call chain guard)', () => {
+      // Verifies the wiring: formatReason result flows into escapeHtml before HTML injection.
+      // If escapeHtml is ever removed from the template, this spy assertion will fail.
+      const maliciousReason = '<img src=x onerror=alert(1)>';
+      vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
+
+      createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
+
+      expect(vi.mocked(escapeHtml)).toHaveBeenCalledWith(maliciousReason);
+    });
+
+    it('should produce safe HTML using real escapeHtml for malicious reason (integration)', () => {
+      // Uses the real escapeHtml implementation (not the identity mock) to validate
+      // that the actual escaping produces safe output end-to-end
+      const maliciousReason = '<script>alert("xss")</script>';
+
+      vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
+      vi.mocked(escapeHtml).mockImplementationOnce((text) => realEscapeHtml(text));
+
+      const html = createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
+
+      // Raw script tag must not appear in the rendered output
+      expect(html).not.toContain('<script>');
+      // Real escaped output must be present
+      expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
     });
   });
 

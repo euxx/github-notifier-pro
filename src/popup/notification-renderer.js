@@ -128,14 +128,14 @@ export function formatTimeAgo(dateString) {
  * @param {Object} notif - Notification object
  * @returns {string} HTML string
  */
-function createHoverCard(notif) {
+export function createHoverCard(notif) {
   const hasAuthor = notif.author?.login;
   const hasComments = notif.comment_count > 0;
   const hasDescription = notif.body?.trim();
   const authorProfileUrl = hasAuthor ? buildAuthorProfileUrl(notif.author.login) : null;
 
   const metadataParts = [];
-  metadataParts.push(`<span class="hover-card-reason">${formatReason(notif.reason)}</span>`);
+  metadataParts.push(`<span class="hover-card-reason">${escapeHtml(formatReason(notif.reason))}</span>`);
   const fullTime = new Date(notif.updated_at).toLocaleString();
   metadataParts.push(`<span title="${fullTime}">${formatTimeAgo(notif.updated_at)}</span>`);
   if (hasComments) {
