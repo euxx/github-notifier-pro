@@ -702,10 +702,14 @@ class GitHubAPI {
     const url = `${GITHUB_API_BASE}/notifications/threads/${threadId}`;
 
     const response = await retryWithStrategy(async () => {
-      return await fetch(url, {
-        method: 'PATCH',
-        headers: this.headers,
-      });
+      return await fetchWithTimeout(
+        url,
+        {
+          method: 'PATCH',
+          headers: this.headers,
+        },
+        API_TIMEOUTS.DEFAULT,
+      );
     }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
@@ -721,16 +725,20 @@ class GitHubAPI {
     }
 
     const response = await retryWithStrategy(async () => {
-      return await fetch(`${GITHUB_API_BASE}/notifications`, {
-        method: 'PUT',
-        headers: {
-          ...this.headers,
-          'Content-Type': 'application/json',
+      return await fetchWithTimeout(
+        `${GITHUB_API_BASE}/notifications`,
+        {
+          method: 'PUT',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            last_read_at: this.lastUpdate,
+          }),
         },
-        body: JSON.stringify({
-          last_read_at: this.lastUpdate,
-        }),
-      });
+        API_TIMEOUTS.DEFAULT,
+      );
     }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
@@ -746,16 +754,20 @@ class GitHubAPI {
     const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/notifications`;
 
     const response = await retryWithStrategy(async () => {
-      return await fetch(url, {
-        method: 'PUT',
-        headers: {
-          ...this.headers,
-          'Content-Type': 'application/json',
+      return await fetchWithTimeout(
+        url,
+        {
+          method: 'PUT',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            last_read_at: new Date().toISOString(),
+          }),
         },
-        body: JSON.stringify({
-          last_read_at: new Date().toISOString(),
-        }),
-      });
+        API_TIMEOUTS.DEFAULT,
+      );
     }, RETRY_MUTATION_OPTIONS);
 
     this.updateRateLimit(response);
