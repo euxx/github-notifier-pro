@@ -624,6 +624,9 @@ async function handleLogin(authMethod = 'oauth', token = null) {
       username: github.username,
     };
   } catch (error) {
+    // Clear the in-memory token so isAuthenticated returns false on subsequent getState() calls
+    github.token = null;
+    github.username = null;
     return {
       success: false,
       error: error.message,
