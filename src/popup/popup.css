@@ -180,6 +180,12 @@ body.dark-theme #main-view {
   gap: 12px;
 }
 
+.pat-token-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
 .pat-input-form label {
   font-size: 13px;
   font-weight: 500;
@@ -1541,7 +1547,7 @@ body.dark-theme .error-message {
 
 /* Inline error message for PAT login */
 .login-error-msg {
-  margin: -4px 0 -16px 0;
+  margin: 0;
   font-size: 13px;
   line-height: 1.4;
   text-align: left;
@@ -1551,10 +1557,6 @@ body.dark-theme .error-message {
 
 body.dark-theme .login-error-msg {
   color: #f87171;
-}
-
-.login-error-msg:not([hidden]) + .pat-hint {
-  margin-top: -24px;
 }
 
 @keyframes slideIn {

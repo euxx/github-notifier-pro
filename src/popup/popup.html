@@ -43,26 +43,29 @@
         <!-- PAT Input Form (initially hidden) -->
         <div id="pat-input-form" class="pat-input-form" hidden>
           <label for="pat-input">Enter your Personal Access Token:</label>
-          <input
-            type="password"
-            id="pat-input"
-            class="pat-input"
-            placeholder="ghp_/github_pat_xxxxxxxxxxxxxxxxxxxxxxxx"
-            autocomplete="off"
-            spellcheck="false"
-            aria-describedby="login-error"
-            aria-invalid="false"
-          />
-          <p id="login-error" class="login-error-msg" hidden aria-live="polite"></p>
-          <div class="pat-hint">
-            <a
-              href="https://github.com/settings/tokens/new?scopes=repo,notifications&description=GitHub%20Notifier%20Pro"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Generate a token
-            </a>
-            (<code>ghp_</code> or <code>github_pat_</code>) with <code>repo</code> and <code>notifications</code> scopes
+          <div class="pat-token-field">
+            <input
+              type="password"
+              id="pat-input"
+              class="pat-input"
+              placeholder="ghp_/github_pat_xxxxxxxxxxxxxxxxxxxxxxxx"
+              autocomplete="off"
+              spellcheck="false"
+              aria-describedby="login-error"
+              aria-invalid="false"
+            />
+            <span id="login-error" class="login-error-msg" hidden aria-live="polite"></span>
+            <div class="pat-hint">
+              <a
+                href="https://github.com/settings/tokens/new?scopes=repo,notifications&description=GitHub%20Notifier%20Pro"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Generate a token
+              </a>
+              (<code>ghp_</code> or <code>github_pat_</code>) with <code>repo</code> and <code>notifications</code>
+              scopes
+            </div>
           </div>
           <div class="pat-actions">
             <button class="btn btn-secondary" id="pat-cancel-btn">Cancel</button>
