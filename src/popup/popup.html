@@ -50,7 +50,10 @@
             placeholder="ghp_/github_pat_xxxxxxxxxxxxxxxxxxxxxxxx"
             autocomplete="off"
             spellcheck="false"
+            aria-describedby="login-error"
+            aria-invalid="false"
           />
+          <p id="login-error" class="login-error-msg" hidden aria-live="polite"></p>
           <div class="pat-hint">
             <a
               href="https://github.com/settings/tokens/new?scopes=repo,notifications&description=GitHub%20Notifier%20Pro"

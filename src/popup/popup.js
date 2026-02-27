@@ -146,6 +146,7 @@ const patInputForm = document.getElementById('pat-input-form');
 const patInput = document.getElementById('pat-input');
 const patCancelBtn = document.getElementById('pat-cancel-btn');
 const patLoginBtn = document.getElementById('pat-login-btn');
+const loginErrorEl = document.getElementById('login-error');
 
 // Main view elements
 const settingsIconBtn = document.getElementById('settings-icon-btn');
@@ -182,6 +183,22 @@ const hoverCardsToggle = document.getElementById('hover-cards-toggle');
 const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
 
 let scrollbarCompensationRaf = null;
+
+function showLoginError(message) {
+  if (!loginErrorEl) return;
+  loginErrorEl.textContent = message;
+  loginErrorEl.hidden = false;
+  patInput.classList.add('input-error');
+  patInput.setAttribute('aria-invalid', 'true');
+}
+
+function clearLoginError() {
+  if (!loginErrorEl) return;
+  loginErrorEl.hidden = true;
+  loginErrorEl.textContent = '';
+  patInput.classList.remove('input-error');
+  patInput.setAttribute('aria-invalid', 'false');
+}
 
 function updateScrollbarCompensation() {
   if (!mainView || !notificationsContainer) return;
@@ -652,7 +669,7 @@ async function login(authMethod = 'oauth', token = null) {
     // Start countdown timer after successful login
     startCountdown();
   } else {
-    alert(`Login failed: ${result.error || 'Unknown error'}`);
+    showLoginError(result.error || 'Login failed');
   }
 }
 
@@ -663,6 +680,7 @@ function showPATForm() {
   authMethods.hidden = true;
   patInputForm.hidden = false;
   patInput.value = '';
+  clearLoginError();
   patInput.focus();
 }
 
@@ -673,6 +691,7 @@ function hidePATForm() {
   authMethods.hidden = false;
   patInputForm.hidden = true;
   patInput.value = '';
+  clearLoginError();
 }
 
 /**
@@ -682,7 +701,7 @@ async function handlePATLogin() {
   const token = patInput.value.trim();
 
   if (!token) {
-    alert('Please enter a valid token');
+    showLoginError('Please enter your token');
     return;
   }
 
@@ -691,12 +710,13 @@ async function handlePATLogin() {
 
   if (!hasValidPrefix) {
     const prefixList = TOKEN_PREFIXES.join('", "');
-    alert(`Invalid token format. Token should start with one of: "${prefixList}"`);
+    showLoginError(`Token should start with one of: "${prefixList}"`);
     return;
   }
 
   patLoginBtn.disabled = true;
   patLoginBtn.textContent = 'Connecting...';
+  clearLoginError();
 
   try {
     await login('pat', token);
@@ -865,6 +885,11 @@ patLoginBtn.addEventListener('click', handlePATLogin);
 patInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
     handlePATLogin();
+  }
+});
+patInput.addEventListener('input', () => {
+  if (!loginErrorEl.hidden) {
+    clearLoginError();
   }
 });
 

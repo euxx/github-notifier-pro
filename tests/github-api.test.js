@@ -184,9 +184,12 @@ describe('GitHubAPI', () => {
         ok: false,
         status: 401,
         headers: { get: () => null },
+        json: () => Promise.resolve({ message: 'Bad credentials' }),
       });
 
-      await expect(github.login('pat', 'invalid-token')).rejects.toThrow('Failed to fetch username');
+      await expect(github.login('pat', 'invalid-token')).rejects.toThrow(
+        'Invalid token or missing required scopes (repo, notifications)',
+      );
     });
   });
 

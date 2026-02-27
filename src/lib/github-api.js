@@ -427,7 +427,23 @@ class GitHubAPI {
       return this.username;
     }
 
-    throw new Error('Failed to fetch username');
+    let apiMessage = '';
+    try {
+      const errorData = await response.json();
+      apiMessage = errorData?.message || '';
+    } catch (_error) {
+      // Ignore parse errors for non-JSON responses
+    }
+
+    if (response.status === 401) {
+      throw new Error('Invalid token or missing required scopes (repo, notifications)');
+    }
+
+    if (apiMessage) {
+      throw new Error(`Failed to fetch username: ${apiMessage}`);
+    }
+
+    throw new Error(`Failed to fetch username (HTTP ${response.status})`);
   }
 
   /**

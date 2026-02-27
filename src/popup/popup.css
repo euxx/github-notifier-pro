@@ -205,6 +205,16 @@ body.dark-theme #main-view {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
+.pat-input.input-error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+body.dark-theme .pat-input.input-error {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+}
+
 .pat-hint {
   font-size: 12px;
   color: var(--text-secondary);
@@ -1527,6 +1537,24 @@ body.dark-theme .warning-message {
 body.dark-theme .error-message {
   background: #450a0a;
   color: #fca5a5;
+}
+
+/* Inline error message for PAT login */
+.login-error-msg {
+  margin: -4px 0 -16px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  color: #dc2626;
+  animation: slideIn 0.2s ease-out;
+}
+
+body.dark-theme .login-error-msg {
+  color: #f87171;
+}
+
+.login-error-msg:not([hidden]) + .pat-hint {
+  margin-top: -24px;
 }
 
 @keyframes slideIn {
