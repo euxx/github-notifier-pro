@@ -79,6 +79,7 @@ const mainView = document.getElementById('main-view');
 
 const POPUP_LAST_VIEW_KEY = 'popupLastView';
 const POPUP_WIDTH_KEY = 'popupWidth';
+const POPUP_THEME_KEY = 'popupTheme';
 
 // Generic localStorage wrapper with error handling
 function getStorageValue(key, defaultValue) {
@@ -119,6 +120,14 @@ function setCachedPopupView(view) {
   setStorageValue(POPUP_LAST_VIEW_KEY, view);
 }
 
+function getCachedTheme() {
+  return getStorageValue(POPUP_THEME_KEY, 'system');
+}
+
+function setCachedTheme(theme) {
+  setStorageValue(POPUP_THEME_KEY, theme);
+}
+
 function applyInitialPopupWidth() {
   const cachedView = getCachedPopupView();
   const cachedWidth = getCachedPopupWidth();
@@ -129,6 +138,8 @@ function applyInitialPopupWidth() {
     document.body.style.width = `${cachedWidth}px`;
   }
 
+  // Apply cached theme synchronously before making popup visible
+  applyTheme(getCachedTheme());
   document.body.classList.add('popup-ready');
 }
 
@@ -447,8 +458,9 @@ async function handleThemeChange() {
   const selectedTheme = document.querySelector('input[name="theme"]:checked');
   const theme = selectedTheme ? selectedTheme.value : 'system';
 
-  // Save to storage
+  // Save to storage and cache for instant apply on next open
   await storage.setTheme(theme);
+  setCachedTheme(theme);
 
   // Apply theme immediately
   applyTheme(theme);
@@ -824,6 +836,7 @@ async function handleMarkRepoAsRead(repoFullName) {
  */
 async function preloadTheme() {
   const theme = await storage.getTheme();
+  setCachedTheme(theme);
   applyTheme(theme);
 }
 
