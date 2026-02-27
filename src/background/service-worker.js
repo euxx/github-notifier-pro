@@ -82,9 +82,31 @@ const CACHED_DETAIL_FIELDS = [
 let hasMoreNotifications = false;
 
 /**
+ * Guard against concurrent initialize() calls.
+ * The module top-level call, onStartup, and onInstalled can all fire
+ * close together when the service worker first loads.
+ */
+let initializePromise = null;
+
+/**
  * Initialize extension state from storage
  */
 async function initialize() {
+  if (initializePromise) {
+    console.log('initialize() already running, skipping duplicate call');
+    return initializePromise;
+  }
+
+  initializePromise = doInitialize();
+  try {
+    return await initializePromise;
+  } finally {
+    initializePromise = null;
+  }
+}
+
+async function doInitialize() {
+  console.log('initialize() starting');
   const token = await storage.getToken();
   if (token) {
     github.token = token;
