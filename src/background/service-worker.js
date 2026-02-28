@@ -66,6 +66,7 @@ const authorCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
 
 const CACHED_DETAIL_FIELDS = [
   'state',
+  'state_reason',
   'merged',
   'conclusion',
   'status',
@@ -173,6 +174,9 @@ export function updateNotificationDetails(baseData, details, notifType) {
     baseData.status = details.status;
   } else {
     baseData.state = details.state;
+    if (notifType === NOTIFICATION_TYPES.ISSUE && details.state_reason) {
+      baseData.state_reason = details.state_reason;
+    }
     if (notifType === NOTIFICATION_TYPES.PULL_REQUEST && details.merged) {
       baseData.merged = true;
     }

@@ -778,6 +778,25 @@ describe('service-worker helper functions', () => {
       expect(baseData.state).toBe('open');
     });
 
+    it('should extract state_reason for closed Issues', () => {
+      const baseData = {};
+      const details = { state: 'closed', state_reason: 'not_planned' };
+
+      updateNotificationDetails(baseData, details, 'Issue');
+
+      expect(baseData.state).toBe('closed');
+      expect(baseData.state_reason).toBe('not_planned');
+    });
+
+    it('should not set state_reason for PRs', () => {
+      const baseData = {};
+      const details = { state: 'closed', state_reason: 'not_planned', merged: false };
+
+      updateNotificationDetails(baseData, details, 'PullRequest');
+
+      expect(baseData.state_reason).toBeUndefined();
+    });
+
     it('should update PR state and merged flag', () => {
       const baseData = {};
       const details = { state: 'closed', merged: true };

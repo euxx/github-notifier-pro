@@ -23,6 +23,7 @@
   /* Icon Colors - GitHub Style (softer) */
   --icon-issue-open: #2da44e; /* Brighter green for open issues */
   --icon-issue-closed: #8250df; /* GitHub purple for closed issues */
+  --icon-issue-not-planned: #7d8590; /* Grey for not-planned issues */
   --icon-pr-open: #2da44e; /* Brighter green for open PRs */
   --icon-pr-merged: #8250df; /* GitHub purple for merged PRs */
   --icon-pr-closed: #a0222e; /* Dimmer red for closed PRs */
@@ -47,6 +48,7 @@ body.dark-theme {
   /* Icon Colors - GitHub Style (softer) */
   --icon-issue-open: #2ea043; /* Darker green for open issues */
   --icon-issue-closed: #a371f7; /* GitHub purple for closed issues */
+  --icon-issue-not-planned: #848d97; /* Grey for not-planned issues */
   --icon-pr-open: #2ea043; /* Darker green for open PRs */
   --icon-pr-merged: #a371f7; /* GitHub purple for merged PRs */
   --icon-pr-closed: #c44149; /* Dimmer red for closed PRs */

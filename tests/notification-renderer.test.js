@@ -332,6 +332,14 @@ describe('notification-renderer helper functions', () => {
       expect(buildIconClass({ icon: 'issue', state: 'closed' })).toBe('issue closed');
     });
 
+    it('should add not-planned class for issues closed as not planned', () => {
+      expect(buildIconClass({ icon: 'issue', state: 'closed', state_reason: 'not_planned' })).toBe('issue not-planned');
+    });
+
+    it('should add closed class for issues closed as completed', () => {
+      expect(buildIconClass({ icon: 'issue', state: 'closed', state_reason: 'completed' })).toBe('issue closed');
+    });
+
     it('should prioritize merged over state', () => {
       expect(buildIconClass({ icon: 'pr', merged: true, state: 'closed' })).toBe('pr merged');
     });

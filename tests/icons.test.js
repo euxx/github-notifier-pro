@@ -7,8 +7,9 @@ describe('getIconSVG', () => {
       [undefined, 'issue_open'],
       ['open', 'issue_open'],
       ['closed', 'issue_closed'],
-    ])('should return correct icon for state "%s"', (state, expectedKey) => {
-      expect(getIconSVG('issue', state)).toBe(ICON_SVGS[expectedKey]);
+      ['closed', 'issue_not_planned', 'not_planned'],
+    ])('should return correct icon for state "%s" stateReason=%s', (state, expectedKey, stateReason) => {
+      expect(getIconSVG('issue', state, undefined, undefined, stateReason)).toBe(ICON_SVGS[expectedKey]);
     });
   });
 
@@ -60,6 +61,7 @@ describe('ICON_SVGS', () => {
     const expectedKeys = [
       'issue_open',
       'issue_closed',
+      'issue_not_planned',
       'pr_open',
       'pr_closed',
       'pr_merged',

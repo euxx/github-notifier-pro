@@ -713,6 +713,9 @@ body.dark-theme .notification-hover-card {
 .notification-icon.issue.closed {
   color: var(--icon-issue-closed);
 }
+.notification-icon.issue.not-planned {
+  color: var(--icon-issue-not-planned);
+}
 
 /* PR states */
 .notification-icon.pr.open {

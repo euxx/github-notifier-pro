@@ -7,6 +7,8 @@ export const ICON_SVGS = {
     '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path fill="currentColor" d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>',
   issue_closed:
     '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M11.28 6.78a.75.75 0 0 0-1.06-1.06L7 8.94 5.78 7.72a.75.75 0 0 0-1.06 1.06l1.75 1.75a.75.75 0 0 0 1.06 0l3.75-3.75Z"/><path fill="currentColor" d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0Z"/></svg>',
+  issue_not_planned:
+    '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm9.78-2.22-5.5 5.5a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l5.5-5.5a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"/></svg>',
   pr_open:
     '<svg viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/></svg>',
   pr_closed:
@@ -42,11 +44,17 @@ export const ICON_SVGS = {
  * @param {string} state - State (open, closed)
  * @param {boolean} merged - Whether PR is merged
  * @param {string} conclusion - Actions conclusion
+ * @param {string} stateReason - Issue state reason (completed, not_planned)
  * @returns {string} SVG HTML string
  */
-export function getIconSVG(type, state, merged, conclusion) {
+export function getIconSVG(type, state, merged, conclusion, stateReason) {
   const iconKeyMap = {
-    issue: () => (state === 'closed' ? 'issue_closed' : 'issue_open'),
+    issue: () => {
+      if (state === 'closed') {
+        return stateReason === 'not_planned' ? 'issue_not_planned' : 'issue_closed';
+      }
+      return 'issue_open';
+    },
     pr: () => (merged ? 'pr_merged' : state === 'closed' ? 'pr_closed' : 'pr_open'),
     actions: () => {
       const conclusionMap = {

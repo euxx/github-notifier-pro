@@ -17,6 +17,8 @@ export function buildIconClass(notif) {
   if (notif.icon === 'pr' || notif.icon === 'issue') {
     if (notif.merged) {
       iconClass += ' merged';
+    } else if (notif.icon === 'issue' && notif.state === 'closed' && notif.state_reason === 'not_planned') {
+      iconClass += ' not-planned';
     } else if (notif.state) {
       iconClass += ` ${notif.state}`;
     }
@@ -242,7 +244,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
   li.innerHTML = `
     <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">
-      ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion)}
+      ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason)}
     </div>
     <div class="notification-content">
       <div class="notification-main">
