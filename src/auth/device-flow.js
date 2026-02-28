@@ -16,7 +16,6 @@ const statusTextEl = document.getElementById('status-text');
 const countdownEl = document.getElementById('countdown');
 
 let verificationUri = '';
-const cancelled = false;
 
 // Initialize theme
 initTheme(storage.getTheme);
@@ -59,7 +58,7 @@ async function startDeviceFlow() {
         // Start countdown
         let remaining = data.expires_in;
         const interval = setInterval(() => {
-          if (cancelled || remaining <= 0) {
+          if (remaining <= 0) {
             clearInterval(interval);
             return;
           }
@@ -74,7 +73,6 @@ async function startDeviceFlow() {
         const minutes = Math.floor(progress.remainingTime / 60);
         statusTextEl.textContent = `Waiting for authorization... (~${minutes} min remaining)`;
       },
-      onCancel: () => cancelled,
     });
 
     // Success!
