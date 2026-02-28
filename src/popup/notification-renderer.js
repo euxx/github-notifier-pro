@@ -401,37 +401,8 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
 
     li.dataset.slideUpTimeout = slideUpTimeout;
 
-    try {
-      const result = await sendMessage(MESSAGE_TYPES.MARK_AS_READ, { notificationId: notif.id });
-
-      if (!result.success) {
-        clearTimeout(slideUpTimeout);
-        if (li.dataset.removeTimeout) {
-          clearTimeout(parseInt(li.dataset.removeTimeout));
-        }
-
-        li.classList.remove('marking-read', 'fade-out', 'slide-up');
-        markReadBtn.disabled = false;
-        markReadBtn.textContent = '✓';
-
-        if (!li.parentElement) {
-          if (originalNextSibling && originalNextSibling.parentElement) {
-            originalParent.insertBefore(li, originalNextSibling);
-          } else {
-            originalParent.appendChild(li);
-          }
-          emptyState.hidden = true;
-          markAllBtn.disabled = false;
-        }
-
-        li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-        setTimeout(() => {
-          li.style.backgroundColor = '';
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Failed to mark as read:', error);
-
+    // Restore the notification item to its original state on failure
+    function restoreItem() {
       clearTimeout(slideUpTimeout);
       if (li.dataset.removeTimeout) {
         clearTimeout(parseInt(li.dataset.removeTimeout));
@@ -455,6 +426,17 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
       setTimeout(() => {
         li.style.backgroundColor = '';
       }, ANIMATION_DURATION.ERROR_BACKGROUND_FADE);
+    }
+
+    try {
+      const result = await sendMessage(MESSAGE_TYPES.MARK_AS_READ, { notificationId: notif.id });
+
+      if (!result.success) {
+        restoreItem();
+      }
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+      restoreItem();
     }
   });
 
