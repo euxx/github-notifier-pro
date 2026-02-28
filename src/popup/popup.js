@@ -98,13 +98,17 @@ function setStorageValue(key, value) {
   }
 }
 
+function clampPopupWidth(width) {
+  return Math.min(MAX_POPUP_WIDTH, Math.max(MIN_POPUP_WIDTH, width));
+}
+
 function getCachedPopupWidth() {
   const raw = getStorageValue(POPUP_WIDTH_KEY, DEFAULT_POPUP_WIDTH);
   const parsed = Number.parseInt(raw, 10);
   if (Number.isNaN(parsed)) {
     return DEFAULT_POPUP_WIDTH;
   }
-  return Math.min(MAX_POPUP_WIDTH, Math.max(MIN_POPUP_WIDTH, parsed));
+  return clampPopupWidth(parsed);
 }
 
 function setCachedPopupWidth(width) {
@@ -470,12 +474,8 @@ async function handleThemeChange() {
  * Handle popup width change
  */
 async function handleWidthChange() {
-  let width = parseInt(popupWidthInput.value, 10);
-  if (isNaN(width)) width = MIN_POPUP_WIDTH;
-
-  // Validate range
-  if (width < MIN_POPUP_WIDTH) width = MIN_POPUP_WIDTH;
-  if (width > MAX_POPUP_WIDTH) width = MAX_POPUP_WIDTH;
+  const parsed = parseInt(popupWidthInput.value, 10);
+  const width = clampPopupWidth(isNaN(parsed) ? MIN_POPUP_WIDTH : parsed);
 
   popupWidthInput.value = width;
   document.body.style.width = `${width}px`;
@@ -491,8 +491,7 @@ async function handleWidthChange() {
  */
 async function decreaseWidth() {
   const currentWidth = parseInt(popupWidthInput.value, 10);
-  const newWidth = Math.max(MIN_POPUP_WIDTH, currentWidth - POPUP_WIDTH_STEP);
-  popupWidthInput.value = newWidth;
+  popupWidthInput.value = clampPopupWidth(currentWidth - POPUP_WIDTH_STEP);
   await handleWidthChange();
 }
 
@@ -501,8 +500,7 @@ async function decreaseWidth() {
  */
 async function increaseWidth() {
   const currentWidth = parseInt(popupWidthInput.value, 10);
-  const newWidth = Math.min(MAX_POPUP_WIDTH, currentWidth + POPUP_WIDTH_STEP);
-  popupWidthInput.value = newWidth;
+  popupWidthInput.value = clampPopupWidth(currentWidth + POPUP_WIDTH_STEP);
   await handleWidthChange();
 }
 
