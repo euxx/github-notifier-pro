@@ -7,7 +7,6 @@
   "permissions": [
     "alarms",
     "storage",
-    "identity",
     "notifications"
   ],
 
