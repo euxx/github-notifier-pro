@@ -123,6 +123,31 @@ describe('Storage', () => {
     });
   });
 
+  describe('clearAuthData', () => {
+    it('should remove only auth and notification keys', async () => {
+      mockStorage.local.remove.mockResolvedValue(undefined);
+
+      await storage.clearAuthData();
+
+      expect(mockStorage.local.remove).toHaveBeenCalledWith([
+        'token',
+        'username',
+        'userInfo',
+        'authMethod',
+        'notifications',
+        'lastCheck',
+      ]);
+    });
+
+    it('should not call clear()', async () => {
+      mockStorage.local.remove.mockResolvedValue(undefined);
+
+      await storage.clearAuthData();
+
+      expect(mockStorage.local.clear).not.toHaveBeenCalled();
+    });
+  });
+
   describe('convenience methods', () => {
     beforeEach(() => {
       mockStorage.local.get.mockImplementation((key) => {

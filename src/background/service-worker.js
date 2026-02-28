@@ -660,7 +660,7 @@ async function handleLogout() {
   github.logout();
   hasMoreNotifications = false;
   await stopPolling();
-  await storage.clear();
+  await storage.clearAuthData();
   await updateBadge(null);
 
   return { success: true };

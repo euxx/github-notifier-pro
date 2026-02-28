@@ -79,6 +79,7 @@ const mockStorageFunctions = {
   getEnableDesktopNotifications: vi.fn(),
   getMaxDesktopNotifications: vi.fn(),
   clear: vi.fn(),
+  clearAuthData: vi.fn(),
 };
 
 vi.mock('../src/lib/storage.js', () => mockStorageFunctions);
@@ -290,7 +291,7 @@ describe('service-worker', () => {
 
       expect(mockGithub.logout).toHaveBeenCalled();
       expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
-      expect(mockStorageFunctions.clear).toHaveBeenCalled();
+      expect(mockStorageFunctions.clearAuthData).toHaveBeenCalled();
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '?' });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });

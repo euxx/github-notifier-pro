@@ -67,6 +67,20 @@ export async function clear() {
   return browserStorage.local.clear();
 }
 
+/**
+ * Clear only auth and notification data, preserving user preferences
+ */
+export async function clearAuthData() {
+  return browserStorage.local.remove([
+    STORAGE_KEYS.TOKEN,
+    STORAGE_KEYS.USERNAME,
+    STORAGE_KEYS.USER_INFO,
+    STORAGE_KEYS.AUTH_METHOD,
+    STORAGE_KEYS.NOTIFICATIONS,
+    STORAGE_KEYS.LAST_CHECK,
+  ]);
+}
+
 // Convenience methods for specific data
 export async function getToken() {
   return get(STORAGE_KEYS.TOKEN);
