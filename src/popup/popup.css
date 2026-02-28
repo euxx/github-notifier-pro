@@ -821,7 +821,7 @@ body.dark-theme .notification-hover-card {
 .notification-comments {
   align-items: center;
   gap: 3px;
-  width: 30px; /* Fixed width for alignment */
+  width: 40px; /* Fixed width for alignment (fits "99+") */
   flex-shrink: 0;
 }
 
