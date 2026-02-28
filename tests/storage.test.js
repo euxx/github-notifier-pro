@@ -8,10 +8,39 @@ const mockStorage = {
     remove: vi.fn(),
     clear: vi.fn(),
   },
+  onChanged: { addListener: vi.fn() },
 };
 
-// Mock chrome global before importing storage
-vi.stubGlobal('chrome', { storage: mockStorage });
+const mockListener = { addListener: vi.fn() };
+
+// Mock chrome global before importing storage (includes all APIs needed by chrome-api.js)
+vi.stubGlobal('chrome', {
+  storage: mockStorage,
+  runtime: {
+    sendMessage: vi.fn(),
+    onMessage: mockListener,
+    onStartup: mockListener,
+    onInstalled: mockListener,
+    getURL: vi.fn(),
+  },
+  action: {
+    setBadgeText: vi.fn(),
+    setBadgeBackgroundColor: vi.fn(),
+    setTitle: vi.fn(),
+  },
+  alarms: {
+    create: vi.fn(),
+    clear: vi.fn(),
+    getAll: vi.fn(),
+    onAlarm: mockListener,
+  },
+  tabs: { create: vi.fn() },
+  notifications: {
+    create: vi.fn(),
+    clear: vi.fn(),
+    onClicked: mockListener,
+  },
+});
 
 // Import after mock is set up
 const storage = await import('../src/lib/storage.js');

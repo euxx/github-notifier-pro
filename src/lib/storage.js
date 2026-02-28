@@ -7,9 +7,7 @@
  */
 
 import { DEFAULT_POPUP_WIDTH } from './constants.js';
-
-// Firefox uses the `browser` namespace; Chrome uses `chrome`.
-const api = typeof browser !== 'undefined' ? browser : chrome;
+import { storage as browserStorage } from './chrome-api.js';
 
 const STORAGE_KEYS = {
   TOKEN: 'token',
@@ -30,7 +28,7 @@ const STORAGE_KEYS = {
  * Get value from storage
  */
 export async function get(key, defaultValue = null) {
-  const result = await api.storage.local.get(key);
+  const result = await browserStorage.local.get(key);
   return result[key] ?? defaultValue;
 }
 
@@ -38,35 +36,35 @@ export async function get(key, defaultValue = null) {
  * Set value in storage
  */
 export async function set(key, value) {
-  return api.storage.local.set({ [key]: value });
+  return browserStorage.local.set({ [key]: value });
 }
 
 /**
  * Remove value from storage
  */
 export async function remove(key) {
-  return api.storage.local.remove(key);
+  return browserStorage.local.remove(key);
 }
 
 /**
  * Get multiple values
  */
 export async function getMultiple(keys) {
-  return api.storage.local.get(keys);
+  return browserStorage.local.get(keys);
 }
 
 /**
  * Set multiple values
  */
 export async function setMultiple(data) {
-  return api.storage.local.set(data);
+  return browserStorage.local.set(data);
 }
 
 /**
  * Clear all storage
  */
 export async function clear() {
-  return api.storage.local.clear();
+  return browserStorage.local.clear();
 }
 
 // Convenience methods for specific data
