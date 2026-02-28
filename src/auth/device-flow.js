@@ -16,6 +16,7 @@ const statusTextEl = document.getElementById('status-text');
 const countdownEl = document.getElementById('countdown');
 
 let verificationUri = '';
+let countdownInterval = null;
 
 // Initialize theme
 initTheme(storage.getTheme);
@@ -57,9 +58,10 @@ async function startDeviceFlow() {
 
         // Start countdown
         let remaining = data.expires_in;
-        const interval = setInterval(() => {
+        countdownInterval = setInterval(() => {
           if (remaining <= 0) {
-            clearInterval(interval);
+            clearInterval(countdownInterval);
+            countdownInterval = null;
             return;
           }
 
@@ -76,6 +78,10 @@ async function startDeviceFlow() {
     });
 
     // Success!
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
     const token = github.token;
     const username = github.username;
 
@@ -113,6 +119,10 @@ async function startDeviceFlow() {
       }
     }, ANIMATION_DURATION.AUTO_CLOSE);
   } catch (error) {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
     console.error('Device Flow error:', error);
     statusEl.className = 'status error';
     statusTextEl.textContent = `❌ Error: ${error.message}`;
