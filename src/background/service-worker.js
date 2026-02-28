@@ -682,8 +682,6 @@ async function getState() {
     isAuthenticated: github.isAuthenticated,
     username,
     notifications,
-    // Include cache statistics for debugging/monitoring
-    cacheStats: authorCache.getStats(),
   };
 }
 
