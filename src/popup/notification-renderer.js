@@ -100,7 +100,12 @@ export function clearNotificationCache() {
  */
 export function createNotificationsHash(notifications) {
   if (!notifications || notifications.length === 0) return 'empty';
-  return notifications.map((n) => `${n.id}:${n.updated_at}:${n.author?.login || ''}`).join('|');
+  return notifications
+    .map(
+      (n) =>
+        `${n.id}:${n.updated_at}:${n.state || ''}:${n.merged || ''}:${n.conclusion || ''}:${n.comment_count ?? ''}:${n.author?.login || ''}`,
+    )
+    .join('|');
 }
 
 /**

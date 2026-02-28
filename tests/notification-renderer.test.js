@@ -171,7 +171,7 @@ describe('notification-renderer helper functions', () => {
 
     it('should create hash from single notification', () => {
       const notifications = [{ id: '123', updated_at: '2024-01-01T00:00:00Z', author: { login: 'user1' } }];
-      expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:user1');
+      expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:::::user1');
     });
 
     it('should create hash from multiple notifications', () => {
@@ -180,12 +180,12 @@ describe('notification-renderer helper functions', () => {
         { id: '2', updated_at: '2024-01-02T00:00:00Z', author: { login: 'user2' } },
       ];
       const hash = createNotificationsHash(notifications);
-      expect(hash).toBe('1:2024-01-01T00:00:00Z:user1|2:2024-01-02T00:00:00Z:user2');
+      expect(hash).toBe('1:2024-01-01T00:00:00Z:::::user1|2:2024-01-02T00:00:00Z:::::user2');
     });
 
     it('should handle notifications without author', () => {
       const notifications = [{ id: '123', updated_at: '2024-01-01T00:00:00Z' }];
-      expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:');
+      expect(createNotificationsHash(notifications)).toBe('123:2024-01-01T00:00:00Z:::::');
     });
 
     it('should handle mixed notifications with and without author', () => {
@@ -195,7 +195,9 @@ describe('notification-renderer helper functions', () => {
         { id: '3', updated_at: '2024-01-03T00:00:00Z', author: { login: 'user3' } },
       ];
       const hash = createNotificationsHash(notifications);
-      expect(hash).toBe('1:2024-01-01T00:00:00Z:user1|2:2024-01-02T00:00:00Z:|3:2024-01-03T00:00:00Z:user3');
+      expect(hash).toBe(
+        '1:2024-01-01T00:00:00Z:::::user1|2:2024-01-02T00:00:00Z:::::|3:2024-01-03T00:00:00Z:::::user3',
+      );
     });
 
     it('should produce different hashes for different data', () => {
@@ -210,6 +212,25 @@ describe('notification-renderer helper functions', () => {
       expect(hash1).not.toBe(hash2);
       expect(hash1).not.toBe(hash3);
       expect(hash2).not.toBe(hash3);
+    });
+
+    it('should produce different hashes when detail fields change', () => {
+      const base = { id: '1', updated_at: '2024-01-01T00:00:00Z', author: { login: 'user1' } };
+      const withState = { ...base, state: 'closed' };
+      const withMerged = { ...base, merged: true };
+      const withConclusion = { ...base, conclusion: 'failure' };
+      const withComments = { ...base, comment_count: 5 };
+
+      const hashes = [
+        createNotificationsHash([base]),
+        createNotificationsHash([withState]),
+        createNotificationsHash([withMerged]),
+        createNotificationsHash([withConclusion]),
+        createNotificationsHash([withComments]),
+      ];
+
+      // All hashes should be unique
+      expect(new Set(hashes).size).toBe(hashes.length);
     });
   });
 
