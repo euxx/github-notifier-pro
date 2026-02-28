@@ -581,8 +581,9 @@ class GitHubAPI {
     const subjectType = notification.subject.type;
     const repo = notification.repository;
 
-    // Check cache first (if subject.url exists and not forcing refresh)
-    const cacheKey = notification.subject.url;
+    // Check cache first (unless forcing refresh)
+    // CheckSuite has no subject.url; use notification id as fallback key
+    const cacheKey = notification.subject.url || (notification.id ? `no-url:${notification.id}` : null);
     if (cacheKey && !forceRefresh) {
       const cached = this.detailsCache.get(cacheKey);
       if (cached) {
@@ -623,13 +624,15 @@ class GitHubAPI {
                 );
 
                 if (matchingRun?.actor) {
-                  return {
+                  const details = {
                     html_url: matchingRun.html_url || html_url,
                     conclusion: result.conclusion,
                     status: result.status,
                     user: matchingRun.actor,
                     number: matchingRun.run_number,
                   };
+                  if (cacheKey) this.detailsCache.set(cacheKey, details);
+                  return details;
                 }
               }
             } catch (e) {
@@ -637,16 +640,21 @@ class GitHubAPI {
             }
           }
 
-          return {
+          const fallbackDetails = {
             html_url,
             conclusion: result.conclusion,
             status: result.status,
             user: this.userInfo || repo.owner,
           };
+          if (cacheKey) this.detailsCache.set(cacheKey, fallbackDetails);
+          return fallbackDetails;
         }
 
-        default:
-          return { html_url: repo.html_url };
+        default: {
+          const defaultDetails = { html_url: repo.html_url };
+          if (cacheKey) this.detailsCache.set(cacheKey, defaultDetails);
+          return defaultDetails;
+        }
       }
     }
 
