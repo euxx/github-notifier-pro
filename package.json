@@ -7,7 +7,7 @@
     "ci": "npm run test && npm run lint:fix && npm run format",
     "dev": "npm run ci && npm run dev:firefox",
     "all": "npm run ci && npm run build",
-    "build": "rm -rf dist && mkdir -p dist && zip -r dist/github-notifier-pro-chrome.zip manifest.json src/ images/ -x '*.DS_Store' '*.git*' '*node_modules*' '*.md' && cp manifest-firefox.json manifest.json && zip -r dist/github-notifier-pro-firefox.zip manifest.json src/ images/ -x '*.DS_Store' '*.git*' '*node_modules*' '*.md' && git checkout manifest.json && echo '✨ Build complete! Chrome & Firefox packages in dist/'",
+    "build": "rm -rf dist && mkdir -p dist && zip -r dist/github-notifier-pro-chrome.zip manifest.json src/ images/ -x '*.DS_Store' '*.git*' '*node_modules*' '*.md' && mkdir -p dist/tmp-firefox && cp manifest-firefox.json dist/tmp-firefox/manifest.json && cp -r src images dist/tmp-firefox/ && (cd dist/tmp-firefox && zip -r ../github-notifier-pro-firefox.zip manifest.json src/ images/ -x '*.DS_Store' '*.git*' '*node_modules*' '*.md') && rm -rf dist/tmp-firefox && echo '✨ Build complete! Chrome & Firefox packages in dist/'",
     "dev:firefox": "rm -rf dist/firefox-dev && mkdir -p dist/firefox-dev && cp manifest-firefox.json dist/firefox-dev/manifest.json && cp -r src dist/firefox-dev/ && cp -r images dist/firefox-dev/ && echo '🦊 Firefox dev environment ready at dist/firefox-dev/'",
     "test": "vitest run",
     "lint": "eslint src/ tests/",
