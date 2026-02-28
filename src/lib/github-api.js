@@ -179,11 +179,12 @@ class GitHubAPI {
     const reset = response.headers.get('X-RateLimit-Reset');
 
     if (limit && remaining && reset) {
+      const remainingNum = parseInt(remaining, 10);
       this.rateLimit = {
         limit: parseInt(limit, 10),
-        remaining: parseInt(remaining, 10),
+        remaining: remainingNum,
         reset: parseInt(reset, 10),
-        isLimited: parseInt(remaining, 10) === 0,
+        isLimited: remainingNum === 0,
       };
     }
   }
