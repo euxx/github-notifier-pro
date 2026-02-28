@@ -353,7 +353,6 @@ async function checkNotifications() {
           },
           icon: getIconForType(n.subject.type),
           isNew: !existingIds.has(n.id), // Mark as new if not in existing set
-          _fetchVersion: currentFetchVersion, // Track which fetch this came from
         };
 
         // Pre-populate from existing cached data if available
@@ -458,20 +457,16 @@ async function checkNotifications() {
             console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
 
             // Double-check before final save
-            const currentStoredNotifications = await storage.getNotifications();
-            const storedVersion = currentStoredNotifications[0]?._fetchVersion || 0;
-
-            if (currentFetchVersion >= storedVersion) {
+            if (currentFetchVersion >= notificationFetchVersion) {
               // Merge with current storage to avoid overwriting user deletions
+              const currentStoredNotifications = await storage.getNotifications();
               const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStoredNotifications);
 
               // Update storage with all completed details
               await storage.setNotifications(safeDetailed);
               console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
             } else {
-              console.log(
-                `Fetch #${currentFetchVersion} skipped storage update (stored version: ${storedVersion} is newer)`,
-              );
+              console.log(`Fetch #${currentFetchVersion} superseded before final save, skipping storage update`);
             }
           })
           .catch((error) => {
