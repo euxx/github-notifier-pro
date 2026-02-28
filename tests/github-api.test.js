@@ -718,6 +718,18 @@ describe('retry logic', () => {
     expect(result).toEqual({ items: [{ id: '1' }], hasMore: false, count: 1 });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it.each([401, 403, 404])('should NOT retry on %i errors (non-retryable)', async (status) => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status,
+      headers: { get: () => null },
+    });
+
+    await expect(github.getNotifications()).rejects.toThrow(`Failed to fetch notifications: ${status}`);
+    // Should only be called once — no retries for 401/403/404
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('pollForToken expiresIn handling', () => {

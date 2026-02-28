@@ -510,7 +510,9 @@ class GitHubAPI {
 
         // Allow 304 Not Modified as a valid response
         if (!resp.ok && resp.status !== 304) {
-          throw new Error(`Failed to fetch notifications: ${resp.status}`);
+          const error = new Error(`Failed to fetch notifications: ${resp.status}`);
+          error.response = resp;
+          throw error;
         }
 
         return resp;
@@ -680,7 +682,9 @@ class GitHubAPI {
         );
 
         if (!resp.ok) {
-          throw new Error(`Failed to fetch notification details: ${resp.status}`);
+          const error = new Error(`Failed to fetch notification details: ${resp.status}`);
+          error.response = resp;
+          throw error;
         }
 
         return resp;
