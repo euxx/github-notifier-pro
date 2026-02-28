@@ -573,6 +573,19 @@ describe('service-worker', () => {
       });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
+
+    it('should reset lastModified to force non-conditional request', async () => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.lastModified = 'Thu, 01 Jan 2025 00:00:00 GMT';
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: 'refresh' }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockGithub.lastModified).toBeNull();
+    });
   });
 
   describe('dynamic polling interval', () => {

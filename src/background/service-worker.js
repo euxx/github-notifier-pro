@@ -595,6 +595,7 @@ async function handleMessage(message) {
       return await markRepoAsRead(message.owner, message.repo);
 
     case MESSAGE_TYPES.REFRESH:
+      github.lastModified = null; // Force non-conditional request
       await checkNotifications();
       // Reset the alarm timer without recreating it
       // This ensures the countdown shows the full period
