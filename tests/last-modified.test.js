@@ -138,12 +138,75 @@ describe('Last-Modified polling optimization', () => {
     github.token = 'test_token';
     github.username = 'testuser';
     github.lastModified = 'Mon, 03 Feb 2026 10:00:00 GMT';
+    github.lastModifiedAt = Date.now();
 
     github.logout();
 
     expect(github.token).toBeNull();
     expect(github.username).toBeNull();
     expect(github.lastModified).toBeNull();
+    expect(github.lastModifiedAt).toBeNull();
+  });
+
+  it('should auto-expire lastModified after 1 hour', async () => {
+    github.token = 'test_token';
+    github.username = 'testuser';
+    github.lastModified = 'Mon, 03 Feb 2026 10:00:00 GMT';
+    github.lastModifiedAt = Date.now() - 61 * 60 * 1000; // 61 minutes ago
+
+    let capturedHeaders = null;
+
+    global.fetch = vi.fn(async (_url, options) => {
+      capturedHeaders = options.headers;
+      return {
+        ok: true,
+        status: 200,
+        headers: {
+          get: (key) => {
+            if (key.toLowerCase() === 'x-poll-interval') return '60';
+            if (key.toLowerCase() === 'last-modified') return 'Mon, 03 Feb 2026 11:05:00 GMT';
+            return null;
+          },
+        },
+        json: async () => [],
+      };
+    });
+
+    await github.getNotifications();
+
+    // Should NOT have sent If-Modified-Since (expired)
+    expect(capturedHeaders['If-Modified-Since']).toBeUndefined();
+    // Should have updated lastModified from fresh response
+    expect(github.lastModified).toBe('Mon, 03 Feb 2026 11:05:00 GMT');
+    expect(github.lastModifiedAt).toBeGreaterThan(0);
+  });
+
+  it('should keep lastModified when under 1 hour', async () => {
+    github.token = 'test_token';
+    github.username = 'testuser';
+    github.lastModified = 'Mon, 03 Feb 2026 10:00:00 GMT';
+    github.lastModifiedAt = Date.now() - 30 * 60 * 1000; // 30 minutes ago
+
+    let capturedHeaders = null;
+
+    global.fetch = vi.fn(async (_url, options) => {
+      capturedHeaders = options.headers;
+      return {
+        ok: false,
+        status: 304,
+        headers: {
+          get: (key) => {
+            if (key.toLowerCase() === 'x-poll-interval') return '60';
+            return null;
+          },
+        },
+      };
+    });
+
+    await github.getNotifications();
+
+    // Should have sent If-Modified-Since (still fresh)
+    expect(capturedHeaders['If-Modified-Since']).toBe('Mon, 03 Feb 2026 10:00:00 GMT');
   });
 
   it('should include explicit query parameters', async () => {

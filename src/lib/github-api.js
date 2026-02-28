@@ -142,6 +142,7 @@ class GitHubAPI {
     this.pollInterval = 60;
     this.lastUpdate = null;
     this.lastModified = null; // Last-Modified header for optimized polling
+    this.lastModifiedAt = null; // Timestamp when lastModified was set
     // Rate limiting state
     this.rateLimit = {
       limit: null,
@@ -454,6 +455,7 @@ class GitHubAPI {
     this.username = null;
     this.userInfo = null;
     this.lastModified = null;
+    this.lastModifiedAt = null;
     this.detailsCache.clear();
   }
 
@@ -482,6 +484,13 @@ class GitHubAPI {
     url.searchParams.set('per_page', '50');
 
     // Build headers with If-Modified-Since for optimized polling
+    // Auto-expire after 1 hour to pick up external changes (e.g., GitHub web UI)
+    const MAX_CONDITIONAL_AGE_MS = 60 * 60 * 1000;
+    if (this.lastModified && this.lastModifiedAt && Date.now() - this.lastModifiedAt > MAX_CONDITIONAL_AGE_MS) {
+      this.lastModified = null;
+      this.lastModifiedAt = null;
+    }
+
     const headers = { ...this.headers };
     if (this.lastModified) {
       headers['If-Modified-Since'] = this.lastModified;
@@ -526,6 +535,7 @@ class GitHubAPI {
     const lastModified = response.headers.get('Last-Modified');
     if (lastModified) {
       this.lastModified = lastModified;
+      this.lastModifiedAt = Date.now();
     }
 
     // 304 Not Modified - no new notifications
