@@ -210,10 +210,10 @@ class GitHubAPI {
   getRateLimitInfo() {
     const info = { ...this.rateLimit };
     if (info.reset) {
-      const resetDate = new Date(info.reset * TIME_CONVERSION.MS_TO_SECONDS);
+      const resetDate = new Date(info.reset * TIME_CONVERSION.MS_PER_SECOND);
       const now = new Date();
       const diffMs = resetDate - now;
-      const diffMins = Math.ceil(diffMs / TIME_CONVERSION.MS_TO_MINUTES);
+      const diffMins = Math.ceil(diffMs / TIME_CONVERSION.MS_PER_MINUTE);
 
       info.resetTime = resetDate.toLocaleTimeString();
       info.resetIn = diffMins > 0 ? `${diffMins} min` : 'soon';

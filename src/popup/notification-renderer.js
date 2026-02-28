@@ -119,9 +119,9 @@ export function formatTimeAgo(dateString) {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / TIME_CONVERSION.MS_TO_MINUTES);
-  const diffHours = Math.floor(diffMs / (60 * TIME_CONVERSION.MS_TO_MINUTES));
-  const diffDays = Math.floor(diffMs / (24 * 60 * TIME_CONVERSION.MS_TO_MINUTES));
+  const diffMins = Math.floor(diffMs / TIME_CONVERSION.MS_PER_MINUTE);
+  const diffHours = Math.floor(diffMs / (60 * TIME_CONVERSION.MS_PER_MINUTE));
+  const diffDays = Math.floor(diffMs / (24 * 60 * TIME_CONVERSION.MS_PER_MINUTE));
 
   if (diffMins < 1) return 'now';
   if (diffMins < 60) return `${diffMins}m ago`;

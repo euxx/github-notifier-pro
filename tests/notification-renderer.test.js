@@ -15,7 +15,7 @@ vi.mock('../src/lib/constants.js', () => ({
     OPEN_NOTIFICATION: 'openNotification',
   },
   TIME_CONVERSION: {
-    MS_TO_MINUTES: 60000,
+    MS_PER_MINUTE: 60000,
   },
 }));
 

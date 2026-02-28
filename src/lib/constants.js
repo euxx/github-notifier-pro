@@ -45,8 +45,8 @@ export const API_TIMEOUTS = {
 
 // Time Conversion
 export const TIME_CONVERSION = {
-  MS_TO_SECONDS: 1000,
-  MS_TO_MINUTES: 60000,
+  MS_PER_SECOND: 1000,
+  MS_PER_MINUTE: 60000,
 };
 
 // UI Dimensions
