@@ -156,7 +156,7 @@ export function createHoverCard(notif) {
           ? `
         <div class="hover-card-header">
           <a class="hover-card-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
+            <img src="${escapeAttr(notif.author.avatar_url)}" alt="${escapeAttr(notif.author.login)}" class="hover-card-avatar" />
             <div class="hover-card-author">
               <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
             </div>
@@ -269,7 +269,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
           notif.author
             ? `
           <a class="author-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
+            <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeAttr(notif.author.login)}" title="${escapeAttr(notif.author.login)}" />
           </a>
         `
             : ''
