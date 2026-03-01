@@ -23,7 +23,7 @@ const RETRY_MUTATION_OPTIONS = {
   maxRetries: 2,
   baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
   backoff: 'linear',
-  retryOn: [401, 500],
+  retryOn: [500],
   checkResponse: true,
 };
 
