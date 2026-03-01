@@ -277,7 +277,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         ${
           notif.updated_at
             ? `
-          <span class="notification-time">${formatTimeAgo(notif.updated_at)}</span>
+          <span class="notification-time" title="${escapeHtml(new Date(notif.updated_at).toLocaleString())}">${formatTimeAgo(notif.updated_at)}</span>
         `
             : ''
         }
