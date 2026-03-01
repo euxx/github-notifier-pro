@@ -785,8 +785,9 @@ async function handleMarkRepoAsRead(repoFullName) {
 
     if (response.success) {
       // Optimistically remove repo group from UI
-      const repoHeader = document.querySelector(`.repo-group-header[data-repo="${repoFullName}"]`);
-      const items = document.querySelectorAll(`.notification-item[data-repo="${repoFullName}"]`);
+      const escapedRepo = CSS.escape(repoFullName);
+      const repoHeader = document.querySelector(`.repo-group-header[data-repo="${escapedRepo}"]`);
+      const items = document.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`);
 
       // Calculate animation duration based on number of items
       const animationDuration = ANIMATION_DURATION.FADE_OUT;
