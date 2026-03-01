@@ -23,7 +23,6 @@ vi.mock('../src/lib/format-utils.js', () => ({
   formatReason: vi.fn((reason) => reason),
   getNotificationStatus: vi.fn(() => 'Status'),
   escapeHtml: vi.fn((text) => text),
-  escapeAttr: vi.fn((text) => text),
 }));
 
 vi.mock('../src/lib/icons.js', () => ({

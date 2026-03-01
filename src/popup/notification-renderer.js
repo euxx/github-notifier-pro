@@ -3,7 +3,7 @@
  */
 
 import { ANIMATION_DURATION, NOTIFICATION_TYPES, MESSAGE_TYPES, TIME_CONVERSION } from '../lib/constants.js';
-import { formatReason, getNotificationStatus, escapeHtml, escapeAttr } from '../lib/format-utils.js';
+import { formatReason, getNotificationStatus, escapeHtml } from '../lib/format-utils.js';
 import { getIconSVG } from '../lib/icons.js';
 
 /**
@@ -155,8 +155,8 @@ export function createHoverCard(notif) {
         hasAuthor
           ? `
         <div class="hover-card-header">
-          <a class="hover-card-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeAttr(notif.author.avatar_url)}" alt="${escapeAttr(notif.author.login)}" class="hover-card-avatar" />
+          <a class="hover-card-profile-link" href="${escapeHtml(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
+            <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
             <div class="hover-card-author">
               <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
             </div>
@@ -243,12 +243,12 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
   const authorProfileUrl = notif.author?.login ? buildAuthorProfileUrl(notif.author.login) : null;
 
   li.innerHTML = `
-    <div class="notification-icon ${iconClass}" title="${escapeAttr(getNotificationStatus(notif))}">
+    <div class="notification-icon ${iconClass}" title="${escapeHtml(getNotificationStatus(notif))}">
       ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason)}
     </div>
     <div class="notification-content">
       <div class="notification-main">
-        <div class="notification-title" data-title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"${showHoverCards ? '' : ` title="${escapeAttr(notif.title)}${releaseBody ? `\n\n${escapeAttr(releaseBody)}` : ''}"`}>
+        <div class="notification-title" data-title="${escapeHtml(notif.title)}${releaseBody ? `\n\n${escapeHtml(releaseBody)}` : ''}"${showHoverCards ? '' : ` title="${escapeHtml(notif.title)}${releaseBody ? `\n\n${escapeHtml(releaseBody)}` : ''}"`}>
           ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(truncatedBody)}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
         </div>
       </div>
@@ -268,8 +268,8 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
         ${
           notif.author
             ? `
-          <a class="author-profile-link" href="${escapeAttr(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeAttr(notif.author.avatar_url)}" class="author-avatar" alt="${escapeAttr(notif.author.login)}" title="${escapeAttr(notif.author.login)}" />
+          <a class="author-profile-link" href="${escapeHtml(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
+            <img src="${escapeHtml(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
           </a>
         `
             : ''

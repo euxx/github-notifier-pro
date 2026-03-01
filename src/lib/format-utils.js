@@ -94,10 +94,3 @@ export function escapeHtml(text) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-
-/**
- * Escape HTML attributes to prevent XSS
- */
-export function escapeAttr(text) {
-  return escapeHtml(text);
-}

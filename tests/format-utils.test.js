@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  formatReason,
-  formatType,
-  formatState,
-  getNotificationStatus,
-  escapeHtml,
-  escapeAttr,
-} from '../src/lib/format-utils.js';
+import { formatReason, formatType, formatState, getNotificationStatus, escapeHtml } from '../src/lib/format-utils.js';
 
 describe('formatReason', () => {
   it.each([
@@ -135,12 +128,5 @@ describe('escapeHtml', () => {
   it('should convert non-string values to string', () => {
     expect(escapeHtml(123)).toBe('123');
     expect(escapeHtml(true)).toBe('true');
-  });
-});
-
-describe('escapeAttr', () => {
-  it('should escape HTML for attribute values', () => {
-    expect(escapeAttr('<test>')).toBe('&lt;test&gt;');
-    expect(escapeAttr('"value"')).toBe('&quot;value&quot;');
   });
 });
