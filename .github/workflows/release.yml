@@ -25,6 +25,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create config
+        run: |
+          echo "export const CLIENT_ID = '${{ secrets.CLIENT_ID }}';" > src/config/config.js
+
       - name: Run checks
         run: npm run ci
 
