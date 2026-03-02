@@ -5,9 +5,9 @@
 1. Update CHANGELOG.md:
    - Add version entry: `## [X.Y.Z] - YYYY-MM-DD` with changes
 
-2. Update version in `package.json` and `manifest.json`:
+2. Update version in `package.json`, `manifest.json`, and `manifest-firefox.json`:
    ```sh
-   # Edit both files to set "version": "X.Y.Z"
+   # Edit all three files to set "version": "X.Y.Z"
    ```
 
 3. Commit changes:
