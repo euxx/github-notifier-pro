@@ -505,7 +505,7 @@ body.dark-theme .pat-input.input-error {
 
 .repo-mark-read-btn:hover {
   background: var(--bg-secondary);
-  color: var(--accent-color);
+  color: var(--text-primary);
 }
 
 .repo-mark-read-btn:active {

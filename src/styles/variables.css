@@ -6,7 +6,6 @@
 :root {
   /* Theme Colors - Monochrome */
   --primary-color: #1f2937;
-  --primary-hover: #111827;
 
   /* UI Colors */
   --text-primary: #1f2937;
@@ -35,7 +34,6 @@
 /* Dark Theme - GitHub Notifications Style */
 body.dark-theme {
   --primary-color: #d1d5db;
-  --primary-hover: #9ca3af;
 
   --text-primary: #adbac7;
   --text-secondary: #768390;
