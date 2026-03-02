@@ -1,11 +1,21 @@
 # Development
 
-## Setup
+## Installation from Source
 
-```bash
-npm install
-npm run prepare
-```
+1. Clone the repository
+2. Install dependencies and set up git hooks:
+   ```bash
+   npm install
+   npm run prepare
+   ```
+3. Configure OAuth:
+   ```bash
+   cp src/config/config.example.js src/config/config.js
+   # Edit config.js with your GitHub OAuth App Client ID
+   ```
+4. Load in browser:
+   - **Chrome**: `chrome://extensions` → Enable Developer mode → Load unpacked → Select project folder
+   - **Firefox**: Run `npm run dev:firefox`, then `about:debugging` → Load Temporary Add-on → Select `dist/firefox-dev/manifest.json`
 
 ## Scripts
 
