@@ -30,7 +30,7 @@
 
 ## Development
 
-See [development.md](development.md) for installation, building, and setup.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for installation, building, and setup.
 
 ## License
 

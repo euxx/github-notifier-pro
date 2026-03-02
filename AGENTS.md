@@ -13,4 +13,4 @@ Or run individually:
 - `npm run lint` - Lint code
 - `npm run format` - Format code with Prettier
 
-Refer to [development.md](development.md) for more details on available scripts and project setup.
+Refer to [DEVELOPMENT.md](DEVELOPMENT.md) for more details on available scripts and project setup.
