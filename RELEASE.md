@@ -1,0 +1,29 @@
+# Release Guide
+
+## Steps to Release a New Version
+
+1. Update CHANGELOG.md:
+   - Add version entry: `## [X.Y.Z] - YYYY-MM-DD` with changes
+
+2. Update version in `package.json` and `manifest.json`:
+   ```sh
+   # Edit both files to set "version": "X.Y.Z"
+   ```
+
+3. Commit changes:
+   ```sh
+   git add CHANGELOG.md package.json manifest.json manifest-firefox.json
+   git commit -m "chore: update version to vX.Y.Z"
+   git push origin main
+   ```
+
+4. Run the release workflow:
+   ```sh
+   gh workflow run release.yml
+   ```
+   This will run tests, build Chrome & Firefox packages, and create a GitHub Release with the zip files.
+
+5. Update the release notes on GitHub if needed:
+   ```sh
+   gh release edit vX.Y.Z --notes "Release notes here"
+   ```
