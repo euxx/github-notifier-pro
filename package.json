@@ -2,7 +2,7 @@
   "name": "github-notifier-pro",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Chrome extension that brings GitHub notifications right to your browser",
+  "description": "GitHub notifications in your browser toolbar",
   "scripts": {
     "ci": "npm run test && npm run lint:fix && npm run format",
     "dev": "npm run ci && npm run dev:firefox",

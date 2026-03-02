@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GitHub Notifier Pro",
   "version": "1.0.0",
-  "description": "Get GitHub notifications in your browser",
+  "description": "GitHub notifications in your browser toolbar",
 
   "permissions": [
     "alarms",
