@@ -91,6 +91,7 @@ export function getCachedNotifications() {
  * Clear notification cache to force re-render
  */
 export function clearNotificationCache() {
+  cachedNotifications = null;
   cachedNotificationsHash = null;
 }
 
@@ -346,7 +347,7 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
     window.close();
   });
 
-  // Mark as read button with optimistic update
+  // Mark as read button with immediate visual feedback
   const markReadBtn = li.querySelector('.btn-mark-read');
   markReadBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
@@ -360,69 +361,19 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
     markReadBtn.textContent = '✓';
 
     // Track user action
-    const animationDuration = ANIMATION_DURATION.FADE_OUT + ANIMATION_DURATION.SLIDE_UP;
+    const animationDuration = ANIMATION_DURATION.FADE_OUT;
     onUserAction(animationDuration);
 
+    // Force reflow so ::after pseudo-element starts at opacity 0
+    // eslint-disable-next-line no-unused-expressions
+    li.offsetHeight;
     li.classList.add('fade-out');
-
-    const originalParent = li.parentElement;
-    const originalNextSibling = li.nextSibling;
-
-    const slideUpTimeout = setTimeout(() => {
-      li.classList.add('slide-up');
-
-      const removeTimeout = setTimeout(() => {
-        li.remove();
-
-        // Check if any notifications from this group remain
-        const groupItems = notificationsList.querySelectorAll('.notification-item[data-id]');
-        let hasNotificationsInGroup = false;
-
-        for (const item of groupItems) {
-          const itemId = item.dataset.id;
-          const itemNotif = notifications.find((n) => n.id === itemId);
-          if (itemNotif && itemNotif.repository.full_name === repoFullName) {
-            hasNotificationsInGroup = true;
-            break;
-          }
-        }
-
-        if (!hasNotificationsInGroup && repoHeader) {
-          repoHeader.remove();
-        }
-
-        const remaining = notificationsList.querySelectorAll('.notification-item').length;
-        if (remaining === 0) {
-          emptyState.hidden = false;
-          markAllBtn.disabled = true;
-        }
-      }, ANIMATION_DURATION.SLIDE_UP);
-
-      li.dataset.removeTimeout = removeTimeout;
-    }, ANIMATION_DURATION.FADE_OUT);
-
-    li.dataset.slideUpTimeout = slideUpTimeout;
 
     // Restore the notification item to its original state on failure
     function restoreItem() {
-      clearTimeout(slideUpTimeout);
-      if (li.dataset.removeTimeout) {
-        clearTimeout(parseInt(li.dataset.removeTimeout));
-      }
-
-      li.classList.remove('marking-read', 'fade-out', 'slide-up');
+      li.classList.remove('marking-read', 'fade-out');
       markReadBtn.disabled = false;
       markReadBtn.textContent = '✓';
-
-      if (!li.parentElement) {
-        if (originalNextSibling && originalNextSibling.parentElement) {
-          originalParent.insertBefore(li, originalNextSibling);
-        } else {
-          originalParent.appendChild(li);
-        }
-        emptyState.hidden = true;
-        markAllBtn.disabled = false;
-      }
 
       li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
       setTimeout(() => {
@@ -433,7 +384,28 @@ function createNotificationItem(notif, repoHeader, repoFullName, notifications) 
     try {
       const result = await sendMessage(MESSAGE_TYPES.MARK_AS_READ, { notificationId: notif.id });
 
-      if (!result.success) {
+      if (result.success) {
+        // Ensure at least one frame of the overlay animation is painted
+        await new Promise(requestAnimationFrame);
+
+        // Success: remove notification from DOM
+        li.remove();
+
+        // Check if any notifications from this group remain
+        const escapedRepo = CSS.escape(repoFullName);
+        const remainingInGroup = notificationsList.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`);
+
+        if (remainingInGroup.length === 0 && repoHeader) {
+          repoHeader.remove();
+        }
+
+        const remaining = notificationsList.querySelectorAll('.notification-item').length;
+        if (remaining === 0) {
+          emptyState.hidden = false;
+          markAllBtn.disabled = true;
+        }
+      } else {
+        // Failure: restore item
         restoreItem();
       }
     } catch (error) {

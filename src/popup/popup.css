@@ -532,36 +532,41 @@ body.dark-theme .pat-input.input-error {
 }
 
 /* Fade out animation for marking as read */
-.notification-item.marking-read {
+.notification-item.marking-read,
+.repo-group-header.marking-read {
   pointer-events: none;
+  transition: border-color 0.2s ease-out;
 }
 
-.notification-item.fade-out {
+.notification-item.fade-out,
+.repo-group-header.fade-out {
+  border-color: transparent;
+}
+
+/* Use overlay instead of opacity to avoid compositing artifacts in scroll containers */
+.notification-item.marking-read::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-primary);
   opacity: 0;
-  transform: translateX(10px);
-  transition:
-    opacity 0.2s ease-out,
-    transform 0.2s ease-out;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
 }
 
-.notification-item.slide-up {
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  margin-top: 0;
-  margin-bottom: 0;
-  border-top-width: 0;
-  overflow: hidden;
-  transition:
-    max-height 0.2s ease-out,
-    padding 0.2s ease-out,
-    margin 0.2s ease-out,
-    border-top-width 0.2s ease-out;
+.repo-group-header.marking-read::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-secondary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
 }
 
-/* Smooth transitions for background color (error feedback) */
-.notification-item.rollback {
-  transition: background-color 0.3s ease-out;
+.notification-item.fade-out::after,
+.repo-group-header.fade-out::after {
+  opacity: 1;
 }
 
 .notification-item:hover {
@@ -597,10 +602,6 @@ body.dark-theme .pat-input.input-error {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto; /* Enable mouse interaction when visible */
-}
-
-.notification-item {
-  position: relative; /* Enable absolute positioning for child */
 }
 
 body.dark-theme .notification-hover-card {

@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../src/lib/constants.js', () => ({
   ANIMATION_DURATION: {
     FADE_OUT: 200,
-    SLIDE_UP: 200,
     ERROR_BACKGROUND_FADE: 1000,
   },
   NOTIFICATION_TYPES: {

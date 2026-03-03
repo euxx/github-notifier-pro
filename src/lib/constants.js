@@ -16,7 +16,6 @@ export const MAX_POLL_INTERVAL_SECONDS = 600; // 10 minutes maximum (prevent exc
 // UI Animation Timings (milliseconds)
 export const ANIMATION_DURATION = {
   FADE_OUT: 200,
-  SLIDE_UP: 200,
   STAGGER_DELAY: 50,
   MIN_SPINNER_TIME: 500,
   STATUS_MESSAGE: 3000,
