@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1] - 2026-03-03
+
+### Fixed
+- Mark-as-read animation reworked to use overlay approach, fixing dark band artifact in scroll containers
+- Reduced right-side jump when adjusting popup width
+- CSS variables standardized across device-flow and popup styles
+
+### Improved
+- DOM removal now deferred until API confirms success for all mark-as-read flows
+- Stagger timeouts properly tracked and cancellable on rollback
+- Notification cache cleared on mark-all-as-read to prevent stale data
+
 ## [1.0.0] - 2026-03-03
 
 - 🔔 Real-time unread count badge and desktop notifications
