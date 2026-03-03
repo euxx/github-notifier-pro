@@ -18,7 +18,7 @@ export default [
 
       // Possible Problems
       'no-unused-vars': [
-        'warn',
+        'error',
         {
           vars: 'all',
           args: 'after-used',
@@ -28,7 +28,7 @@ export default [
         },
       ],
       'no-console': 'off', // Common in browser extensions
-      'no-debugger': 'warn',
+      'no-debugger': 'error',
       'no-constant-binary-expression': 'error',
 
       // Best Practices
