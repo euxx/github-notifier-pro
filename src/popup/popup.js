@@ -479,6 +479,7 @@ async function handleWidthChange() {
 
   popupWidthInput.value = width;
   document.body.style.width = `${width}px`;
+  updateScrollbarCompensation();
   setCachedPopupWidth(width);
   updateWidthButtons(width);
 
