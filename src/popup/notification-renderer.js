@@ -223,10 +223,9 @@ function positionHoverCard(listItem) {
  * @param {Object} notif - Notification object
  * @param {HTMLElement} repoHeader - Repository header element
  * @param {string} repoFullName - Repository full name
- * @param {Array} notifications - All notifications array
  * @returns {HTMLElement} Notification list item element
  */
-function createNotificationItem(notif, repoHeader, repoFullName, notifications) {
+function createNotificationItem(notif, repoHeader, repoFullName) {
   const { notificationsList, emptyState, markAllBtn, getShowHoverCards, sendMessage, onUserAction } = config;
   const showHoverCards = getShowHoverCards();
 
@@ -524,7 +523,7 @@ export function renderNotifications(notifications, shouldResort = true) {
     notificationsList.appendChild(repoHeader);
 
     for (const notif of group.notifications) {
-      const li = createNotificationItem(notif, repoHeader, repoFullName, notifications);
+      const li = createNotificationItem(notif, repoHeader, repoFullName);
       notificationsList.appendChild(li);
     }
   }
