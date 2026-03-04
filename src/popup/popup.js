@@ -554,27 +554,10 @@ async function markAllAsRead() {
 
   // Immediate visual feedback: start overlay animation with stagger
   const items = [...notificationsList.querySelectorAll('.repo-group-header, .notification-item')];
-  lastAnimationDuration =
-    Math.max(items.length - 1, 0) * ANIMATION_DURATION.STAGGER_DELAY + ANIMATION_DURATION.FADE_OUT;
-  lastUserActionTime = Date.now();
-
-  // Add marking-read to all items first for ::after pseudo-element
-  items.forEach((item) => item.classList.add('marking-read'));
-  // eslint-disable-next-line no-unused-expressions
-  document.body.offsetHeight; // Force reflow
-
-  // Stagger fade-out and track timeout IDs for rollback
-  const staggerTimeouts = [];
-  items.forEach((item, index) => {
-    const timeoutId = setTimeout(() => {
-      item.classList.add('fade-out');
-    }, index * ANIMATION_DURATION.STAGGER_DELAY);
-    staggerTimeouts.push(timeoutId);
-  });
+  const anim = beginStaggerAnimation(items);
 
   function rollback() {
-    staggerTimeouts.forEach((id) => clearTimeout(id));
-    removeOverlayFadeOut(items);
+    anim.rollback();
     markAllBtn.disabled = false;
     markAllBtn.innerHTML = originalText;
   }
@@ -582,16 +565,16 @@ async function markAllAsRead() {
   try {
     const result = await sendMessage(MESSAGE_TYPES.MARK_ALL_AS_READ);
     if (result.success) {
-      // Success: clear pending animations, DOM and show empty state
-      staggerTimeouts.forEach((id) => clearTimeout(id));
+      // Wait for stagger animation to finish before clearing DOM
+      await anim.waitForCompletion();
       clearNotificationCache();
-      await new Promise(requestAnimationFrame);
       notificationsList.innerHTML = '';
       emptyState.hidden = false;
       markAllBtn.disabled = true;
       markAllBtn.innerHTML = originalText;
     } else {
       rollback();
+      console.error('Failed to mark all as read:', result.error);
     }
   } catch (error) {
     rollback();
@@ -772,21 +755,75 @@ async function logout() {
   await showView('login');
 }
 
+// Cap stagger to avoid long animation when many items are off-screen
+const MAX_STAGGER_COUNT = 20;
+
 /**
- * Apply overlay fade-out animation via CSS classes.
- * Uses ::after pseudo-element overlay to avoid compositing artifacts.
- * @param {HTMLElement[]} elements - Elements to animate
+ * Calculate total stagger animation duration for a given number of elements.
  */
-function applyOverlayFadeOut(elements) {
+function calcStaggerDuration(count) {
+  const capped = Math.min(count, MAX_STAGGER_COUNT);
+  return Math.max(capped - 1, 0) * ANIMATION_DURATION.STAGGER_DELAY + ANIMATION_DURATION.FADE_OUT;
+}
+
+/**
+ * Wait until a stagger animation that started at `startTime` has finished.
+ * Resolves immediately if the animation has already completed.
+ */
+async function waitForAnimation(startTime, duration) {
+  const remaining = Math.max(0, duration - (Date.now() - startTime));
+  if (remaining > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remaining));
+  }
+}
+
+/**
+ * Start stagger animation on elements and return control handles.
+ * Sets global timing state and returns rollback/wait helpers.
+ * @param {HTMLElement[]} elements - Elements to animate
+ * @returns {{ rollback: () => void, waitForCompletion: () => Promise<void> }}
+ */
+function beginStaggerAnimation(elements) {
+  lastAnimationDuration = calcStaggerDuration(elements.length);
+  lastUserActionTime = Date.now();
+  const animationStart = lastUserActionTime;
+  const animationDuration = lastAnimationDuration;
+
+  const timeoutIds = startStaggerFadeOut(elements, ANIMATION_DURATION.STAGGER_DELAY);
+
+  return {
+    rollback() {
+      timeoutIds.forEach((id) => clearTimeout(id));
+      removeOverlayFadeOut(elements);
+    },
+    waitForCompletion() {
+      return waitForAnimation(animationStart, animationDuration);
+    },
+  };
+}
+
+/**
+ * Start staggered overlay fade-out animation.
+ * @param {HTMLElement[]} elements - Elements to animate
+ * @param {number} staggerDelay - Delay in ms between each element's fade
+ * @returns {number[]} Timeout IDs for cancellation
+ */
+function startStaggerFadeOut(elements, staggerDelay) {
   for (const el of elements) {
     el.classList.add('marking-read');
   }
-  // Force reflow so ::after pseudo-element starts at opacity 0
   // eslint-disable-next-line no-unused-expressions
-  document.body.offsetHeight;
-  for (const el of elements) {
-    el.classList.add('fade-out');
-  }
+  document.body.offsetHeight; // Force reflow
+
+  const timeoutIds = [];
+  elements.forEach((el, index) => {
+    const delay = Math.min(index, MAX_STAGGER_COUNT - 1) * staggerDelay;
+    const id = setTimeout(() => {
+      el.classList.add('fade-out');
+    }, delay);
+    timeoutIds.push(id);
+  });
+  return timeoutIds;
 }
 
 /**
@@ -806,27 +843,22 @@ function removeOverlayFadeOut(elements) {
 async function handleMarkRepoAsRead(repoFullName) {
   const [owner, repo] = repoFullName.split('/');
 
-  lastUserActionTime = Date.now();
-
   // Immediate visual feedback: start animation before API response
   const escapedRepo = CSS.escape(repoFullName);
   const repoHeader = document.querySelector(`.repo-group-header[data-repo="${escapedRepo}"]`);
   const items = [...document.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`)];
 
-  const animationDuration = ANIMATION_DURATION.FADE_OUT;
-  lastAnimationDuration = animationDuration;
-
   const allElements = repoHeader ? [repoHeader, ...items] : items;
-  applyOverlayFadeOut(allElements);
+
+  const anim = beginStaggerAnimation(allElements);
 
   try {
     const response = await sendMessage(MESSAGE_TYPES.MARK_REPO_AS_READ, { owner, repo });
 
     if (response.success) {
-      // Success: remove elements from DOM
-      await new Promise(requestAnimationFrame);
-      if (repoHeader) repoHeader.remove();
-      items.forEach((item) => item.remove());
+      // Wait for stagger animation to finish before removing DOM
+      await anim.waitForCompletion();
+      allElements.forEach((el) => el.remove());
 
       const remainingItems = notificationsList.querySelectorAll('.notification-item');
       if (remainingItems.length === 0) {
@@ -842,13 +874,11 @@ async function handleMarkRepoAsRead(repoFullName) {
         console.error('Failed to reload notifications:', error);
       }
     } else {
-      // Failure: rollback animation
-      removeOverlayFadeOut(allElements);
+      anim.rollback();
       console.error('Failed to mark repo as read:', response.error);
     }
   } catch (error) {
-    // Failure: rollback animation
-    removeOverlayFadeOut(allElements);
+    anim.rollback();
     console.error('Error marking repo as read:', error);
   }
 }
