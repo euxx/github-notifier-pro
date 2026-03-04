@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.2] - 2026-03-04
+
+### Improved
+- Unified stagger animation for all mark-as-read flows
+- Eliminated redundant GET_STATE round-trip after mark-repo-as-read
+
 ## [1.0.1] - 2026-03-03
 
 ### Fixed
