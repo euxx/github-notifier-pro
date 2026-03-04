@@ -858,21 +858,18 @@ async function handleMarkRepoAsRead(repoFullName) {
     if (response.success) {
       // Wait for stagger animation to finish before removing DOM
       await anim.waitForCompletion();
-      allElements.forEach((el) => el.remove());
 
-      const remainingItems = notificationsList.querySelectorAll('.notification-item');
-      if (remainingItems.length === 0) {
-        emptyState.hidden = false;
-        markAllBtn.disabled = true;
-      }
-
-      // Reload to get updated state
-      try {
+      // Re-render with updated notifications returned by the background.
+      // Defensive fallback: if payload shape is unexpected, reload full state.
+      let nextNotifications = response.notifications;
+      if (!Array.isArray(nextNotifications)) {
+        console.warn('MARK_REPO_AS_READ returned invalid notifications payload, reloading state');
         const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-        renderNotifications(state.notifications, true);
-      } catch (error) {
-        console.error('Failed to reload notifications:', error);
+        nextNotifications = Array.isArray(state.notifications) ? state.notifications : [];
       }
+
+      clearNotificationCache();
+      renderNotifications(nextNotifications, false);
     } else {
       anim.rollback();
       console.error('Failed to mark repo as read:', response.error);

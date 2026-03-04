@@ -512,7 +512,10 @@ describe('service-worker', () => {
         { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
       ]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1' });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(sendResponse).toHaveBeenCalledWith({
+        success: true,
+        notifications: [{ id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' }],
+      });
     });
 
     it('should return error on API failure', async () => {
@@ -552,7 +555,10 @@ describe('service-worker', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1+' });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(sendResponse).toHaveBeenCalledWith({
+        success: true,
+        notifications: [{ id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' }],
+      });
     });
   });
 

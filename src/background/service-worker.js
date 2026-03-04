@@ -750,7 +750,7 @@ async function markRepoAsRead(owner, repo) {
     await storage.setNotifications(updated);
     await updateBadge(updated.length, hasMoreNotifications);
 
-    return { success: true };
+    return { success: true, notifications: updated };
   } catch (error) {
     console.error('Failed to mark repo as read:', error);
     return { success: false, error: error.message };
