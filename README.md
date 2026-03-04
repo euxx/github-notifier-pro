@@ -3,7 +3,7 @@
 <img src="images/icon.png" width="100" alt="GitHub Notifier Pro" align="left">
 
 <div>
-  <p>GitHub notifications in your browser toolbar.</p>
+  <p>GitHub notifications in the browser toolbar.</p>
   <p>Supports Chrome 99+ (MV3) and Firefox 110+.</p>
 </div>
 

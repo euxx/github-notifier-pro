@@ -2,7 +2,7 @@
   "name": "github-notifier-pro",
   "version": "1.0.2",
   "type": "module",
-  "description": "GitHub notifications in your browser toolbar",
+  "description": "GitHub notifications in the browser toolbar",
   "scripts": {
     "ci": "npm run test && npm run lint:fix && npm run format",
     "dev": "npm run ci && npm run dev:firefox",
