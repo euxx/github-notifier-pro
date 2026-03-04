@@ -23,7 +23,16 @@
    ```
    This will run tests, build Chrome & Firefox packages, and create a GitHub Release with the zip files.
 
-5. Update the release notes on GitHub if needed:
+5. Verify the release was created successfully:
    ```sh
-   gh release edit vX.Y.Z --notes "Release notes here"
+   gh release view vX.Y.Z
+   ```
+
+6. Update the release notes on GitHub to match CHANGELOG.md:
+   ```sh
+   gh release edit vX.Y.Z --notes "## Improved
+   - Change 1
+   - Change 2
+
+   **Full Changelog**: https://github.com/euxx/github-notifier-pro/compare/vPREV...vX.Y.Z"
    ```
