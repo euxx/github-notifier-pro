@@ -9,10 +9,14 @@
    ```sh
    # Edit all three files to set "version": "X.Y.Z"
    ```
+   Then run `npm install` to sync `package-lock.json`:
+   ```sh
+   npm install
+   ```
 
 3. Commit changes:
    ```sh
-   git add CHANGELOG.md package.json manifest.json manifest-firefox.json
+   git add CHANGELOG.md package.json package-lock.json manifest.json manifest-firefox.json
    git commit -m "chore: update version to vX.Y.Z"
    git push origin main
    ```
