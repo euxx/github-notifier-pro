@@ -38,7 +38,10 @@ body.popup-ready {
 body.transitions-enabled {
   transition:
     background-color 0.2s ease-out,
-    color 0.2s ease-out;
+    color 0.2s ease-out,
+    /* Smooth popup-window resize to eliminate the 1-2 frame compositor timing
+       gap that produces a visible flash when body width changes. */
+    width 60ms ease-out;
 }
 
 body.transitions-enabled * {
@@ -1028,7 +1031,10 @@ body.dark-theme .settings-view {
 .settings-content {
   flex: 1;
   padding: 16px 20px;
-  overflow-y: auto;
+  /* Use hidden instead of auto: the settings panel never needs to scroll,
+     and overflow-y: auto triggers a two-pass scrollbar layout on every width
+     change, causing a ~17px horizontal flash on the right side of the popup. */
+  overflow-y: hidden;
 }
 
 .setting-row {
