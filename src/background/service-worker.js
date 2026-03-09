@@ -326,7 +326,6 @@ async function checkNotifications() {
 
     if (result) {
       const { items: notifications, hasMore } = result;
-      hasMoreNotifications = hasMore;
 
       // Check if a newer fetch has already started
       if (currentFetchVersion < notificationFetchVersion) {
@@ -374,9 +373,25 @@ async function checkNotifications() {
         return;
       }
 
-      // Save basic data immediately - popup can display now
-      await storage.setNotifications(basicProcessed);
-      await updateBadge(basicProcessed.length, hasMore);
+      // Re-read current storage to catch any user actions (markAsRead etc.) that
+      // completed while the fetch was in-flight. Keep new notifications unconditionally,
+      // but only keep pre-existing ones if they're still in storage (not user-deleted).
+      const currentStored = await storage.getNotifications();
+      // Re-check version after async read: a user mark-as-read may have bumped
+      // notificationFetchVersion while we were reading, making our snapshot stale.
+      if (currentFetchVersion < notificationFetchVersion) {
+        console.log(`Fetch #${currentFetchVersion} superseded during safeBasic re-read, aborting`);
+        return;
+      }
+      const currentStoredIds = new Set(currentStored.map((n) => n.id));
+      const safeBasic = basicProcessed.filter((n) => !existingIds.has(n.id) || currentStoredIds.has(n.id));
+
+      // Save basic data immediately - popup can display now.
+      // Update hasMoreNotifications here (inside all version checks) so it only
+      // reflects fetches that actually commit to storage.
+      hasMoreNotifications = hasMore;
+      await storage.setNotifications(safeBasic);
+      await updateBadge(safeBasic.length, hasMore);
 
       // Second pass: Fetch details asynchronously for new/updated notifications
       // Create a deep copy to avoid race conditions with concurrent updates
@@ -486,8 +501,8 @@ async function checkNotifications() {
           });
       }
 
-      // Show desktop notifications for new items (using basic data)
-      await showDesktopNotificationsForNew(basicProcessed);
+      // Show desktop notifications for new items (using safe-filtered list)
+      await showDesktopNotificationsForNew(safeBasic);
     }
   } catch (error) {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
