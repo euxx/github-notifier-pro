@@ -748,6 +748,128 @@ describe('service-worker', () => {
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '2' });
     });
   });
+
+  describe('race condition prevention', () => {
+    // Minimal raw GitHub API notification shape
+    const makeRawNotif = (id) => ({
+      id,
+      subject: { title: `Issue ${id}`, type: 'Issue', url: null },
+      reason: 'mention',
+      unread: true,
+      updated_at: '2024-01-01T00:00:00Z',
+      repository: { name: 'repo', full_name: 'owner/repo', html_url: 'https://github.com/owner/repo' },
+    });
+
+    // Minimal stored notification shape (as returned by storage)
+    const makeStoredNotif = (id) => ({
+      id,
+      updated_at: '2024-01-01T00:00:00Z',
+      type: 'Issue',
+    });
+
+    beforeEach(() => {
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 60;
+    });
+
+    it('safeBasic should exclude pre-existing notifications removed during the fetch', async () => {
+      // GitHub returns A and B; A was already in storage before the fetch
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [makeRawNotif('A'), makeRawNotif('B')],
+        hasMore: false,
+      });
+
+      // First getNotifications call: existingIds snapshot (both A and B present)
+      // Second getNotifications call: safeBasic re-read (A was removed by markAsRead during the fetch)
+      mockStorageFunctions.getNotifications
+        .mockResolvedValueOnce([makeStoredNotif('A'), makeStoredNotif('B')])
+        .mockResolvedValueOnce([makeStoredNotif('B')]);
+
+      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Find the basic-save setNotifications call (an array write, not the badge)
+      const writeCalls = mockStorageFunctions.setNotifications.mock.calls;
+      expect(writeCalls.length).toBeGreaterThan(0);
+
+      // The safeBasic write should exclude A (removed during fetch)
+      const basicWrite = writeCalls[0][0];
+      expect(basicWrite.map((n) => n.id)).not.toContain('A');
+      expect(basicWrite.map((n) => n.id)).toContain('B');
+    });
+
+    it('safeBasic should always keep new notifications not in existingIds', async () => {
+      // GitHub returns A (existing) and C (brand new, not yet in storage)
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [makeRawNotif('A'), makeRawNotif('C')],
+        hasMore: false,
+      });
+
+      // First getNotifications: only A existed before the fetch
+      // Second getNotifications (safeBasic re-read): still only A in storage
+      mockStorageFunctions.getNotifications
+        .mockResolvedValueOnce([makeStoredNotif('A')])
+        .mockResolvedValueOnce([makeStoredNotif('A')]);
+
+      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const writeCalls = mockStorageFunctions.setNotifications.mock.calls;
+      expect(writeCalls.length).toBeGreaterThan(0);
+
+      const basicWrite = writeCalls[0][0];
+      const writtenIds = basicWrite.map((n) => n.id);
+
+      // C is new (not in existingIds) → always kept unconditionally
+      expect(writtenIds).toContain('C');
+      // A is existing and still in storage → also kept
+      expect(writtenIds).toContain('A');
+    });
+
+    it('safeBasic should abort when notificationFetchVersion is bumped during re-read', async () => {
+      // Hold the second getNotifications call (safeBasic re-read) until we manually release it
+      let releaseSafeBasicRead;
+      mockStorageFunctions.getNotifications
+        .mockResolvedValueOnce([makeStoredNotif('A'), makeStoredNotif('B')]) // existingIds
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseSafeBasicRead = resolve;
+            }),
+        ); // safeBasic re-read held
+
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [makeRawNotif('A'), makeRawNotif('B')],
+        hasMore: false,
+      });
+
+      // Start checkNotifications (will pause at safeBasic re-read)
+      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      await new Promise((resolve) => setTimeout(resolve, 30));
+
+      // markAsRead bumps notificationFetchVersion before safeBasic resumes
+      // slot for markAsRead's own getNotifications call
+      mockStorageFunctions.getNotifications.mockResolvedValueOnce([makeStoredNotif('B')]);
+      mockGithub.markAsRead.mockResolvedValue(true);
+      const markResponse = vi.fn();
+      messageHandler({ action: 'markAsRead', notificationId: 'A' }, {}, markResponse);
+
+      // Wait for markAsRead to complete (bumps version and writes [B])
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Release safeBasic's getNotifications (version is already bumped)
+      releaseSafeBasicRead([makeStoredNotif('B')]);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+
+      // setNotifications should only have been called by markAsRead (writing [B])
+      // safeBasic should have aborted after detecting the version bump
+      const writeCalls = mockStorageFunctions.setNotifications.mock.calls;
+      // Every write should contain only B (not A)
+      writeCalls.forEach((call) => {
+        expect(call[0].map((n) => n.id)).not.toContain('A');
+      });
+    });
+  });
 });
 
 describe('service-worker helper functions', () => {
