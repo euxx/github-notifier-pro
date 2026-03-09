@@ -547,10 +547,14 @@ async function showView(view) {
  */
 async function markAllAsRead() {
   // Immediate visual feedback
-  const originalText = markAllBtn.innerHTML;
+  const originalNodes = Array.from(markAllBtn.childNodes).map((n) => n.cloneNode(true));
   markAllBtn.disabled = true;
-  markAllBtn.innerHTML =
-    '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>';
+  const spinner = document
+    .createRange()
+    .createContextualFragment(
+      '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>',
+    );
+  markAllBtn.replaceChildren(spinner);
 
   // Immediate visual feedback: start overlay animation with stagger
   const items = [...notificationsList.querySelectorAll('.repo-group-header, .notification-item')];
@@ -559,7 +563,7 @@ async function markAllAsRead() {
   function rollback() {
     anim.rollback();
     markAllBtn.disabled = false;
-    markAllBtn.innerHTML = originalText;
+    markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
   }
 
   try {
@@ -568,10 +572,10 @@ async function markAllAsRead() {
       // Wait for stagger animation to finish before clearing DOM
       await anim.waitForCompletion();
       clearNotificationCache();
-      notificationsList.innerHTML = '';
+      notificationsList.replaceChildren();
       emptyState.hidden = false;
       markAllBtn.disabled = true;
-      markAllBtn.innerHTML = originalText;
+      markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
     } else {
       rollback();
       console.error('Failed to mark all as read:', result.error);

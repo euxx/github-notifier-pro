@@ -1,4 +1,78 @@
+/**
+ * @vitest-environment node
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock DOM APIs
+global.document = {
+  createElement: vi.fn((tag) => {
+    const element = {
+      tagName: tag.toUpperCase(),
+      className: '',
+      textContent: '',
+      title: '',
+      children: [],
+      appendChild: vi.fn(function (child) {
+        this.children.push(child);
+        return child;
+      }),
+      querySelector: vi.fn(function (selector) {
+        // Simple recursive querySelector mock
+        const className = selector.replace('.', '');
+        const findInChildren = (children) => {
+          for (const child of children) {
+            if (child.className === className) {
+              return child;
+            }
+            if (child.children && child.children.length > 0) {
+              const found = findInChildren(child.children);
+              if (found) return found;
+            }
+          }
+          return undefined;
+        };
+        return findInChildren(this.children);
+      }),
+      setAttribute: vi.fn(function (name, value) {
+        this[name] = value;
+      }),
+    };
+    return element;
+  }),
+  createTextNode: vi.fn((text) => ({
+    nodeType: 3,
+    textContent: text,
+  })),
+  createElementNS: vi.fn((ns, tag) => {
+    const element = {
+      tagName: tag.toUpperCase(),
+      namespaceURI: ns,
+      className: '',
+      children: [],
+      appendChild: vi.fn(function (child) {
+        this.children.push(child);
+        return child;
+      }),
+      classList: {
+        add: vi.fn(),
+      },
+      setAttribute: vi.fn(),
+    };
+    return element;
+  }),
+  adoptNode: vi.fn((node) => node),
+};
+
+global.DOMParser = class DOMParser {
+  parseFromString(svgString) {
+    return {
+      documentElement: {
+        tagName: 'svg',
+        outerHTML: svgString,
+      },
+    };
+  }
+};
 
 // Mock dependencies before importing
 vi.mock('../src/lib/constants.js', () => ({
@@ -21,16 +95,17 @@ vi.mock('../src/lib/constants.js', () => ({
 vi.mock('../src/lib/format-utils.js', () => ({
   formatReason: vi.fn((reason) => reason),
   getNotificationStatus: vi.fn(() => 'Status'),
-  escapeHtml: vi.fn((text) => text),
 }));
 
 vi.mock('../src/lib/icons.js', () => ({
   getIconSVG: vi.fn(() => '<svg></svg>'),
+  getIconSVGElement: vi.fn(() => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    return svg;
+  }),
 }));
 
-const { escapeHtml, formatReason } = await import('../src/lib/format-utils.js');
-// Real (unmocked) escapeHtml for integration-style assertions
-const { escapeHtml: realEscapeHtml } = await vi.importActual('../src/lib/format-utils.js');
+const { formatReason } = await import('../src/lib/format-utils.js');
 
 const {
   formatTimeAgo,
@@ -270,31 +345,46 @@ describe('notification-renderer helper functions', () => {
       expect(getHoverCardParts(notifWithoutBody).hasDescription).toBeFalsy();
     });
 
-    it('should call escapeHtml with the formatReason output (call chain guard)', () => {
-      // Verifies the wiring: formatReason result flows into escapeHtml before HTML injection.
-      // If escapeHtml is ever removed from the template, this spy assertion will fail.
+    it('should use textContent for safety (no innerHTML injection)', () => {
+      // Verifies that createHoverCard returns a DOM element and uses textContent
+      // instead of innerHTML, which inherently prevents XSS attacks
       const maliciousReason = '<img src=x onerror=alert(1)>';
       vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
 
-      createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
+      const card = createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
 
-      expect(vi.mocked(escapeHtml)).toHaveBeenCalledWith(maliciousReason);
+      // Should return a DOM element-like object
+      expect(card).toBeDefined();
+      expect(card.className).toBe('notification-hover-card');
+
+      // The malicious string should be present as text content, not executed
+      const reasonElement = card.querySelector('.hover-card-reason');
+      expect(reasonElement).toBeDefined();
+      expect(reasonElement.textContent).toBe(maliciousReason);
     });
 
-    it('should produce safe HTML using real escapeHtml for malicious reason (integration)', () => {
-      // Uses the real escapeHtml implementation (not the identity mock) to validate
-      // that the actual escaping produces safe output end-to-end
+    it('should safely render malicious content using DOM APIs (integration)', () => {
+      // Uses real formatReason to validate that using textContent
+      // automatically prevents XSS without needing explicit escaping
       const maliciousReason = '<script>alert("xss")</script>';
 
       vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
-      vi.mocked(escapeHtml).mockImplementationOnce((text) => realEscapeHtml(text));
 
-      const html = createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
+      const card = createHoverCard({ reason: 'unknown_reason', updated_at: new Date().toISOString() });
 
-      // Raw script tag must not appear in the rendered output
-      expect(html).not.toContain('<script>');
-      // Real escaped output must be present
-      expect(html).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+      // The card should be a safe DOM element
+      expect(card).toBeDefined();
+      expect(card.className).toBe('notification-hover-card');
+
+      // Script tag should appear as text, not as executable code
+      const reasonElement = card.querySelector('.hover-card-reason');
+      expect(reasonElement).toBeDefined();
+      expect(reasonElement.textContent).toBe(maliciousReason);
+
+      // Verify that textContent was used (not innerHTML)
+      // Since textContent treats everything as text, the script tags are inert
+      expect(reasonElement.textContent).toContain('<script>');
+      expect(reasonElement.textContent).toContain('</script>');
     });
   });
 

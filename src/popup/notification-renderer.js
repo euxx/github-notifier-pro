@@ -3,8 +3,8 @@
  */
 
 import { ANIMATION_DURATION, NOTIFICATION_TYPES, MESSAGE_TYPES, TIME_CONVERSION } from '../lib/constants.js';
-import { formatReason, getNotificationStatus, escapeHtml } from '../lib/format-utils.js';
-import { getIconSVG } from '../lib/icons.js';
+import { formatReason, getNotificationStatus } from '../lib/format-utils.js';
+import { getIconSVGElement } from '../lib/icons.js';
 
 /**
  * Build icon class with state information
@@ -132,9 +132,9 @@ export function formatTimeAgo(dateString) {
 }
 
 /**
- * Create hover card HTML for a notification
+ * Create hover card element for a notification
  * @param {Object} notif - Notification object
- * @returns {string} HTML string
+ * @returns {HTMLElement} Hover card element
  */
 export function createHoverCard(notif) {
   const hasAuthor = notif.author?.login;
@@ -142,42 +142,77 @@ export function createHoverCard(notif) {
   const hasDescription = notif.body?.trim();
   const authorProfileUrl = hasAuthor ? buildAuthorProfileUrl(notif.author.login) : null;
 
-  const metadataParts = [];
-  metadataParts.push(`<span class="hover-card-reason">${escapeHtml(formatReason(notif.reason))}</span>`);
-  const fullTime = new Date(notif.updated_at).toLocaleString();
-  metadataParts.push(`<span title="${fullTime}">${formatTimeAgo(notif.updated_at)}</span>`);
-  if (hasComments) {
-    metadataParts.push(formatCommentCount(notif.comment_count));
+  const card = document.createElement('div');
+  card.className = 'notification-hover-card';
+
+  // Header with author info
+  if (hasAuthor) {
+    const header = document.createElement('div');
+    header.className = 'hover-card-header';
+
+    const profileLink = document.createElement('a');
+    profileLink.className = 'hover-card-profile-link';
+    profileLink.href = authorProfileUrl;
+    profileLink.target = '_blank';
+    profileLink.rel = 'noopener noreferrer';
+
+    const avatar = document.createElement('img');
+    avatar.src = notif.author.avatar_url;
+    avatar.alt = notif.author.login;
+    avatar.className = 'hover-card-avatar';
+
+    const authorDiv = document.createElement('div');
+    authorDiv.className = 'hover-card-author';
+
+    const authorName = document.createElement('div');
+    authorName.className = 'hover-card-author-name';
+    authorName.textContent = notif.author.login;
+
+    authorDiv.appendChild(authorName);
+    profileLink.appendChild(avatar);
+    profileLink.appendChild(authorDiv);
+    header.appendChild(profileLink);
+    card.appendChild(header);
   }
 
-  return `
-    <div class="notification-hover-card">
-      ${
-        hasAuthor
-          ? `
-        <div class="hover-card-header">
-          <a class="hover-card-profile-link" href="${escapeHtml(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeHtml(notif.author.avatar_url)}" alt="${escapeHtml(notif.author.login)}" class="hover-card-avatar" />
-            <div class="hover-card-author">
-              <div class="hover-card-author-name">${escapeHtml(notif.author.login)}</div>
-            </div>
-          </a>
-        </div>
-      `
-          : ''
-      }
-      <div class="hover-card-body">
-        <div class="hover-card-meta">${metadataParts.join(' · ')}</div>
-      </div>
-      ${
-        hasDescription
-          ? `
-        <div class="hover-card-description">${escapeHtml(notif.body.trim())}</div>
-      `
-          : ''
-      }
-    </div>
-  `;
+  // Body with metadata
+  const body = document.createElement('div');
+  body.className = 'hover-card-body';
+
+  const meta = document.createElement('div');
+  meta.className = 'hover-card-meta';
+
+  const reasonSpan = document.createElement('span');
+  reasonSpan.className = 'hover-card-reason';
+  reasonSpan.textContent = formatReason(notif.reason);
+  meta.appendChild(reasonSpan);
+
+  meta.appendChild(document.createTextNode(' · '));
+
+  const fullTime = new Date(notif.updated_at).toLocaleString();
+  const timeSpan = document.createElement('span');
+  timeSpan.title = fullTime;
+  timeSpan.textContent = formatTimeAgo(notif.updated_at);
+  meta.appendChild(timeSpan);
+
+  if (hasComments) {
+    meta.appendChild(document.createTextNode(' · '));
+    const commentsText = document.createTextNode(formatCommentCount(notif.comment_count));
+    meta.appendChild(commentsText);
+  }
+
+  body.appendChild(meta);
+  card.appendChild(body);
+
+  // Description
+  if (hasDescription) {
+    const description = document.createElement('div');
+    description.className = 'hover-card-description';
+    description.textContent = notif.body.trim();
+    card.appendChild(description);
+  }
+
+  return card;
 }
 
 /**
@@ -242,54 +277,114 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : '';
   const authorProfileUrl = notif.author?.login ? buildAuthorProfileUrl(notif.author.login) : null;
 
-  li.innerHTML = `
-    <div class="notification-icon ${iconClass}" title="${escapeHtml(getNotificationStatus(notif))}">
-      ${getIconSVG(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason)}
-    </div>
-    <div class="notification-content">
-      <div class="notification-main">
-        <div class="notification-title" data-title="${escapeHtml(notif.title)}${releaseBody ? `\n\n${escapeHtml(releaseBody)}` : ''}"${showHoverCards ? '' : ` title="${escapeHtml(notif.title)}${releaseBody ? `\n\n${escapeHtml(releaseBody)}` : ''}"`}>
-          ${notif.number !== undefined ? `<span class="notification-number">#${notif.number}</span> ` : ''}${escapeHtml(notif.title)}${releaseBody ? ` <span class="notification-preview">${escapeHtml(truncatedBody)}${releaseBody.length > 200 ? '...' : ''}</span>` : ''}
-        </div>
-      </div>
-      <div class="notification-meta">
-        ${
-          notif.comment_count !== undefined && notif.comment_count > 0
-            ? `
-          <span class="notification-comments"${notif.comment_count >= 100 ? ` title="${notif.comment_count} comments"` : ''}>
-            <svg viewBox="0 0 16 16" width="12" height="12">
-              <path fill="currentColor" d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h4.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
-            </svg>
-            ${notif.comment_count >= 100 ? '99+' : notif.comment_count}
-          </span>
-        `
-            : ''
-        }
-        ${
-          notif.author
-            ? `
-          <a class="author-profile-link" href="${escapeHtml(authorProfileUrl)}" target="_blank" rel="noopener noreferrer">
-            <img src="${escapeHtml(notif.author.avatar_url)}" class="author-avatar" alt="${escapeHtml(notif.author.login)}" title="${escapeHtml(notif.author.login)}" />
-          </a>
-        `
-            : ''
-        }
-        ${
-          notif.updated_at
-            ? `
-          <span class="notification-time" title="${escapeHtml(new Date(notif.updated_at).toLocaleString())}">${formatTimeAgo(notif.updated_at)}</span>
-        `
-            : ''
-        }
-      </div>
-    </div>
-    <div class="notification-actions">
-      <button class="btn-mark-read" data-id="${notif.id}" title="Mark as read">
-        ✓
-      </button>
-    </div>
-    ${createHoverCard(notif)}
-  `;
+  // Create notification icon container
+  const iconDiv = document.createElement('div');
+  iconDiv.className = `notification-icon ${iconClass}`;
+  iconDiv.title = getNotificationStatus(notif);
+  iconDiv.appendChild(getIconSVGElement(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason));
+
+  // Create notification content container
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'notification-content';
+
+  // Create main content area
+  const mainDiv = document.createElement('div');
+  mainDiv.className = 'notification-main';
+
+  const titleDiv = document.createElement('div');
+  titleDiv.className = 'notification-title';
+  const fullTitle = releaseBody ? `${notif.title}\n\n${releaseBody}` : notif.title;
+  titleDiv.dataset.title = fullTitle;
+  if (!showHoverCards) {
+    titleDiv.title = fullTitle;
+  }
+
+  if (notif.number !== undefined) {
+    const numberSpan = document.createElement('span');
+    numberSpan.className = 'notification-number';
+    numberSpan.textContent = `#${notif.number}`;
+    titleDiv.appendChild(numberSpan);
+    titleDiv.appendChild(document.createTextNode(' '));
+  }
+
+  titleDiv.appendChild(document.createTextNode(notif.title));
+
+  if (releaseBody) {
+    const previewSpan = document.createElement('span');
+    previewSpan.className = 'notification-preview';
+    previewSpan.textContent = ` ${truncatedBody}${releaseBody.length > 200 ? '...' : ''}`;
+    titleDiv.appendChild(previewSpan);
+  }
+
+  mainDiv.appendChild(titleDiv);
+  contentDiv.appendChild(mainDiv);
+
+  // Create metadata area
+  const metaDiv = document.createElement('div');
+  metaDiv.className = 'notification-meta';
+
+  // Comment count
+  if (notif.comment_count !== undefined && notif.comment_count > 0) {
+    const commentsSpan = document.createElement('span');
+    commentsSpan.className = 'notification-comments';
+    if (notif.comment_count >= 100) {
+      commentsSpan.title = `${notif.comment_count} comments`;
+    }
+    commentsSpan.appendChild(getIconSVGElement('comment_bubble'));
+    commentsSpan.appendChild(document.createTextNode(' '));
+    commentsSpan.appendChild(document.createTextNode(notif.comment_count >= 100 ? '99+' : String(notif.comment_count)));
+    metaDiv.appendChild(commentsSpan);
+  }
+
+  // Author avatar
+  if (notif.author) {
+    const authorLink = document.createElement('a');
+    authorLink.className = 'author-profile-link';
+    authorLink.href = authorProfileUrl;
+    authorLink.target = '_blank';
+    authorLink.rel = 'noopener noreferrer';
+
+    const authorImg = document.createElement('img');
+    authorImg.src = notif.author.avatar_url;
+    authorImg.className = 'author-avatar';
+    authorImg.alt = notif.author.login;
+    authorImg.title = notif.author.login;
+
+    authorLink.appendChild(authorImg);
+    metaDiv.appendChild(authorLink);
+  }
+
+  // Update time
+  if (notif.updated_at) {
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'notification-time';
+    timeSpan.title = new Date(notif.updated_at).toLocaleString();
+    timeSpan.textContent = formatTimeAgo(notif.updated_at);
+    metaDiv.appendChild(timeSpan);
+  }
+
+  contentDiv.appendChild(metaDiv);
+
+  // Create actions container
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'notification-actions';
+
+  const markReadBtn = document.createElement('button');
+  markReadBtn.className = 'btn-mark-read';
+  markReadBtn.dataset.id = String(notif.id);
+  markReadBtn.title = 'Mark as read';
+  markReadBtn.textContent = '✓';
+
+  actionsDiv.appendChild(markReadBtn);
+
+  // Create hover card
+  const hoverCard = createHoverCard(notif);
+
+  // Assemble the notification item
+  li.appendChild(iconDiv);
+  li.appendChild(contentDiv);
+  li.appendChild(actionsDiv);
+  li.appendChild(hoverCard);
 
   // Add hover event listeners
   li.addEventListener('mouseenter', () => {
@@ -316,26 +411,23 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   });
 
   // Hover card mouse events
-  const hoverCard = li.querySelector('.notification-hover-card');
-  if (hoverCard) {
-    hoverCard.addEventListener('mouseenter', () => {
-      if (getShowHoverCards()) {
-        hoverCard.classList.add('visible');
-      }
-    });
-    hoverCard.addEventListener('mouseleave', () => {
-      if (getShowHoverCards()) {
-        hoverCard.classList.remove('visible');
-      }
-    });
-    hoverCard.addEventListener('click', (e) => {
-      const interactiveTarget = e.target.closest('a, button, [role="button"], [data-clickable]');
-      if (!interactiveTarget) {
-        e.stopPropagation();
-        e.preventDefault();
-      }
-    });
-  }
+  hoverCard.addEventListener('mouseenter', () => {
+    if (getShowHoverCards()) {
+      hoverCard.classList.add('visible');
+    }
+  });
+  hoverCard.addEventListener('mouseleave', () => {
+    if (getShowHoverCards()) {
+      hoverCard.classList.remove('visible');
+    }
+  });
+  hoverCard.addEventListener('click', (e) => {
+    const interactiveTarget = e.target.closest('a, button, [role="button"], [data-clickable]');
+    if (!interactiveTarget) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  });
 
   // Click to open notification
   li.addEventListener('click', async (e) => {
@@ -347,7 +439,6 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   });
 
   // Mark as read button with immediate visual feedback
-  const markReadBtn = li.querySelector('.btn-mark-read');
   markReadBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
 
@@ -436,7 +527,7 @@ export function renderNotifications(notifications, shouldResort = true) {
   // Clear old hover cards
   document.querySelectorAll('.notification-hover-card').forEach((card) => card.remove());
 
-  notificationsList.innerHTML = '';
+  notificationsList.replaceChildren();
 
   if (!notifications || notifications.length === 0) {
     emptyState.hidden = false;
@@ -495,25 +586,44 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoHeader.target = '_blank';
     repoHeader.rel = 'noopener noreferrer';
     repoHeader.dataset.repo = repoFullName; // For identifying repository
-    repoHeader.innerHTML = `
-      <div class="repo-info">
-        <svg viewBox="0 0 16 16" width="14" height="14" class="repo-icon">
-          <path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
-        </svg>
-        <span class="repo-name">${escapeHtml(repoFullName)}</span>
-      </div>
-      <div class="repo-actions">
-        <span class="repo-count">${group.notifications.length}</span>
-        <button class="repo-mark-read-btn" title="Mark all notifications in this repository as read" aria-label="Mark repository as read">
-          <svg viewBox="0 0 16 16" width="14" height="14">
-            <path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
-          </svg>
-        </button>
-      </div>
-    `;
+
+    // Create repo info section
+    const repoInfoDiv = document.createElement('div');
+    repoInfoDiv.className = 'repo-info';
+
+    const repoIconSvg = getIconSVGElement('repo');
+    repoIconSvg.setAttribute('width', '14');
+    repoIconSvg.setAttribute('height', '14');
+    repoIconSvg.classList.add('repo-icon');
+    repoInfoDiv.appendChild(repoIconSvg);
+
+    const repoNameSpan = document.createElement('span');
+    repoNameSpan.className = 'repo-name';
+    repoNameSpan.textContent = repoFullName;
+    repoInfoDiv.appendChild(repoNameSpan);
+
+    // Create repo actions section
+    const repoActionsDiv = document.createElement('div');
+    repoActionsDiv.className = 'repo-actions';
+
+    const repoCountSpan = document.createElement('span');
+    repoCountSpan.className = 'repo-count';
+    repoCountSpan.textContent = String(group.notifications.length);
+    repoActionsDiv.appendChild(repoCountSpan);
+
+    const markReadBtn = document.createElement('button');
+    markReadBtn.className = 'repo-mark-read-btn';
+    markReadBtn.title = 'Mark all notifications in this repository as read';
+    markReadBtn.setAttribute('aria-label', 'Mark repository as read');
+
+    const checkmarkSvg = getIconSVGElement('checkmark');
+    markReadBtn.appendChild(checkmarkSvg);
+    repoActionsDiv.appendChild(markReadBtn);
+
+    repoHeader.appendChild(repoInfoDiv);
+    repoHeader.appendChild(repoActionsDiv);
 
     // Add event listener for mark as read button
-    const markReadBtn = repoHeader.querySelector('.repo-mark-read-btn');
     markReadBtn.addEventListener('click', (e) => {
       e.preventDefault(); // Prevent <a> default navigation
       e.stopPropagation(); // Stop event bubbling
