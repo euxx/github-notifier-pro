@@ -422,11 +422,15 @@ async function checkNotifications() {
         if (currentFetchVersion >= notificationFetchVersion) {
           // Merge with current storage to avoid overwriting user deletions
           const currentStored = await storage.getNotifications();
-          const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStored);
+          // Re-check version after async read: a user mark-as-read may have bumped
+          // notificationFetchVersion between the read and write, making our snapshot stale.
+          if (currentFetchVersion >= notificationFetchVersion) {
+            const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStored);
 
-          // Save priority notifications immediately
-          await storage.setNotifications(safeDetailed);
-          console.log(`Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`);
+            // Save priority notifications immediately
+            await storage.setNotifications(safeDetailed);
+            console.log(`Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`);
+          }
         }
       }
 
@@ -464,11 +468,15 @@ async function checkNotifications() {
             if (currentFetchVersion >= notificationFetchVersion) {
               // Merge with current storage to avoid overwriting user deletions
               const currentStoredNotifications = await storage.getNotifications();
-              const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStoredNotifications);
+              // Re-check version after async read: a user mark-as-read may have bumped
+              // notificationFetchVersion between the read and write, making our snapshot stale.
+              if (currentFetchVersion >= notificationFetchVersion) {
+                const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStoredNotifications);
 
-              // Update storage with all completed details
-              await storage.setNotifications(safeDetailed);
-              console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+                // Update storage with all completed details
+                await storage.setNotifications(safeDetailed);
+                console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+              }
             } else {
               console.log(`Fetch #${currentFetchVersion} superseded before final save, skipping storage update`);
             }
@@ -709,6 +717,9 @@ async function markAsRead(notificationId) {
   try {
     await github.markAsRead(notificationId);
 
+    // Invalidate in-progress detail fetches so they don't restore this notification.
+    notificationFetchVersion++;
+
     // Update local storage
     const notifications = await storage.getNotifications();
     const updated = notifications.filter((n) => n.id !== notificationId);
@@ -727,6 +738,9 @@ async function markAllAsRead() {
   try {
     await github.markAllAsRead();
 
+    // Invalidate in-progress detail fetches so they don't restore notifications after the clear.
+    notificationFetchVersion++;
+
     // Clear local storage
     hasMoreNotifications = false;
     await storage.setNotifications([]);
@@ -742,6 +756,9 @@ async function markAllAsRead() {
 async function markRepoAsRead(owner, repo) {
   try {
     await github.markRepoAsRead(owner, repo);
+
+    // Invalidate in-progress detail fetches so they don't restore repo notifications.
+    notificationFetchVersion++;
 
     // Filter out notifications from this repository
     const notifications = await storage.getNotifications();
@@ -913,6 +930,9 @@ notifications.onClicked.addListener(async (notificationId) => {
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
 
     // Get all notifications to find the one that was clicked
+    // Invalidate in-progress fetches before the async chain so any fetch that
+    // passes its version check during our read won't restore the removed notification.
+    notificationFetchVersion++;
     const notificationsList = await storage.getNotifications();
     const notification = notificationsList.find((n) => n.id === githubNotifId);
 
