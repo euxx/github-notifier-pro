@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.3] - 2026-03-10
+
+### Fixed
+- Race condition where a 60-second auto-refresh could restore notifications already dismissed via mark-as-read, mark-all-as-read, mark-repo-as-read, or desktop notification click
+- In-progress detail fetches now abort if a user action invalidates their snapshot, preventing stale data from being written back to storage
+- Badge "+" indicator now only updates when a fetch actually commits to storage
+
 ## [1.0.2] - 2026-03-04
 
 ### Improved
