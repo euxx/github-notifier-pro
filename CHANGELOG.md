@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.4] - 2026-06-10
+
+### Fixed
+- Replace all `innerHTML` assignments with safe DOM API construction (createElement, textContent, replaceChildren, createContextualFragment) to satisfy Firefox AMO linter requirements
+- Add `getIconSVGElement()` utility using `createContextualFragment` for safe SVG injection without innerHTML
+- Add `data_collection_permissions` to Firefox manifest as required by AMO
+
 ## [1.0.3] - 2026-03-10
 
 ### Fixed

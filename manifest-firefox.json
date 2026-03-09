@@ -1,29 +1,26 @@
 {
   "manifest_version": 3,
   "name": "GitHub Notifier Pro",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "GitHub notifications in the browser toolbar",
-
   "permissions": [
     "alarms",
     "storage",
     "notifications"
   ],
-
   "host_permissions": [
     "https://api.github.com/*",
     "https://github.com/*"
   ],
-
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
-
   "background": {
-    "scripts": ["src/background/service-worker.js"],
+    "scripts": [
+      "src/background/service-worker.js"
+    ],
     "type": "module"
   },
-
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {
@@ -33,19 +30,19 @@
     },
     "default_title": "GitHub Notifier Pro"
   },
-
   "icons": {
     "16": "images/icon.png",
     "48": "images/icon.png",
     "128": "images/icon.png"
   },
-
   "browser_specific_settings": {
     "gecko": {
       "id": "github-notifier-pro@euxx.dev",
       "strict_min_version": "112.0",
       "data_collection_permissions": {
-        "required": ["none"],
+        "required": [
+          "none"
+        ],
         "optional": []
       }
     }
