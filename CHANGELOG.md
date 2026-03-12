@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.4] - 2026-06-10
 
 ### Fixed
+
 - Replace all `innerHTML` assignments with safe DOM API construction (createElement, textContent, replaceChildren, createContextualFragment) to satisfy Firefox AMO linter requirements
 - Add `getIconSVGElement()` utility using `createContextualFragment` for safe SVG injection without innerHTML
 - Add `data_collection_permissions` to Firefox manifest as required by AMO
@@ -14,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.3] - 2026-03-10
 
 ### Fixed
+
 - Race condition where a 60-second auto-refresh could restore notifications already dismissed via mark-as-read, mark-all-as-read, mark-repo-as-read, or desktop notification click
 - In-progress detail fetches now abort if a user action invalidates their snapshot, preventing stale data from being written back to storage
 - Badge "+" indicator now only updates when a fetch actually commits to storage
@@ -21,17 +23,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.0.2] - 2026-03-04
 
 ### Improved
+
 - Unified stagger animation for all mark-as-read flows
 - Eliminated redundant GET_STATE round-trip after mark-repo-as-read
 
 ## [1.0.1] - 2026-03-03
 
 ### Fixed
+
 - Mark-as-read animation reworked to use overlay approach, fixing dark band artifact in scroll containers
 - Reduced right-side jump when adjusting popup width
 - CSS variables standardized across device-flow and popup styles
 
 ### Improved
+
 - DOM removal now deferred until API confirms success for all mark-as-read flows
 - Stagger timeouts properly tracked and cancellable on rollback
 - Notification cache cleared on mark-all-as-read to prevent stale data

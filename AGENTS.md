@@ -9,6 +9,7 @@ After modifying code, ensure to run the following commands to maintain code qual
 - `npm run all` - Full build for release (ci + build Chrome & Firefox)
 
 Or run individually:
+
 - `npm test` - Run tests (Vitest)
 - `npm run lint` - Lint code
 - `npm run format` - Format code with Prettier
