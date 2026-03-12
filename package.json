@@ -26,6 +26,9 @@
     ],
     "*.md": [
       "prettier --write --prose-wrap preserve"
+    ],
+    "*.{yml,yaml}": [
+      "prettier --write"
     ]
   },
   "keywords": [
