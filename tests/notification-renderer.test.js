@@ -358,6 +358,69 @@ describe('notification-renderer helper functions', () => {
       expect(reasonElement.textContent).toContain('<script>');
       expect(reasonElement.textContent).toContain('</script>');
     });
+
+    it('renders author name when author is present', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+        author: { login: 'octocat', avatar_url: 'https://example.com/avatar.png' },
+      });
+
+      const authorName = card.querySelector('.hover-card-author-name');
+      expect(authorName).not.toBeNull();
+      expect(authorName.textContent).toBe('octocat');
+    });
+
+    it('omits author section when author is absent', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+      });
+
+      expect(card.querySelector('.hover-card-header')).toBeNull();
+      expect(card.querySelector('.hover-card-author-name')).toBeNull();
+    });
+
+    it('renders description when body is present', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+        body: 'This is the issue description.',
+      });
+
+      const desc = card.querySelector('.hover-card-description');
+      expect(desc).not.toBeNull();
+      expect(desc.textContent).toBe('This is the issue description.');
+    });
+
+    it('omits description when body is absent', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+      });
+
+      expect(card.querySelector('.hover-card-description')).toBeNull();
+    });
+
+    it('shows comment count in meta when comment_count > 0', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+        comment_count: 5,
+      });
+
+      expect(card.querySelector('.hover-card-meta').textContent).toContain('5 comments');
+    });
+
+    it('omits comment count from meta when comment_count is 0', () => {
+      const card = createHoverCard({
+        reason: 'mention',
+        updated_at: new Date().toISOString(),
+        comment_count: 0,
+      });
+
+      expect(card.querySelector('.hover-card-meta').textContent).not.toContain('comment');
+    });
   });
 
   describe('comment pluralization', () => {
