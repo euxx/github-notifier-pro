@@ -487,6 +487,11 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
         if (remainingInGroup.length === 0 && repoHeader) {
           repoHeader.remove();
+        } else if (repoHeader) {
+          const repoCountSpan = repoHeader.querySelector('.repo-count');
+          if (repoCountSpan) {
+            repoCountSpan.textContent = String(remainingInGroup.length);
+          }
         }
 
         const remaining = notificationsList.querySelectorAll('.notification-item').length;
