@@ -1,6 +1,6 @@
 {
   "name": "github-notifier-pro",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "module",
   "description": "GitHub notifications in the browser toolbar",
   "scripts": {

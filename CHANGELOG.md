@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.0.4] - 2026-06-10
+## [1.0.5] - 2026-03-13
+
+### Fixed
+
+- Notification count in the repository header not decrementing when a single notification is marked as read
+- Countdown timer display jumping on alarm reset (was showing remaining time from the previous alarm cycle)
+- Device Flow OAuth polling could exceed `expires_in` timeout after repeated `slow_down` responses from GitHub
+- Theme / popup width changes not applied when browser storage write fails
+
+## [1.0.4] - 2026-03-10
 
 ### Fixed
 
