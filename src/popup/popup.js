@@ -465,7 +465,11 @@ async function handleThemeChange() {
   const theme = selectedTheme ? selectedTheme.value : 'system';
 
   // Save to storage and cache for instant apply on next open
-  await storage.setTheme(theme);
+  try {
+    await storage.setTheme(theme);
+  } catch (error) {
+    console.error('Failed to save theme:', error);
+  }
   setCachedTheme(theme);
 
   // Apply theme immediately
@@ -486,7 +490,11 @@ async function handleWidthChange() {
   updateWidthButtons(width);
 
   // Save to storage
-  await storage.setPopupWidth(width);
+  try {
+    await storage.setPopupWidth(width);
+  } catch (error) {
+    console.error('Failed to save popup width:', error);
+  }
 }
 
 /**

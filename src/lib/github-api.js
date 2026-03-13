@@ -262,10 +262,11 @@ class GitHubAPI {
     // Use expires_in if provided, otherwise default to 15 minutes
     const DEFAULT_EXPIRES_IN = 900; // 15 minutes
     const effectiveExpiresIn = expiresIn || DEFAULT_EXPIRES_IN;
-    const maxAttempts = Math.ceil(effectiveExpiresIn / interval);
+    // Track wall-clock deadline so slow_down interval growth can't extend beyond expiresIn
+    const deadline = Date.now() + effectiveExpiresIn * 1000;
     let currentInterval = interval;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    for (let attempt = 0; Date.now() < deadline; attempt++) {
       // Check if cancelled
       if (onCancel && onCancel()) {
         throw new Error('Device Flow cancelled by user');
@@ -281,10 +282,9 @@ class GitHubAPI {
 
       // Notify progress if callback provided
       if (onProgress) {
-        const remainingTime = (maxAttempts - attempt) * currentInterval;
+        const remainingTime = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
         onProgress({
           attempt,
-          maxAttempts,
           remainingTime,
         });
       }
@@ -338,7 +338,7 @@ class GitHubAPI {
         // Business errors (access_denied, expired_token, etc.) are thrown
         // explicitly above and must NOT be retried.
         const isTransient = error instanceof TypeError || error.message === 'Request timeout';
-        if (isTransient && attempt < maxAttempts - 1) {
+        if (isTransient && Date.now() < deadline) {
           continue;
         }
         throw error;
