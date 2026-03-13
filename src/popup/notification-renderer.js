@@ -13,17 +13,13 @@ import { getIconSVGElement } from '../lib/icons.js';
  * @exported for testing
  */
 export function buildIconClass(notif) {
-  let iconClass = notif.icon;
-  if (notif.icon === 'pr' || notif.icon === 'issue') {
-    if (notif.merged) {
-      iconClass += ' merged';
-    } else if (notif.icon === 'issue' && notif.state === 'closed' && notif.state_reason === 'not_planned') {
-      iconClass += ' not-planned';
-    } else if (notif.state) {
-      iconClass += ` ${notif.state}`;
-    }
-  }
-  return iconClass;
+  const base = notif.icon;
+  if (notif.icon !== 'pr' && notif.icon !== 'issue') return base;
+  if (notif.merged) return `${base} merged`;
+  if (notif.icon === 'issue' && notif.state === 'closed' && notif.state_reason === 'not_planned')
+    return `${base} not-planned`;
+  if (notif.state) return `${base} ${notif.state}`;
+  return base;
 }
 
 /**

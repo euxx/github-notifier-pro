@@ -168,7 +168,7 @@ async function updateBadge(count, hasMore = false) {
  * @exported for testing
  */
 export function updateNotificationDetails(baseData, details, notifType) {
-  // Set state/conclusion based on type
+  // Check suites expose conclusion/status; issues and PRs expose state (with state_reason/merged)
   if (notifType === NOTIFICATION_TYPES.CHECK_SUITE) {
     baseData.conclusion = details.conclusion;
     baseData.status = details.status;
@@ -182,7 +182,7 @@ export function updateNotificationDetails(baseData, details, notifType) {
     }
   }
 
-  // Extract author from user or author field
+  // GitHub issues/PRs use 'user'; commits use 'author' — normalise both to a common shape
   const authorData = details.user || details.author;
   if (authorData) {
     const author = {
@@ -196,7 +196,7 @@ export function updateNotificationDetails(baseData, details, notifType) {
     authorCache.set(authorData.login, author);
   }
 
-  // Copy additional fields if present
+  // Only copy fields when present — avoids overwriting cached data with undefined if the API response omits them
   if (details.comments !== undefined) baseData.comment_count = details.comments;
   if (details.number !== undefined) baseData.number = details.number;
   if (details.created_at) baseData.created_at = details.created_at;

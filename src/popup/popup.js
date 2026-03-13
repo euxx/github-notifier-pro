@@ -28,9 +28,8 @@ import {
  * @returns {{shortLabel: string, fullLabel: string}}
  */
 function getAuthMethodLabels(authMethod) {
-  const shortLabel = authMethod === 'oauth' ? 'OAuth' : 'PAT';
-  const fullLabel = authMethod === 'oauth' ? 'OAuth' : 'Personal Access Token';
-  return { shortLabel, fullLabel };
+  if (authMethod === 'oauth') return { shortLabel: 'OAuth', fullLabel: 'OAuth' };
+  return { shortLabel: 'PAT', fullLabel: 'Personal Access Token' };
 }
 
 /**
