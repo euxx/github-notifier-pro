@@ -53,8 +53,6 @@ export const MIN_POPUP_WIDTH = 400;
 export const MAX_POPUP_WIDTH = 800;
 export const DEFAULT_POPUP_WIDTH = 600;
 export const POPUP_WIDTH_STEP = 50;
-export const POPUP_MIN_HEIGHT = 300;
-export const POPUP_MAX_HEIGHT = 600;
 
 // Token Validation
 // Reference: https://github.blog/2021-04-05-behind-githubs-new-authentication-token-formats/
@@ -65,11 +63,6 @@ export const TOKEN_PREFIXES = [
   'ghu_', // GitHub App User Token - with notifications permission
   'github_pat_', // Fine-grained Personal Access Token - with repository access
 ];
-
-// Cache Configuration
-export const CACHE_DURATION = {
-  NOTIFICATIONS: 60000, // 1 minute
-};
 
 // Message Types (for runtime.sendMessage)
 export const MESSAGE_TYPES = {
