@@ -319,8 +319,10 @@ async function updateCountdown() {
 
     // Detect alarm reset (when scheduledTime jumps to a future time)
     if (lastAlarmTime && notificationAlarm.scheduledTime > lastAlarmTime + TIMING_THRESHOLDS.ALARM_RESET_DETECTION) {
-      // Alarm was reset, don't show the jump
-      // Just update to the new time smoothly
+      // Alarm was reset — accept the new time and skip this tick so the display
+      // updates smoothly on the next interval rather than showing a big jump.
+      lastAlarmTime = notificationAlarm.scheduledTime;
+      return;
     }
     lastAlarmTime = notificationAlarm.scheduledTime;
 
