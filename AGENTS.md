@@ -15,3 +15,5 @@ Or run individually:
 - `npm run format` - Format code with Prettier
 
 Refer to [DEVELOPMENT.md](DEVELOPMENT.md) for more details on available scripts and project setup.
+
+Refer to [RELEASE.md](RELEASE.md) for the release process (version bump, CHANGELOG, and `gh workflow run release.yml`).
