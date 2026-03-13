@@ -13,6 +13,8 @@ export default defineConfig({
         'Failed to create desktop notification',
         'Failed to clear notification',
         'Failed to fetch details for notification',
+        'Failed to notify background worker',
+        'Device Flow error',
       ];
 
       // Hide expected error logs
