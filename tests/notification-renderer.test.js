@@ -1,78 +1,50 @@
 /**
- * @vitest-environment node
+ * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 
-// Mock DOM APIs
-global.document = {
-  createElement: vi.fn((tag) => {
-    const element = {
-      tagName: tag.toUpperCase(),
-      className: '',
-      textContent: '',
-      title: '',
-      children: [],
-      appendChild: vi.fn(function (child) {
-        this.children.push(child);
-        return child;
-      }),
-      querySelector: vi.fn(function (selector) {
-        // Simple recursive querySelector mock
-        const className = selector.replace('.', '');
-        const findInChildren = (children) => {
-          for (const child of children) {
-            if (child.className === className) {
-              return child;
-            }
-            if (child.children && child.children.length > 0) {
-              const found = findInChildren(child.children);
-              if (found) return found;
-            }
+// jsdom 28 doesn't expose window.CSS — polyfill CSS.escape for the renderer
+beforeAll(() => {
+  if (typeof CSS === 'undefined' || !CSS.escape) {
+    // @ts-ignore
+    globalThis.CSS = {
+      escape(value) {
+        const str = String(value);
+        const length = str.length;
+        let result = '';
+        for (let i = 0; i < length; i++) {
+          const code = str.charCodeAt(i);
+          if (code === 0x0000) {
+            result += '\uFFFD';
+            continue;
           }
-          return undefined;
-        };
-        return findInChildren(this.children);
-      }),
-      setAttribute: vi.fn(function (name, value) {
-        this[name] = value;
-      }),
-    };
-    return element;
-  }),
-  createTextNode: vi.fn((text) => ({
-    nodeType: 3,
-    textContent: text,
-  })),
-  createElementNS: vi.fn((ns, tag) => {
-    const element = {
-      tagName: tag.toUpperCase(),
-      namespaceURI: ns,
-      className: '',
-      children: [],
-      appendChild: vi.fn(function (child) {
-        this.children.push(child);
-        return child;
-      }),
-      classList: {
-        add: vi.fn(),
-      },
-      setAttribute: vi.fn(),
-    };
-    return element;
-  }),
-  adoptNode: vi.fn((node) => node),
-};
-
-global.DOMParser = class DOMParser {
-  parseFromString(svgString) {
-    return {
-      documentElement: {
-        tagName: 'svg',
-        outerHTML: svgString,
+          if (
+            (code >= 0x0001 && code <= 0x001f) ||
+            code === 0x007f ||
+            (i === 0 && code >= 0x0030 && code <= 0x0039) ||
+            (i === 1 && code >= 0x0030 && code <= 0x0039 && str.charCodeAt(0) === 0x002d)
+          ) {
+            result += `\\${code.toString(16)} `;
+            continue;
+          }
+          if (
+            code >= 0x80 ||
+            code === 0x2d ||
+            code === 0x5f ||
+            (code >= 0x30 && code <= 0x39) ||
+            (code >= 0x41 && code <= 0x5a) ||
+            (code >= 0x61 && code <= 0x7a)
+          ) {
+            result += str[i];
+          } else {
+            result += `\\${str[i]}`;
+          }
+        }
+        return result;
       },
     };
   }
-};
+});
 
 // Mock dependencies before importing
 vi.mock('../src/lib/constants.js', () => ({
