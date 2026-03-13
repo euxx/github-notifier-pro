@@ -302,7 +302,7 @@ let showHoverCards = true;
 let countdownInterval = null;
 let lastAlarmTime = null;
 
-async function updateCountdown() {
+export async function updateCountdown() {
   try {
     const allAlarms = await alarms.getAll();
     const notificationAlarm = allAlarms.find((a) => a.name === 'check-notifications');

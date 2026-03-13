@@ -12,11 +12,22 @@ beforeAll(() => {
     globalThis.CSS = {
       escape(value) {
         const str = String(value);
+        const length = str.length;
         let result = '';
-        for (let i = 0; i < str.length; i++) {
+        for (let i = 0; i < length; i++) {
           const code = str.charCodeAt(i);
-          if (code === 0) {
+          if (code === 0x0000) {
             result += '\uFFFD';
+            continue;
+          }
+          // Control chars and first-char digit require hex escaping per CSS spec
+          if (
+            (code >= 0x0001 && code <= 0x001f) ||
+            code === 0x007f ||
+            (i === 0 && code >= 0x0030 && code <= 0x0039) ||
+            (i === 1 && code >= 0x0030 && code <= 0x0039 && str.charCodeAt(0) === 0x002d)
+          ) {
+            result += `\\${code.toString(16)} `;
             continue;
           }
           if (
