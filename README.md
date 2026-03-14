@@ -7,7 +7,8 @@
   <p>Supports Chrome 99+ (MV3) and Firefox 110+.</p>
 </div>
 
-![Chrome](https://img.shields.io/badge/Chrome-MV3-green) ![Firefox](https://img.shields.io/badge/Firefox-supported-orange)
+![Chrome](https://img.shields.io/badge/Chrome-MV3-green)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox-Add--ons-orange?logo=firefox&logoColor=white)](https://addons.mozilla.org/en-GB/firefox/addon/github-notifier-pro/)
 
 ## Features
 
