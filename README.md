@@ -5,7 +5,7 @@
 <div>
   <p>GitHub notifications in the browser toolbar.</p>
   <p><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/firefox/firefox-original.svg" alt="Firefox" height="20" align="absmiddle"> <strong>Firefox</strong> — install from <a href="https://addons.mozilla.org/en-GB/firefox/addon/github-notifier-pro/">Mozilla Add-ons</a>.</p>
-  <p><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/chrome/chrome-original.svg" alt="Chrome" height="20" align="absmiddle"> <strong>Chrome</strong> — <a href="https://github.com/euxx/github-notifier-pro/releases/latest">download the latest <code>.zip</code></a> and load it as an unpacked extension in <code>chrome://extensions/</code>.</p>
+  <p><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/chrome/chrome-original.svg" alt="Chrome" height="20" align="absmiddle"> <strong>Chrome</strong> — <a href="https://github.com/euxx/github-notifier-pro/releases/latest">download .zip</a>, load as unpacked in <code>chrome://extensions/</code>.</p>
 </div>
 
 ## Features
