@@ -4,11 +4,9 @@
 
 <div>
   <p>GitHub notifications in the browser toolbar.</p>
-  <p>Supports Chrome 99+ (MV3) and Firefox 110+.</p>
+  <p><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/firefox/firefox-original.svg" alt="Firefox" height="20" align="absmiddle"> <strong>Firefox</strong> — install from <a href="https://addons.mozilla.org/en-GB/firefox/addon/github-notifier-pro/">Mozilla Add-ons</a>.</p>
+  <p><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/chrome/chrome-original.svg" alt="Chrome" height="20" align="absmiddle"> <strong>Chrome</strong> — <a href="https://github.com/euxx/github-notifier-pro/releases/latest">download the latest <code>.zip</code></a> and load it as an unpacked extension in <code>chrome://extensions/</code>.</p>
 </div>
-
-![Chrome](https://img.shields.io/badge/Chrome-MV3-green)
-[![Firefox Add-ons](https://img.shields.io/badge/Firefox-Add--ons-orange?logo=firefox&logoColor=white)](https://addons.mozilla.org/en-GB/firefox/addon/github-notifier-pro/)
 
 ## Features
 
