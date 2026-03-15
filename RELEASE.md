@@ -17,7 +17,15 @@
    npm install
    ```
 
-3. Commit changes:
+3. Verify build locally:
+
+   ```sh
+   npm run build
+   ```
+
+   Confirm the zip files are generated in `dist/` without errors. You may keep them for manual testing.
+
+4. Commit changes:
 
    ```sh
    git add CHANGELOG.md package.json package-lock.json manifest.json manifest-firefox.json
@@ -25,7 +33,7 @@
    git push origin main
    ```
 
-4. Run the release workflow:
+5. Run the release workflow:
 
    ```sh
    gh workflow run release.yml
@@ -33,13 +41,15 @@
 
    This will run tests, build Chrome & Firefox packages, and create a GitHub Release with the zip files.
 
-5. Verify the release was created successfully:
+6. Verify the release was created successfully:
 
    ```sh
    gh release view vX.Y.Z
    ```
 
-6. Update the release notes on GitHub to match CHANGELOG.md:
+<!-- END-SHARED -->
+
+7. Update the release notes on GitHub to match CHANGELOG.md:
 
    ```sh
    gh release edit vX.Y.Z --notes "## Improved
