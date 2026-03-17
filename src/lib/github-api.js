@@ -46,7 +46,7 @@ async function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUTS.DEFAUL
     return response;
   } catch (error) {
     if (error.name === 'AbortError') {
-      throw new Error('Request timeout');
+      throw new Error('Request timeout', { cause: error });
     }
     throw error;
   } finally {

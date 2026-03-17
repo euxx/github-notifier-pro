@@ -618,7 +618,7 @@ async function refresh() {
     const cachedNotifications = await storage.getNotifications();
     renderNotifications(cachedNotifications, true); // Re-sort even on error
 
-    let message = '';
+    let message;
     let className = 'error-message';
 
     if (!navigator.onLine || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
@@ -632,7 +632,6 @@ async function refresh() {
       className = 'warning-message';
     } else {
       message = `❌ Error: ${error.message || 'Failed to refresh'}`;
-      className = 'error-message';
     }
 
     // Show error/warning message
