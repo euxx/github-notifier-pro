@@ -4,7 +4,7 @@
 
 After modifying code, ensure to run the following commands to maintain code quality:
 
-- `npm run ci` - Run all checks (test + lint:fix + format)
+- `npm run ci` - Run all checks (test + lint + format check)
 - `npm run dev` - Prepare Firefox dev environment (ci + dev:firefox)
 - `npm run all` - Full build for release (ci + build Chrome & Firefox)
 

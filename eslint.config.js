@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import prettier from 'eslint-config-prettier';
+import prettierPlugin from 'eslint-plugin-prettier';
 
 export default [
   js.configs.recommended,
@@ -99,4 +100,9 @@ export default [
   },
   // Disable ESLint rules that conflict with Prettier (must be last)
   prettier,
+  // Report Prettier formatting violations as ESLint errors
+  {
+    plugins: { prettier: prettierPlugin },
+    rules: { 'prettier/prettier': 'error' },
+  },
 ];

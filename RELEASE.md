@@ -28,7 +28,7 @@
 4. Commit changes:
 
    ```sh
-   git add CHANGELOG.md package.json package-lock.json manifest.json manifest-firefox.json
+   git add CHANGELOG.md package.json manifest.json manifest-firefox.json
    git commit -m "chore: update version to vX.Y.Z"
    git push origin main
    ```
@@ -40,6 +40,12 @@
    ```
 
    This will run tests, build Chrome & Firefox packages, and create a GitHub Release with the zip files.
+
+   To overwrite an existing release for the same version:
+
+   ```sh
+   gh workflow run release.yml -f overwrite=true
+   ```
 
 6. Verify the release was created successfully:
 

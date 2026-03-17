@@ -21,7 +21,7 @@
 
 | Command                | Description                                 |
 | ---------------------- | ------------------------------------------- |
-| `npm run ci`           | Run all checks (test + lint:fix + format)   |
+| `npm run ci`           | Run all checks (test + lint + format check) |
 | `npm run dev`          | Run CI then prepare Firefox dev environment |
 | `npm run all`          | Run CI then build Chrome & Firefox packages |
 | `npm test`             | Run tests (Vitest)                          |

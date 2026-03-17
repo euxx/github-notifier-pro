@@ -6,11 +6,13 @@ src/config/config.js
 .DS_Store
 *.log
 node_modules/
+package-lock.json
 
 # Build artifacts
 *.zip
 dist/
 build/
+coverage/
 
 # IDE
 .vscode/

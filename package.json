@@ -44,14 +44,15 @@
     "url": "https://github.com/euxx/github-notifier-pro"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "eslint": "^9.39.2",
-    "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.2.0",
-    "husky": "^9.1.7",
-    "jsdom": "^28.1.0",
-    "lint-staged": "^16.2.7",
-    "prettier": "^3.8.1",
-    "vitest": "^4.0.18"
+    "@eslint/js": "latest",
+    "eslint": "latest",
+    "eslint-config-prettier": "latest",
+    "eslint-plugin-prettier": "latest",
+    "globals": "latest",
+    "husky": "latest",
+    "jsdom": "latest",
+    "lint-staged": "latest",
+    "prettier": "latest",
+    "vitest": "latest"
   }
 }
