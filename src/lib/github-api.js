@@ -433,7 +433,7 @@ class GitHubAPI {
     try {
       const errorData = await response.json();
       apiMessage = errorData?.message || '';
-    } catch (_error) {
+    } catch {
       // Ignore parse errors for non-JSON responses
     }
 

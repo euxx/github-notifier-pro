@@ -84,7 +84,7 @@ const POPUP_THEME_KEY = 'popupTheme';
 function getStorageValue(key, defaultValue) {
   try {
     return localStorage.getItem(key) ?? defaultValue;
-  } catch (_error) {
+  } catch {
     return defaultValue;
   }
 }
@@ -92,7 +92,7 @@ function getStorageValue(key, defaultValue) {
 function setStorageValue(key, value) {
   try {
     localStorage.setItem(key, String(value));
-  } catch (_error) {
+  } catch {
     // Ignore storage errors to avoid blocking popup rendering
   }
 }
@@ -923,7 +923,7 @@ async function init() {
   });
 
   // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (_e) => {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async () => {
     const currentTheme = await storage.getTheme();
     if (currentTheme === 'system') {
       applyTheme('system');

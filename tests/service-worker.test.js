@@ -156,7 +156,7 @@ mockRuntime.onMessage.addListener.mockImplementation((handler) => {
   messageHandler = handler;
 });
 
-mockAlarms.onAlarm.addListener.mockImplementation((_handler) => {
+mockAlarms.onAlarm.addListener.mockImplementation(() => {
   // Alarm handler captured but not used in tests
 });
 
