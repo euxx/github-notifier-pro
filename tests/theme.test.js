@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { applyTheme, initTheme } from '../src/lib/theme.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { applyTheme, initTheme } from "../src/lib/theme.js";
 
-describe('theme', () => {
+describe("theme", () => {
   let mockClassList;
   let mockMatchMedia;
 
@@ -11,7 +11,7 @@ describe('theme', () => {
       add: vi.fn(),
       remove: vi.fn(),
     };
-    vi.stubGlobal('document', {
+    vi.stubGlobal("document", {
       body: {
         classList: mockClassList,
       },
@@ -19,7 +19,7 @@ describe('theme', () => {
 
     // Mock window.matchMedia
     mockMatchMedia = vi.fn();
-    vi.stubGlobal('window', {
+    vi.stubGlobal("window", {
       matchMedia: mockMatchMedia,
     });
   });
@@ -28,68 +28,68 @@ describe('theme', () => {
     vi.unstubAllGlobals();
   });
 
-  describe('applyTheme', () => {
-    it('should add dark-theme class for dark theme', () => {
-      applyTheme('dark');
+  describe("applyTheme", () => {
+    it("should add dark-theme class for dark theme", () => {
+      applyTheme("dark");
 
-      expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
+      expect(mockClassList.add).toHaveBeenCalledWith("dark-theme");
       expect(mockClassList.remove).not.toHaveBeenCalled();
     });
 
-    it('should remove dark-theme class for light theme', () => {
-      applyTheme('light');
+    it("should remove dark-theme class for light theme", () => {
+      applyTheme("light");
 
-      expect(mockClassList.remove).toHaveBeenCalledWith('dark-theme');
+      expect(mockClassList.remove).toHaveBeenCalledWith("dark-theme");
       expect(mockClassList.add).not.toHaveBeenCalled();
     });
 
-    it('should add dark-theme class for system theme when system prefers dark', () => {
+    it("should add dark-theme class for system theme when system prefers dark", () => {
       mockMatchMedia.mockReturnValue({ matches: true });
 
-      applyTheme('system');
+      applyTheme("system");
 
-      expect(mockMatchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
-      expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
+      expect(mockMatchMedia).toHaveBeenCalledWith("(prefers-color-scheme: dark)");
+      expect(mockClassList.add).toHaveBeenCalledWith("dark-theme");
     });
 
-    it('should remove dark-theme class for system theme when system prefers light', () => {
+    it("should remove dark-theme class for system theme when system prefers light", () => {
       mockMatchMedia.mockReturnValue({ matches: false });
 
-      applyTheme('system');
+      applyTheme("system");
 
-      expect(mockMatchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
-      expect(mockClassList.remove).toHaveBeenCalledWith('dark-theme');
+      expect(mockMatchMedia).toHaveBeenCalledWith("(prefers-color-scheme: dark)");
+      expect(mockClassList.remove).toHaveBeenCalledWith("dark-theme");
     });
   });
 
-  describe('initTheme', () => {
-    it('should apply theme from storage', async () => {
-      const mockGetTheme = vi.fn().mockResolvedValue('dark');
+  describe("initTheme", () => {
+    it("should apply theme from storage", async () => {
+      const mockGetTheme = vi.fn().mockResolvedValue("dark");
 
       await initTheme(mockGetTheme);
 
       expect(mockGetTheme).toHaveBeenCalled();
-      expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
+      expect(mockClassList.add).toHaveBeenCalledWith("dark-theme");
     });
 
-    it('should default to system theme if no theme in storage', async () => {
+    it("should default to system theme if no theme in storage", async () => {
       const mockGetTheme = vi.fn().mockResolvedValue(null);
       mockMatchMedia.mockReturnValue({ matches: true });
 
       await initTheme(mockGetTheme);
 
       expect(mockGetTheme).toHaveBeenCalled();
-      expect(mockMatchMedia).toHaveBeenCalledWith('(prefers-color-scheme: dark)');
-      expect(mockClassList.add).toHaveBeenCalledWith('dark-theme');
+      expect(mockMatchMedia).toHaveBeenCalledWith("(prefers-color-scheme: dark)");
+      expect(mockClassList.add).toHaveBeenCalledWith("dark-theme");
     });
 
-    it('should apply light theme from storage', async () => {
-      const mockGetTheme = vi.fn().mockResolvedValue('light');
+    it("should apply light theme from storage", async () => {
+      const mockGetTheme = vi.fn().mockResolvedValue("light");
 
       await initTheme(mockGetTheme);
 
       expect(mockGetTheme).toHaveBeenCalled();
-      expect(mockClassList.remove).toHaveBeenCalledWith('dark-theme');
+      expect(mockClassList.remove).toHaveBeenCalledWith("dark-theme");
     });
   });
 });

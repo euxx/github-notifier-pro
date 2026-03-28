@@ -2,9 +2,14 @@
  * Notification rendering module for popup
  */
 
-import { ANIMATION_DURATION, NOTIFICATION_TYPES, MESSAGE_TYPES, TIME_CONVERSION } from '../lib/constants.js';
-import { formatReason, getNotificationStatus } from '../lib/format-utils.js';
-import { getIconSVGElement } from '../lib/icons.js';
+import {
+  ANIMATION_DURATION,
+  NOTIFICATION_TYPES,
+  MESSAGE_TYPES,
+  TIME_CONVERSION,
+} from "../lib/constants.js";
+import { formatReason, getNotificationStatus } from "../lib/format-utils.js";
+import { getIconSVGElement } from "../lib/icons.js";
 
 /**
  * Build icon class with state information
@@ -14,9 +19,9 @@ import { getIconSVGElement } from '../lib/icons.js';
  */
 export function buildIconClass(notif) {
   const base = notif.icon;
-  if (notif.icon !== 'pr' && notif.icon !== 'issue') return base;
+  if (notif.icon !== "pr" && notif.icon !== "issue") return base;
   if (notif.merged) return `${base} merged`;
-  if (notif.icon === 'issue' && notif.state === 'closed' && notif.state_reason === 'not_planned')
+  if (notif.icon === "issue" && notif.state === "closed" && notif.state_reason === "not_planned")
     return `${base} not-planned`;
   if (notif.state) return `${base} ${notif.state}`;
   return base;
@@ -29,7 +34,7 @@ export function buildIconClass(notif) {
  * @exported for testing
  */
 export function formatCommentCount(count) {
-  return `${count} comment${count > 1 ? 's' : ''}`;
+  return `${count} comment${count > 1 ? "s" : ""}`;
 }
 
 /**
@@ -40,7 +45,7 @@ export function formatCommentCount(count) {
  * @exported for testing
  */
 export function truncateReleaseBody(body, maxLength = 200) {
-  if (!body) return '';
+  if (!body) return "";
   const trimmed = body.trim();
   if (trimmed.length <= maxLength) return trimmed;
   return trimmed.substring(0, maxLength);
@@ -98,13 +103,13 @@ export function clearNotificationCache() {
  * @exported for testing
  */
 export function createNotificationsHash(notifications) {
-  if (!notifications || notifications.length === 0) return 'empty';
+  if (!notifications || notifications.length === 0) return "empty";
   return notifications
     .map(
       (n) =>
-        `${n.id}:${n.updated_at}:${n.state || ''}:${n.merged || ''}:${n.conclusion || ''}:${n.comment_count ?? ''}:${n.author?.login || ''}`,
+        `${n.id}:${n.updated_at}:${n.state || ""}:${n.merged || ""}:${n.conclusion || ""}:${n.comment_count ?? ""}:${n.author?.login || ""}`,
     )
-    .join('|');
+    .join("|");
 }
 
 /**
@@ -120,7 +125,7 @@ export function formatTimeAgo(dateString) {
   const diffHours = Math.floor(diffMs / (60 * TIME_CONVERSION.MS_PER_MINUTE));
   const diffDays = Math.floor(diffMs / (24 * 60 * TIME_CONVERSION.MS_PER_MINUTE));
 
-  if (diffMins < 1) return 'now';
+  if (diffMins < 1) return "now";
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 30) return `${diffDays}d ago`;
@@ -138,30 +143,30 @@ export function createHoverCard(notif) {
   const hasDescription = notif.body?.trim();
   const authorProfileUrl = hasAuthor ? buildAuthorProfileUrl(notif.author.login) : null;
 
-  const card = document.createElement('div');
-  card.className = 'notification-hover-card';
+  const card = document.createElement("div");
+  card.className = "notification-hover-card";
 
   // Header with author info
   if (hasAuthor) {
-    const header = document.createElement('div');
-    header.className = 'hover-card-header';
+    const header = document.createElement("div");
+    header.className = "hover-card-header";
 
-    const profileLink = document.createElement('a');
-    profileLink.className = 'hover-card-profile-link';
+    const profileLink = document.createElement("a");
+    profileLink.className = "hover-card-profile-link";
     profileLink.href = authorProfileUrl;
-    profileLink.target = '_blank';
-    profileLink.rel = 'noopener noreferrer';
+    profileLink.target = "_blank";
+    profileLink.rel = "noopener noreferrer";
 
-    const avatar = document.createElement('img');
+    const avatar = document.createElement("img");
     avatar.src = notif.author.avatar_url;
     avatar.alt = notif.author.login;
-    avatar.className = 'hover-card-avatar';
+    avatar.className = "hover-card-avatar";
 
-    const authorDiv = document.createElement('div');
-    authorDiv.className = 'hover-card-author';
+    const authorDiv = document.createElement("div");
+    authorDiv.className = "hover-card-author";
 
-    const authorName = document.createElement('div');
-    authorName.className = 'hover-card-author-name';
+    const authorName = document.createElement("div");
+    authorName.className = "hover-card-author-name";
     authorName.textContent = notif.author.login;
 
     authorDiv.appendChild(authorName);
@@ -172,27 +177,27 @@ export function createHoverCard(notif) {
   }
 
   // Body with metadata
-  const body = document.createElement('div');
-  body.className = 'hover-card-body';
+  const body = document.createElement("div");
+  body.className = "hover-card-body";
 
-  const meta = document.createElement('div');
-  meta.className = 'hover-card-meta';
+  const meta = document.createElement("div");
+  meta.className = "hover-card-meta";
 
-  const reasonSpan = document.createElement('span');
-  reasonSpan.className = 'hover-card-reason';
+  const reasonSpan = document.createElement("span");
+  reasonSpan.className = "hover-card-reason";
   reasonSpan.textContent = formatReason(notif.reason);
   meta.appendChild(reasonSpan);
 
-  meta.appendChild(document.createTextNode(' · '));
+  meta.appendChild(document.createTextNode(" · "));
 
   const fullTime = new Date(notif.updated_at).toLocaleString();
-  const timeSpan = document.createElement('span');
+  const timeSpan = document.createElement("span");
   timeSpan.title = fullTime;
   timeSpan.textContent = formatTimeAgo(notif.updated_at);
   meta.appendChild(timeSpan);
 
   if (hasComments) {
-    meta.appendChild(document.createTextNode(' · '));
+    meta.appendChild(document.createTextNode(" · "));
     const commentsText = document.createTextNode(formatCommentCount(notif.comment_count));
     meta.appendChild(commentsText);
   }
@@ -202,8 +207,8 @@ export function createHoverCard(notif) {
 
   // Description
   if (hasDescription) {
-    const description = document.createElement('div');
-    description.className = 'hover-card-description';
+    const description = document.createElement("div");
+    description.className = "hover-card-description";
     description.textContent = notif.body.trim();
     card.appendChild(description);
   }
@@ -216,19 +221,19 @@ export function createHoverCard(notif) {
  * @param {HTMLElement} listItem - The notification list item element
  */
 function positionHoverCard(listItem) {
-  const card = listItem.querySelector('.notification-hover-card');
+  const card = listItem.querySelector(".notification-hover-card");
   if (!card) return;
 
   const rect = listItem.getBoundingClientRect();
 
   // Measure card height without showing it
-  card.style.visibility = 'hidden';
-  card.style.opacity = '1';
-  card.classList.add('visible');
+  card.style.visibility = "hidden";
+  card.style.opacity = "1";
+  card.classList.add("visible");
   const cardHeight = card.offsetHeight;
-  card.style.visibility = '';
-  card.style.opacity = '';
-  card.classList.remove('visible');
+  card.style.visibility = "";
+  card.style.opacity = "";
+  card.classList.remove("visible");
 
   // Determine position based on available space
   const margin = 0;
@@ -243,10 +248,10 @@ function positionHoverCard(listItem) {
         : rect.bottom + margin;
 
   card.style.top = `${topPosition}px`;
-  card.style.right = '10px';
-  card.style.left = 'auto';
+  card.style.right = "10px";
+  card.style.left = "auto";
 
-  card.classList.add('visible');
+  card.classList.add("visible");
 }
 
 /**
@@ -257,11 +262,18 @@ function positionHoverCard(listItem) {
  * @returns {HTMLElement} Notification list item element
  */
 function createNotificationItem(notif, repoHeader, repoFullName) {
-  const { notificationsList, emptyState, markAllBtn, getShowHoverCards, sendMessage, onUserAction } = config;
+  const {
+    notificationsList,
+    emptyState,
+    markAllBtn,
+    getShowHoverCards,
+    sendMessage,
+    onUserAction,
+  } = config;
   const showHoverCards = getShowHoverCards();
 
-  const li = document.createElement('li');
-  li.className = 'notification-item';
+  const li = document.createElement("li");
+  li.className = "notification-item";
   li.dataset.id = notif.id;
   li.dataset.repo = repoFullName;
 
@@ -269,26 +281,29 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   const iconClass = buildIconClass(notif);
 
   // Pre-compute release body for performance
-  const releaseBody = notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : '';
-  const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : '';
+  const releaseBody =
+    notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : "";
+  const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : "";
   const authorProfileUrl = notif.author?.login ? buildAuthorProfileUrl(notif.author.login) : null;
 
   // Create notification icon container
-  const iconDiv = document.createElement('div');
+  const iconDiv = document.createElement("div");
   iconDiv.className = `notification-icon ${iconClass}`;
   iconDiv.title = getNotificationStatus(notif);
-  iconDiv.appendChild(getIconSVGElement(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason));
+  iconDiv.appendChild(
+    getIconSVGElement(notif.icon, notif.state, notif.merged, notif.conclusion, notif.state_reason),
+  );
 
   // Create notification content container
-  const contentDiv = document.createElement('div');
-  contentDiv.className = 'notification-content';
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "notification-content";
 
   // Create main content area
-  const mainDiv = document.createElement('div');
-  mainDiv.className = 'notification-main';
+  const mainDiv = document.createElement("div");
+  mainDiv.className = "notification-main";
 
-  const titleDiv = document.createElement('div');
-  titleDiv.className = 'notification-title';
+  const titleDiv = document.createElement("div");
+  titleDiv.className = "notification-title";
   const fullTitle = releaseBody ? `${notif.title}\n\n${releaseBody}` : notif.title;
   titleDiv.dataset.title = fullTitle;
   if (!showHoverCards) {
@@ -296,19 +311,19 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   }
 
   if (notif.number !== undefined) {
-    const numberSpan = document.createElement('span');
-    numberSpan.className = 'notification-number';
+    const numberSpan = document.createElement("span");
+    numberSpan.className = "notification-number";
     numberSpan.textContent = `#${notif.number}`;
     titleDiv.appendChild(numberSpan);
-    titleDiv.appendChild(document.createTextNode(' '));
+    titleDiv.appendChild(document.createTextNode(" "));
   }
 
   titleDiv.appendChild(document.createTextNode(notif.title));
 
   if (releaseBody) {
-    const previewSpan = document.createElement('span');
-    previewSpan.className = 'notification-preview';
-    previewSpan.textContent = ` ${truncatedBody}${releaseBody.length > 200 ? '...' : ''}`;
+    const previewSpan = document.createElement("span");
+    previewSpan.className = "notification-preview";
+    previewSpan.textContent = ` ${truncatedBody}${releaseBody.length > 200 ? "..." : ""}`;
     titleDiv.appendChild(previewSpan);
   }
 
@@ -316,33 +331,35 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   contentDiv.appendChild(mainDiv);
 
   // Create metadata area
-  const metaDiv = document.createElement('div');
-  metaDiv.className = 'notification-meta';
+  const metaDiv = document.createElement("div");
+  metaDiv.className = "notification-meta";
 
   // Comment count
   if (notif.comment_count !== undefined && notif.comment_count > 0) {
-    const commentsSpan = document.createElement('span');
-    commentsSpan.className = 'notification-comments';
+    const commentsSpan = document.createElement("span");
+    commentsSpan.className = "notification-comments";
     if (notif.comment_count >= 100) {
       commentsSpan.title = `${notif.comment_count} comments`;
     }
-    commentsSpan.appendChild(getIconSVGElement('comment_bubble'));
-    commentsSpan.appendChild(document.createTextNode(' '));
-    commentsSpan.appendChild(document.createTextNode(notif.comment_count >= 100 ? '99+' : String(notif.comment_count)));
+    commentsSpan.appendChild(getIconSVGElement("comment_bubble"));
+    commentsSpan.appendChild(document.createTextNode(" "));
+    commentsSpan.appendChild(
+      document.createTextNode(notif.comment_count >= 100 ? "99+" : String(notif.comment_count)),
+    );
     metaDiv.appendChild(commentsSpan);
   }
 
   // Author avatar
   if (notif.author) {
-    const authorLink = document.createElement('a');
-    authorLink.className = 'author-profile-link';
+    const authorLink = document.createElement("a");
+    authorLink.className = "author-profile-link";
     authorLink.href = authorProfileUrl;
-    authorLink.target = '_blank';
-    authorLink.rel = 'noopener noreferrer';
+    authorLink.target = "_blank";
+    authorLink.rel = "noopener noreferrer";
 
-    const authorImg = document.createElement('img');
+    const authorImg = document.createElement("img");
     authorImg.src = notif.author.avatar_url;
-    authorImg.className = 'author-avatar';
+    authorImg.className = "author-avatar";
     authorImg.alt = notif.author.login;
     authorImg.title = notif.author.login;
 
@@ -352,8 +369,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
   // Update time
   if (notif.updated_at) {
-    const timeSpan = document.createElement('span');
-    timeSpan.className = 'notification-time';
+    const timeSpan = document.createElement("span");
+    timeSpan.className = "notification-time";
     timeSpan.title = new Date(notif.updated_at).toLocaleString();
     timeSpan.textContent = formatTimeAgo(notif.updated_at);
     metaDiv.appendChild(timeSpan);
@@ -362,14 +379,14 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   contentDiv.appendChild(metaDiv);
 
   // Create actions container
-  const actionsDiv = document.createElement('div');
-  actionsDiv.className = 'notification-actions';
+  const actionsDiv = document.createElement("div");
+  actionsDiv.className = "notification-actions";
 
-  const markReadBtn = document.createElement('button');
-  markReadBtn.className = 'btn-mark-read';
+  const markReadBtn = document.createElement("button");
+  markReadBtn.className = "btn-mark-read";
   markReadBtn.dataset.id = String(notif.id);
-  markReadBtn.title = 'Mark as read';
-  markReadBtn.textContent = '✓';
+  markReadBtn.title = "Mark as read";
+  markReadBtn.textContent = "✓";
 
   actionsDiv.appendChild(markReadBtn);
 
@@ -383,15 +400,15 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   li.appendChild(hoverCard);
 
   // Add hover event listeners
-  li.addEventListener('mouseenter', () => {
+  li.addEventListener("mouseenter", () => {
     if (getShowHoverCards()) {
       positionHoverCard(li);
     }
   });
 
-  li.addEventListener('mouseleave', (e) => {
+  li.addEventListener("mouseleave", (e) => {
     if (getShowHoverCards()) {
-      const card = li.querySelector('.notification-hover-card');
+      const card = li.querySelector(".notification-hover-card");
       if (card) {
         const cardRect = card.getBoundingClientRect();
         const isOverCard =
@@ -400,24 +417,24 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
           e.clientY >= cardRect.top &&
           e.clientY <= cardRect.bottom;
         if (!isOverCard) {
-          card.classList.remove('visible');
+          card.classList.remove("visible");
         }
       }
     }
   });
 
   // Hover card mouse events
-  hoverCard.addEventListener('mouseenter', () => {
+  hoverCard.addEventListener("mouseenter", () => {
     if (getShowHoverCards()) {
-      hoverCard.classList.add('visible');
+      hoverCard.classList.add("visible");
     }
   });
-  hoverCard.addEventListener('mouseleave', () => {
+  hoverCard.addEventListener("mouseleave", () => {
     if (getShowHoverCards()) {
-      hoverCard.classList.remove('visible');
+      hoverCard.classList.remove("visible");
     }
   });
-  hoverCard.addEventListener('click', (e) => {
+  hoverCard.addEventListener("click", (e) => {
     const interactiveTarget = e.target.closest('a, button, [role="button"], [data-clickable]');
     if (!interactiveTarget) {
       e.stopPropagation();
@@ -426,8 +443,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   });
 
   // Click to open notification
-  li.addEventListener('click', async (e) => {
-    if (e.target.closest('.btn-mark-read') || e.target.closest('a')) {
+  li.addEventListener("click", async (e) => {
+    if (e.target.closest(".btn-mark-read") || e.target.closest("a")) {
       return;
     }
     await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: notif.id });
@@ -435,35 +452,34 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   });
 
   // Mark as read button with immediate visual feedback
-  markReadBtn.addEventListener('click', async (e) => {
+  markReadBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
 
-    if (li.classList.contains('marking-read')) {
+    if (li.classList.contains("marking-read")) {
       return;
     }
 
-    li.classList.add('marking-read');
+    li.classList.add("marking-read");
     markReadBtn.disabled = true;
-    markReadBtn.textContent = '✓';
+    markReadBtn.textContent = "✓";
 
     // Track user action
     const animationDuration = ANIMATION_DURATION.FADE_OUT;
     onUserAction(animationDuration);
 
     // Force reflow so ::after pseudo-element starts at opacity 0
-    // eslint-disable-next-line no-unused-expressions
-    li.offsetHeight;
-    li.classList.add('fade-out');
+    void li.offsetHeight;
+    li.classList.add("fade-out");
 
     // Restore the notification item to its original state on failure
     function restoreItem() {
-      li.classList.remove('marking-read', 'fade-out');
+      li.classList.remove("marking-read", "fade-out");
       markReadBtn.disabled = false;
-      markReadBtn.textContent = '✓';
+      markReadBtn.textContent = "✓";
 
-      li.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+      li.style.backgroundColor = "rgba(239, 68, 68, 0.1)";
       setTimeout(() => {
-        li.style.backgroundColor = '';
+        li.style.backgroundColor = "";
       }, ANIMATION_DURATION.ERROR_BACKGROUND_FADE);
     }
 
@@ -479,18 +495,20 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
         // Check if any notifications from this group remain
         const escapedRepo = CSS.escape(repoFullName);
-        const remainingInGroup = notificationsList.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`);
+        const remainingInGroup = notificationsList.querySelectorAll(
+          `.notification-item[data-repo="${escapedRepo}"]`,
+        );
 
         if (remainingInGroup.length === 0 && repoHeader) {
           repoHeader.remove();
         } else if (repoHeader) {
-          const repoCountSpan = repoHeader.querySelector('.repo-count');
+          const repoCountSpan = repoHeader.querySelector(".repo-count");
           if (repoCountSpan) {
             repoCountSpan.textContent = String(remainingInGroup.length);
           }
         }
 
-        const remaining = notificationsList.querySelectorAll('.notification-item').length;
+        const remaining = notificationsList.querySelectorAll(".notification-item").length;
         if (remaining === 0) {
           emptyState.hidden = false;
           markAllBtn.disabled = true;
@@ -500,7 +518,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
         restoreItem();
       }
     } catch (error) {
-      console.error('Failed to mark as read:', error);
+      console.error("Failed to mark as read:", error);
       restoreItem();
     }
   });
@@ -526,7 +544,7 @@ export function renderNotifications(notifications, shouldResort = true) {
   cachedNotificationsHash = notificationsHash;
 
   // Clear old hover cards
-  document.querySelectorAll('.notification-hover-card').forEach((card) => card.remove());
+  document.querySelectorAll(".notification-hover-card").forEach((card) => card.remove());
 
   notificationsList.replaceChildren();
 
@@ -581,43 +599,43 @@ export function renderNotifications(notifications, shouldResort = true) {
   for (const repoFullName of sortedRepos) {
     const group = groupedByRepo[repoFullName];
 
-    const repoHeader = document.createElement('a');
-    repoHeader.className = 'repo-group-header';
+    const repoHeader = document.createElement("a");
+    repoHeader.className = "repo-group-header";
     repoHeader.href = group.repo.html_url;
-    repoHeader.target = '_blank';
-    repoHeader.rel = 'noopener noreferrer';
+    repoHeader.target = "_blank";
+    repoHeader.rel = "noopener noreferrer";
     repoHeader.dataset.repo = repoFullName; // For identifying repository
 
     // Create repo info section
-    const repoInfoDiv = document.createElement('div');
-    repoInfoDiv.className = 'repo-info';
+    const repoInfoDiv = document.createElement("div");
+    repoInfoDiv.className = "repo-info";
 
-    const repoIconSvg = getIconSVGElement('repo');
-    repoIconSvg.setAttribute('width', '14');
-    repoIconSvg.setAttribute('height', '14');
-    repoIconSvg.classList.add('repo-icon');
+    const repoIconSvg = getIconSVGElement("repo");
+    repoIconSvg.setAttribute("width", "14");
+    repoIconSvg.setAttribute("height", "14");
+    repoIconSvg.classList.add("repo-icon");
     repoInfoDiv.appendChild(repoIconSvg);
 
-    const repoNameSpan = document.createElement('span');
-    repoNameSpan.className = 'repo-name';
+    const repoNameSpan = document.createElement("span");
+    repoNameSpan.className = "repo-name";
     repoNameSpan.textContent = repoFullName;
     repoInfoDiv.appendChild(repoNameSpan);
 
     // Create repo actions section
-    const repoActionsDiv = document.createElement('div');
-    repoActionsDiv.className = 'repo-actions';
+    const repoActionsDiv = document.createElement("div");
+    repoActionsDiv.className = "repo-actions";
 
-    const repoCountSpan = document.createElement('span');
-    repoCountSpan.className = 'repo-count';
+    const repoCountSpan = document.createElement("span");
+    repoCountSpan.className = "repo-count";
     repoCountSpan.textContent = String(group.notifications.length);
     repoActionsDiv.appendChild(repoCountSpan);
 
-    const markReadBtn = document.createElement('button');
-    markReadBtn.className = 'repo-mark-read-btn';
-    markReadBtn.title = 'Mark all notifications in this repository as read';
-    markReadBtn.setAttribute('aria-label', 'Mark repository as read');
+    const markReadBtn = document.createElement("button");
+    markReadBtn.className = "repo-mark-read-btn";
+    markReadBtn.title = "Mark all notifications in this repository as read";
+    markReadBtn.setAttribute("aria-label", "Mark repository as read");
 
-    const checkmarkSvg = getIconSVGElement('checkmark');
+    const checkmarkSvg = getIconSVGElement("checkmark");
     markReadBtn.appendChild(checkmarkSvg);
     repoActionsDiv.appendChild(markReadBtn);
 
@@ -625,7 +643,7 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoHeader.appendChild(repoActionsDiv);
 
     // Add event listener for mark as read button
-    markReadBtn.addEventListener('click', (e) => {
+    markReadBtn.addEventListener("click", (e) => {
       e.preventDefault(); // Prevent <a> default navigation
       e.stopPropagation(); // Stop event bubbling
       config.onMarkRepoAsRead(repoFullName);

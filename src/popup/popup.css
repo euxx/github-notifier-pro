@@ -1,5 +1,5 @@
 /* Import shared variables */
-@import url('../styles/variables.css');
+@import url("../styles/variables.css");
 
 * {
   box-sizing: border-box;
@@ -14,7 +14,7 @@ body {
   visibility: hidden;
   min-height: 300px;
   max-height: 600px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
   font-size: 14px;
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -161,7 +161,7 @@ body.dark-theme #main-view {
 
 .auth-method-divider::before,
 .auth-method-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
   background: var(--border-color);
@@ -200,7 +200,7 @@ body.dark-theme #main-view {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
   background: var(--bg-primary);
   color: var(--text-primary);
   transition:
@@ -548,7 +548,7 @@ body.dark-theme .pat-input.input-error {
 
 /* Use overlay instead of opacity to avoid compositing artifacts in scroll containers */
 .notification-item.marking-read::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: var(--bg-primary);
@@ -558,7 +558,7 @@ body.dark-theme .pat-input.input-error {
 }
 
 .repo-group-header.marking-read::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: var(--bg-secondary);
@@ -1296,7 +1296,7 @@ body.dark-theme .settings-view {
   margin-left: auto;
 }
 
-.toggle-switch input[type='checkbox'] {
+.toggle-switch input[type="checkbox"] {
   margin: 0;
   position: absolute;
   opacity: 0;
@@ -1320,7 +1320,7 @@ body.dark-theme .settings-view {
 }
 
 .toggle-slider::after {
-  content: '';
+  content: "";
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -1335,24 +1335,24 @@ body.dark-theme .settings-view {
   background: var(--control-active);
 }
 
-.toggle-switch input[type='checkbox']:checked + .toggle-slider {
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider {
   background: var(--control-active);
 }
 
-.toggle-switch input[type='checkbox']:checked + .toggle-slider::after {
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider::after {
   transform: translateX(16px);
   background: var(--bg-primary);
 }
 
-.toggle-switch input[type='checkbox']:focus-visible + .toggle-slider {
+.toggle-switch input[type="checkbox"]:focus-visible + .toggle-slider {
   box-shadow: 0 0 0 3px var(--control-focus);
 }
 
-.toggle-switch:has(input[type='checkbox']:disabled) {
+.toggle-switch:has(input[type="checkbox"]:disabled) {
   cursor: not-allowed;
 }
 
-.toggle-switch input[type='checkbox']:disabled + .toggle-slider {
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider {
   opacity: 0.5;
   box-shadow: none;
 }
@@ -1502,21 +1502,21 @@ body.dark-theme .settings-view {
 }
 
 /* Dark theme scrollbar - more gray */
-[data-theme='dark'] ::-webkit-scrollbar-thumb {
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
   background: rgba(160, 160, 160, 0.4);
 }
 
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(180, 180, 180, 0.55);
 }
 
 /* System theme in dark mode */
 @media (prefers-color-scheme: dark) {
-  [data-theme='system'] ::-webkit-scrollbar-thumb {
+  [data-theme="system"] ::-webkit-scrollbar-thumb {
     background: rgba(160, 160, 160, 0.4);
   }
 
-  [data-theme='system'] ::-webkit-scrollbar-thumb:hover {
+  [data-theme="system"] ::-webkit-scrollbar-thumb:hover {
     background: rgba(180, 180, 180, 0.55);
   }
 }

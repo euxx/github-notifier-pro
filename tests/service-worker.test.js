@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Create mock Chrome APIs
 const mockAction = {
@@ -35,7 +35,7 @@ const mockTabs = {
 };
 
 const mockNotifications = {
-  create: vi.fn().mockResolvedValue('notification-id'),
+  create: vi.fn().mockResolvedValue("notification-id"),
   clear: vi.fn().mockResolvedValue(true),
   onClicked: {
     addListener: vi.fn(),
@@ -55,7 +55,7 @@ const mockStorage = {
 };
 
 // Mock chrome-api module
-vi.mock('../src/lib/chrome-api.js', () => ({
+vi.mock("../src/lib/chrome-api.js", () => ({
   action: mockAction,
   alarms: mockAlarms,
   runtime: mockRuntime,
@@ -82,7 +82,7 @@ const mockStorageFunctions = {
   clearAuthData: vi.fn(),
 };
 
-vi.mock('../src/lib/storage.js', () => mockStorageFunctions);
+vi.mock("../src/lib/storage.js", () => mockStorageFunctions);
 
 // Mock github-api module
 const mockGithub = {
@@ -97,54 +97,54 @@ const mockGithub = {
   markAsRead: vi.fn(),
   markAllAsRead: vi.fn(),
   markRepoAsRead: vi.fn(),
-  getRateLimitInfo: vi.fn(() => ({ resetIn: '5 min' })),
+  getRateLimitInfo: vi.fn(() => ({ resetIn: "5 min" })),
 };
 
-vi.mock('../src/lib/github-api.js', () => ({
+vi.mock("../src/lib/github-api.js", () => ({
   default: mockGithub,
   github: mockGithub,
 }));
 
 // Mock constants
-vi.mock('../src/lib/constants.js', () => ({
-  ALARM_NAME: 'check-notifications',
+vi.mock("../src/lib/constants.js", () => ({
+  ALARM_NAME: "check-notifications",
   DEFAULT_POLL_INTERVAL_MINUTES: 1,
   MIN_POLL_INTERVAL_SECONDS: 60,
   MAX_POLL_INTERVAL_SECONDS: 600,
   MESSAGE_TYPES: {
-    LOGIN: 'login',
-    LOGOUT: 'logout',
-    GET_STATE: 'getState',
-    GET_RATE_LIMIT: 'getRateLimit',
-    OPEN_NOTIFICATION: 'openNotification',
-    MARK_AS_READ: 'markAsRead',
-    MARK_ALL_AS_READ: 'markAllAsRead',
-    MARK_REPO_AS_READ: 'markRepoAsRead',
-    REFRESH: 'refresh',
+    LOGIN: "login",
+    LOGOUT: "logout",
+    GET_STATE: "getState",
+    GET_RATE_LIMIT: "getRateLimit",
+    OPEN_NOTIFICATION: "openNotification",
+    MARK_AS_READ: "markAsRead",
+    MARK_ALL_AS_READ: "markAllAsRead",
+    MARK_REPO_AS_READ: "markRepoAsRead",
+    REFRESH: "refresh",
   },
   NOTIFICATION_TYPES: {
-    ISSUE: 'Issue',
-    PULL_REQUEST: 'PullRequest',
-    RELEASE: 'Release',
-    CHECK_SUITE: 'CheckSuite',
+    ISSUE: "Issue",
+    PULL_REQUEST: "PullRequest",
+    RELEASE: "Release",
+    CHECK_SUITE: "CheckSuite",
   },
   NOTIFICATION_TYPE_ICONS: {
-    Issue: 'issue',
-    PullRequest: 'pr',
-    Release: 'release',
-    CheckSuite: 'actions',
+    Issue: "issue",
+    PullRequest: "pr",
+    Release: "release",
+    CheckSuite: "actions",
   },
 }));
 
 // Mock format-utils
-vi.mock('../src/lib/format-utils.js', () => ({
-  formatReason: vi.fn((reason) => reason || 'Unknown'),
+vi.mock("../src/lib/format-utils.js", () => ({
+  formatReason: vi.fn((reason) => reason || "Unknown"),
 }));
 
 // Mock url-builder
-vi.mock('../src/lib/url-builder.js', () => ({
+vi.mock("../src/lib/url-builder.js", () => ({
   buildNotificationUrl: vi.fn(
-    (notif) => notif.html_url || `https://github.com/${notif.repository?.full_name || 'test/repo'}`,
+    (notif) => notif.html_url || `https://github.com/${notif.repository?.full_name || "test/repo"}`,
   ),
 }));
 
@@ -174,12 +174,13 @@ const {
   AGGREGATED_NOTIFICATION_ID,
   NOTIFICATION_DELAY_MS,
   GITHUB_NOTIFICATIONS_URL,
-} = await import('../src/background/service-worker.js');
+} = await import("../src/background/service-worker.js");
 
 // Get a handle on the url-builder mock to allow per-test overrides
-const { buildNotificationUrl: mockBuildNotificationUrl } = await import('../src/lib/url-builder.js');
+const { buildNotificationUrl: mockBuildNotificationUrl } =
+  await import("../src/lib/url-builder.js");
 
-describe('service-worker', () => {
+describe("service-worker", () => {
   beforeEach(async () => {
     // Reset all mocks
     vi.clearAllMocks();
@@ -203,165 +204,165 @@ describe('service-worker', () => {
     // Import service-worker to trigger initialization
     // Use dynamic import with cache busting
     vi.resetModules();
-    await import('../src/background/service-worker.js');
+    await import("../src/background/service-worker.js");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  describe('initialization', () => {
-    it('should register message listener on import', () => {
+  describe("initialization", () => {
+    it("should register message listener on import", () => {
       expect(mockRuntime.onMessage.addListener).toHaveBeenCalled();
       expect(messageHandler).toBeDefined();
     });
 
-    it('should register alarm listener on import', () => {
+    it("should register alarm listener on import", () => {
       expect(mockAlarms.onAlarm.addListener).toHaveBeenCalled();
     });
 
-    it('should register notification click listener on import', () => {
+    it("should register notification click listener on import", () => {
       expect(mockNotifications.onClicked.addListener).toHaveBeenCalled();
     });
 
-    it('should register startup and install listeners', () => {
+    it("should register startup and install listeners", () => {
       expect(mockRuntime.onStartup.addListener).toHaveBeenCalled();
       expect(mockRuntime.onInstalled.addListener).toHaveBeenCalled();
     });
 
-    it('should show ? badge when not authenticated', async () => {
+    it("should show ? badge when not authenticated", async () => {
       // Wait for initialization
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '?' });
-      expect(mockAction.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#6B7280' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "?" });
+      expect(mockAction.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: "#6B7280" });
     });
   });
 
-  describe('handleMessage - LOGIN', () => {
-    it('should login with PAT token', async () => {
-      mockGithub.fetchUsername.mockResolvedValue('testuser');
-      mockGithub.token = 'ghp_test';
-      mockGithub.username = 'testuser';
+  describe("handleMessage - LOGIN", () => {
+    it("should login with PAT token", async () => {
+      mockGithub.fetchUsername.mockResolvedValue("testuser");
+      mockGithub.token = "ghp_test";
+      mockGithub.username = "testuser";
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
+      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
 
       // Wait for async handling
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.fetchUsername).toHaveBeenCalled();
-      expect(mockStorageFunctions.setToken).toHaveBeenCalledWith('ghp_test');
+      expect(mockStorageFunctions.setToken).toHaveBeenCalledWith("ghp_test");
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          username: 'testuser',
+          username: "testuser",
         }),
       );
     });
 
-    it('should return error on login failure', async () => {
-      mockGithub.fetchUsername.mockRejectedValue(new Error('Invalid token'));
+    it("should return error on login failure", async () => {
+      mockGithub.fetchUsername.mockRejectedValue(new Error("Invalid token"));
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'login', authMethod: 'pat', token: 'invalid' }, {}, sendResponse);
+      messageHandler({ action: "login", authMethod: "pat", token: "invalid" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          error: 'Invalid token',
+          error: "Invalid token",
         }),
       );
     });
   });
 
-  describe('handleMessage - LOGOUT', () => {
-    it('should logout and clear state', async () => {
+  describe("handleMessage - LOGOUT", () => {
+    it("should logout and clear state", async () => {
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'logout' }, {}, sendResponse);
+      messageHandler({ action: "logout" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.logout).toHaveBeenCalled();
-      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
+      expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
       expect(mockStorageFunctions.clearAuthData).toHaveBeenCalled();
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '?' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "?" });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
 
-  describe('handleMessage - GET_STATE', () => {
-    it('should return current state', async () => {
+  describe("handleMessage - GET_STATE", () => {
+    it("should return current state", async () => {
       mockGithub.isAuthenticated = true;
-      mockGithub.username = 'testuser';
-      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '1', title: 'Test' }]);
+      mockGithub.username = "testuser";
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "1", title: "Test" }]);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'getState' }, {}, sendResponse);
+      messageHandler({ action: "getState" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           isAuthenticated: true,
-          username: 'testuser',
-          notifications: [{ id: '1', title: 'Test' }],
+          username: "testuser",
+          notifications: [{ id: "1", title: "Test" }],
         }),
       );
     });
 
-    it('should fetch username from storage if not in memory', async () => {
+    it("should fetch username from storage if not in memory", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.username = null;
-      mockStorageFunctions.getUsername.mockResolvedValue('storeduser');
+      mockStorageFunctions.getUsername.mockResolvedValue("storeduser");
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'getState' }, {}, sendResponse);
+      messageHandler({ action: "getState" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockStorageFunctions.getUsername).toHaveBeenCalled();
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          username: 'storeduser',
+          username: "storeduser",
         }),
       );
     });
   });
 
-  describe('handleMessage - GET_RATE_LIMIT', () => {
-    it('should return rate limit info', async () => {
+  describe("handleMessage - GET_RATE_LIMIT", () => {
+    it("should return rate limit info", async () => {
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'getRateLimit' }, {}, sendResponse);
+      messageHandler({ action: "getRateLimit" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.getRateLimitInfo).toHaveBeenCalled();
       expect(sendResponse).toHaveBeenCalledWith({
-        rateLimit: { resetIn: '5 min' },
+        rateLimit: { resetIn: "5 min" },
       });
     });
   });
 
-  describe('handleMessage - OPEN_NOTIFICATION', () => {
-    it('should open notification URL in new tab', async () => {
+  describe("handleMessage - OPEN_NOTIFICATION", () => {
+    it("should open notification URL in new tab", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         {
-          id: '123',
-          title: 'Test Issue',
-          html_url: 'https://github.com/owner/repo/issues/1',
-          repository: { full_name: 'owner/repo' },
+          id: "123",
+          title: "Test Issue",
+          html_url: "https://github.com/owner/repo/issues/1",
+          repository: { full_name: "owner/repo" },
         },
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
@@ -369,12 +370,12 @@ describe('service-worker', () => {
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'openNotification', notificationId: '123' }, {}, sendResponse);
+      messageHandler({ action: "openNotification", notificationId: "123" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockTabs.create).toHaveBeenCalledWith({
-        url: 'https://github.com/owner/repo/issues/1',
+        url: "https://github.com/owner/repo/issues/1",
       });
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -383,211 +384,221 @@ describe('service-worker', () => {
       );
     });
 
-    it('should throw error for non-existent notification', async () => {
+    it("should throw error for non-existent notification", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'openNotification', notificationId: 'nonexistent' }, {}, sendResponse);
+      messageHandler(
+        { action: "openNotification", notificationId: "nonexistent" },
+        {},
+        sendResponse,
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
-        error: 'Notification not found',
+        error: "Notification not found",
       });
     });
 
-    it('should return error response when notification has no usable URL', async () => {
+    it("should return error response when notification has no usable URL", async () => {
       // Simulate buildNotificationUrl throwing on corrupted repository data
       vi.mocked(mockBuildNotificationUrl).mockImplementationOnce(() => {
-        throw new Error('Cannot build notification URL: repository data is incomplete');
+        throw new Error("Cannot build notification URL: repository data is incomplete");
       });
 
-      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '999', type: 'Issue', repository: {} }]);
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: "999", type: "Issue", repository: {} },
+      ]);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'openNotification', notificationId: '999' }, {}, sendResponse);
+      messageHandler({ action: "openNotification", notificationId: "999" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockTabs.create).not.toHaveBeenCalled();
       // Verify an error response was sent without pinning the message wording.
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(String) }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
     });
   });
 
-  describe('handleMessage - MARK_AS_READ', () => {
-    it('should mark notification as read and update storage', async () => {
+  describe("handleMessage - MARK_AS_READ", () => {
+    it("should mark notification as read and update storage", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', title: 'Test' },
-        { id: '456', title: 'Another' },
+        { id: "123", title: "Test" },
+        { id: "456", title: "Another" },
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
+      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockGithub.markAsRead).toHaveBeenCalledWith('123');
-      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([{ id: '456', title: 'Another' }]);
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1' });
+      expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
+      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
+        { id: "456", title: "Another" },
+      ]);
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1" });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it('should return error on API failure', async () => {
-      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '123', title: 'Test' }]);
-      mockGithub.markAsRead.mockRejectedValue(new Error('API Error'));
+    it("should return error on API failure", async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", title: "Test" }]);
+      mockGithub.markAsRead.mockRejectedValue(new Error("API Error"));
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
+      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,
-        error: 'API Error',
+        error: "API Error",
       });
     });
 
-    it('should preserve + badge suffix when hasMore is true', async () => {
+    it("should preserve + badge suffix when hasMore is true", async () => {
       // Seed hasMore state from a successful refresh result
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: true, count: 0 });
       mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', title: 'Test' },
-        { id: '456', title: 'Another' },
+        { id: "123", title: "Test" },
+        { id: "456", title: "Another" },
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
       const refreshResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, refreshResponse);
+      messageHandler({ action: "refresh" }, {}, refreshResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'markAsRead', notificationId: '123' }, {}, sendResponse);
+      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1+' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1+" });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
 
-  describe('handleMessage - MARK_ALL_AS_READ', () => {
-    it('should mark all notifications as read', async () => {
+  describe("handleMessage - MARK_ALL_AS_READ", () => {
+    it("should mark all notifications as read", async () => {
       mockGithub.markAllAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'markAllAsRead' }, {}, sendResponse);
+      messageHandler({ action: "markAllAsRead" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockGithub.markAllAsRead).toHaveBeenCalled();
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "" });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
 
-  describe('handleMessage - MARK_REPO_AS_READ', () => {
-    it('should mark repository notifications as read', async () => {
+  describe("handleMessage - MARK_REPO_AS_READ", () => {
+    it("should mark repository notifications as read", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test 1' },
-        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+        { id: "123", repository: { full_name: "owner/repo" }, title: "Test 1" },
+        { id: "456", repository: { full_name: "other/repo" }, title: "Test 2" },
       ]);
       mockGithub.markRepoAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockGithub.markRepoAsRead).toHaveBeenCalledWith('owner', 'repo');
+      expect(mockGithub.markRepoAsRead).toHaveBeenCalledWith("owner", "repo");
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
-        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+        { id: "456", repository: { full_name: "other/repo" }, title: "Test 2" },
       ]);
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1" });
       expect(sendResponse).toHaveBeenCalledWith({
         success: true,
-        notifications: [{ id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' }],
+        notifications: [{ id: "456", repository: { full_name: "other/repo" }, title: "Test 2" }],
       });
     });
 
-    it('should return error on API failure', async () => {
+    it("should return error on API failure", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test' },
+        { id: "123", repository: { full_name: "owner/repo" }, title: "Test" },
       ]);
-      mockGithub.markRepoAsRead.mockRejectedValue(new Error('API Error'));
+      mockGithub.markRepoAsRead.mockRejectedValue(new Error("API Error"));
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,
-        error: 'API Error',
+        error: "API Error",
       });
     });
 
-    it('should preserve + badge suffix when hasMore is true', async () => {
+    it("should preserve + badge suffix when hasMore is true", async () => {
       // Seed hasMore state from a successful refresh result
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: true, count: 0 });
       mockStorageFunctions.getNotifications.mockResolvedValue([
-        { id: '123', repository: { full_name: 'owner/repo' }, title: 'Test 1' },
-        { id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' },
+        { id: "123", repository: { full_name: "owner/repo" }, title: "Test 1" },
+        { id: "456", repository: { full_name: "other/repo" }, title: "Test 2" },
       ]);
       mockGithub.markRepoAsRead.mockResolvedValue(true);
 
       const refreshResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, refreshResponse);
+      messageHandler({ action: "refresh" }, {}, refreshResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'markRepoAsRead', owner: 'owner', repo: 'repo' }, {}, sendResponse);
+      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '1+' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1+" });
       expect(sendResponse).toHaveBeenCalledWith({
         success: true,
-        notifications: [{ id: '456', repository: { full_name: 'other/repo' }, title: 'Test 2' }],
+        notifications: [{ id: "456", repository: { full_name: "other/repo" }, title: "Test 2" }],
       });
     });
   });
 
-  describe('handleMessage - REFRESH', () => {
-    it('should refresh notifications and reset alarm', async () => {
+  describe("handleMessage - REFRESH", () => {
+    it("should refresh notifications and reset alarm", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 1,
         periodInMinutes: 1,
       });
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it('should reset lastModified to force non-conditional request', async () => {
+    it("should reset lastModified to force non-conditional request", async () => {
       mockGithub.isAuthenticated = true;
-      mockGithub.lastModified = 'Thu, 01 Jan 2025 00:00:00 GMT';
+      mockGithub.lastModified = "Thu, 01 Jan 2025 00:00:00 GMT";
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -595,14 +606,14 @@ describe('service-worker', () => {
     });
   });
 
-  describe('dynamic polling interval', () => {
-    it('should update alarm when poll interval changes on 200 response', async () => {
+  describe("dynamic polling interval", () => {
+    it("should update alarm when poll interval changes on 200 response", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.pollInterval = 60; // Start with 60 seconds
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
+      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Clear previous calls
@@ -611,26 +622,26 @@ describe('service-worker', () => {
 
       // Change poll interval and trigger check
       mockGithub.pollInterval = 120; // Change to 120 seconds
-      mockGithub.fetchUsername.mockResolvedValue('testuser');
+      mockGithub.fetchUsername.mockResolvedValue("testuser");
 
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should update alarm with new interval (2 minutes)
-      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 2,
         periodInMinutes: 2,
       });
     });
 
-    it('should update alarm when poll interval changes on 304 response', async () => {
+    it("should update alarm when poll interval changes on 304 response", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.pollInterval = 60; // Start with 60 seconds
       mockGithub.getNotifications.mockResolvedValue(null); // 304 Not Modified
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'login', authMethod: 'pat', token: 'ghp_test' }, {}, sendResponse);
+      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Clear previous calls
@@ -639,132 +650,140 @@ describe('service-worker', () => {
 
       // Change poll interval (simulating GitHub sending new X-Poll-Interval on 304)
       mockGithub.pollInterval = 180; // Change to 180 seconds
-      mockGithub.fetchUsername.mockResolvedValue('testuser');
+      mockGithub.fetchUsername.mockResolvedValue("testuser");
 
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should update alarm even on 304 (3 minutes)
-      expect(mockAlarms.clear).toHaveBeenCalledWith('check-notifications');
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 3,
         periodInMinutes: 3,
       });
     });
 
-    it('should clamp poll interval to minimum (60s / 1min)', async () => {
+    it("should clamp poll interval to minimum (60s / 1min)", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.pollInterval = 30; // Below minimum
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should clamp to 1 minute minimum
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 1,
         periodInMinutes: 1,
       });
     });
 
-    it('should clamp poll interval to maximum (600s / 10min)', async () => {
+    it("should clamp poll interval to maximum (600s / 10min)", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.pollInterval = 1200; // Above maximum (20 minutes)
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should clamp to 10 minutes maximum
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 10,
         periodInMinutes: 10,
       });
     });
 
-    it('should not update alarm if interval unchanged', async () => {
+    it("should not update alarm if interval unchanged", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.pollInterval = 120; // 2 minutes
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Trigger another refresh with same interval
       mockAlarms.clear.mockClear();
       mockAlarms.create.mockClear();
 
-      messageHandler({ action: 'refresh' }, {}, sendResponse);
+      messageHandler({ action: "refresh" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should still create alarm (as part of REFRESH logic) but with same interval
-      expect(mockAlarms.create).toHaveBeenCalledWith('check-notifications', {
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 2,
         periodInMinutes: 2,
       });
     });
   });
 
-  describe('handleMessage - unknown action', () => {
-    it('should return error for unknown action', async () => {
+  describe("handleMessage - unknown action", () => {
+    it("should return error for unknown action", async () => {
       const sendResponse = vi.fn();
 
-      messageHandler({ action: 'unknownAction' }, {}, sendResponse);
+      messageHandler({ action: "unknownAction" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(sendResponse).toHaveBeenCalledWith({
-        error: 'Unknown action: unknownAction',
+        error: "Unknown action: unknownAction",
       });
     });
   });
 
-  describe('badge updates', () => {
-    it('should show empty badge when count is 0', async () => {
+  describe("badge updates", () => {
+    it("should show empty badge when count is 0", async () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'markAllAsRead' }, {}, sendResponse);
+      messageHandler({ action: "markAllAsRead" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "" });
     });
 
-    it('should show count on badge when notifications exist', async () => {
-      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: '1' }, { id: '2' }, { id: '3' }]);
+    it("should show count on badge when notifications exist", async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: "1" },
+        { id: "2" },
+        { id: "3" },
+      ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
       const sendResponse = vi.fn();
-      messageHandler({ action: 'markAsRead', notificationId: '1' }, {}, sendResponse);
+      messageHandler({ action: "markAsRead", notificationId: "1" }, {}, sendResponse);
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // After removing one, should show 2
-      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: '2' });
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "2" });
     });
   });
 
-  describe('race condition prevention', () => {
+  describe("race condition prevention", () => {
     // Minimal raw GitHub API notification shape
     const makeRawNotif = (id) => ({
       id,
-      subject: { title: `Issue ${id}`, type: 'Issue', url: null },
-      reason: 'mention',
+      subject: { title: `Issue ${id}`, type: "Issue", url: null },
+      reason: "mention",
       unread: true,
-      updated_at: '2024-01-01T00:00:00Z',
-      repository: { name: 'repo', full_name: 'owner/repo', html_url: 'https://github.com/owner/repo' },
+      updated_at: "2024-01-01T00:00:00Z",
+      repository: {
+        name: "repo",
+        full_name: "owner/repo",
+        html_url: "https://github.com/owner/repo",
+      },
     });
 
     // Minimal stored notification shape (as returned by storage)
     const makeStoredNotif = (id) => ({
       id,
-      updated_at: '2024-01-01T00:00:00Z',
-      type: 'Issue',
+      updated_at: "2024-01-01T00:00:00Z",
+      type: "Issue",
     });
 
     beforeEach(() => {
@@ -772,20 +791,20 @@ describe('service-worker', () => {
       mockGithub.pollInterval = 60;
     });
 
-    it('safeBasic should exclude pre-existing notifications removed during the fetch', async () => {
+    it("safeBasic should exclude pre-existing notifications removed during the fetch", async () => {
       // GitHub returns A and B; A was already in storage before the fetch
       mockGithub.getNotifications.mockResolvedValue({
-        items: [makeRawNotif('A'), makeRawNotif('B')],
+        items: [makeRawNotif("A"), makeRawNotif("B")],
         hasMore: false,
       });
 
       // First getNotifications call: existingIds snapshot (both A and B present)
       // Second getNotifications call: safeBasic re-read (A was removed by markAsRead during the fetch)
       mockStorageFunctions.getNotifications
-        .mockResolvedValueOnce([makeStoredNotif('A'), makeStoredNotif('B')])
-        .mockResolvedValueOnce([makeStoredNotif('B')]);
+        .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")])
+        .mockResolvedValueOnce([makeStoredNotif("B")]);
 
-      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      messageHandler({ action: "refresh" }, {}, vi.fn());
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Find the basic-save setNotifications call (an array write, not the badge)
@@ -794,24 +813,24 @@ describe('service-worker', () => {
 
       // The safeBasic write should exclude A (removed during fetch)
       const basicWrite = writeCalls[0][0];
-      expect(basicWrite.map((n) => n.id)).not.toContain('A');
-      expect(basicWrite.map((n) => n.id)).toContain('B');
+      expect(basicWrite.map((n) => n.id)).not.toContain("A");
+      expect(basicWrite.map((n) => n.id)).toContain("B");
     });
 
-    it('safeBasic should always keep new notifications not in existingIds', async () => {
+    it("safeBasic should always keep new notifications not in existingIds", async () => {
       // GitHub returns A (existing) and C (brand new, not yet in storage)
       mockGithub.getNotifications.mockResolvedValue({
-        items: [makeRawNotif('A'), makeRawNotif('C')],
+        items: [makeRawNotif("A"), makeRawNotif("C")],
         hasMore: false,
       });
 
       // First getNotifications: only A existed before the fetch
       // Second getNotifications (safeBasic re-read): still only A in storage
       mockStorageFunctions.getNotifications
-        .mockResolvedValueOnce([makeStoredNotif('A')])
-        .mockResolvedValueOnce([makeStoredNotif('A')]);
+        .mockResolvedValueOnce([makeStoredNotif("A")])
+        .mockResolvedValueOnce([makeStoredNotif("A")]);
 
-      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      messageHandler({ action: "refresh" }, {}, vi.fn());
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const writeCalls = mockStorageFunctions.setNotifications.mock.calls;
@@ -821,16 +840,16 @@ describe('service-worker', () => {
       const writtenIds = basicWrite.map((n) => n.id);
 
       // C is new (not in existingIds) → always kept unconditionally
-      expect(writtenIds).toContain('C');
+      expect(writtenIds).toContain("C");
       // A is existing and still in storage → also kept
-      expect(writtenIds).toContain('A');
+      expect(writtenIds).toContain("A");
     });
 
-    it('safeBasic should abort when notificationFetchVersion is bumped during re-read', async () => {
+    it("safeBasic should abort when notificationFetchVersion is bumped during re-read", async () => {
       // Hold the second getNotifications call (safeBasic re-read) until we manually release it
       let releaseSafeBasicRead;
       mockStorageFunctions.getNotifications
-        .mockResolvedValueOnce([makeStoredNotif('A'), makeStoredNotif('B')]) // existingIds
+        .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")]) // existingIds
         .mockImplementationOnce(
           () =>
             new Promise((resolve) => {
@@ -839,26 +858,26 @@ describe('service-worker', () => {
         ); // safeBasic re-read held
 
       mockGithub.getNotifications.mockResolvedValue({
-        items: [makeRawNotif('A'), makeRawNotif('B')],
+        items: [makeRawNotif("A"), makeRawNotif("B")],
         hasMore: false,
       });
 
       // Start checkNotifications (will pause at safeBasic re-read)
-      messageHandler({ action: 'refresh' }, {}, vi.fn());
+      messageHandler({ action: "refresh" }, {}, vi.fn());
       await new Promise((resolve) => setTimeout(resolve, 30));
 
       // markAsRead bumps notificationFetchVersion before safeBasic resumes
       // slot for markAsRead's own getNotifications call
-      mockStorageFunctions.getNotifications.mockResolvedValueOnce([makeStoredNotif('B')]);
+      mockStorageFunctions.getNotifications.mockResolvedValueOnce([makeStoredNotif("B")]);
       mockGithub.markAsRead.mockResolvedValue(true);
       const markResponse = vi.fn();
-      messageHandler({ action: 'markAsRead', notificationId: 'A' }, {}, markResponse);
+      messageHandler({ action: "markAsRead", notificationId: "A" }, {}, markResponse);
 
       // Wait for markAsRead to complete (bumps version and writes [B])
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Release safeBasic's getNotifications (version is already bumped)
-      releaseSafeBasicRead([makeStoredNotif('B')]);
+      releaseSafeBasicRead([makeStoredNotif("B")]);
       await new Promise((resolve) => setTimeout(resolve, 30));
 
       // setNotifications should only have been called by markAsRead (writing [B])
@@ -866,210 +885,210 @@ describe('service-worker', () => {
       const writeCalls = mockStorageFunctions.setNotifications.mock.calls;
       // Every write should contain only B (not A)
       writeCalls.forEach((call) => {
-        expect(call[0].map((n) => n.id)).not.toContain('A');
+        expect(call[0].map((n) => n.id)).not.toContain("A");
       });
     });
   });
 });
 
-describe('service-worker helper functions', () => {
+describe("service-worker helper functions", () => {
   // Using exported helper functions from service-worker.js
 
-  describe('getIconForType', () => {
-    it('should return correct icon for Issue', () => {
-      expect(getIconForType('Issue')).toBe('issue');
+  describe("getIconForType", () => {
+    it("should return correct icon for Issue", () => {
+      expect(getIconForType("Issue")).toBe("issue");
     });
 
-    it('should return correct icon for PullRequest', () => {
-      expect(getIconForType('PullRequest')).toBe('pr');
+    it("should return correct icon for PullRequest", () => {
+      expect(getIconForType("PullRequest")).toBe("pr");
     });
 
-    it('should return correct icon for Release', () => {
-      expect(getIconForType('Release')).toBe('release');
+    it("should return correct icon for Release", () => {
+      expect(getIconForType("Release")).toBe("release");
     });
 
-    it('should return correct icon for CheckSuite', () => {
-      expect(getIconForType('CheckSuite')).toBe('actions');
+    it("should return correct icon for CheckSuite", () => {
+      expect(getIconForType("CheckSuite")).toBe("actions");
     });
 
-    it('should return notification for unknown type', () => {
-      expect(getIconForType('Unknown')).toBe('notification');
+    it("should return notification for unknown type", () => {
+      expect(getIconForType("Unknown")).toBe("notification");
     });
   });
 
-  describe('updateNotificationDetails', () => {
-    it('should update Issue state', () => {
+  describe("updateNotificationDetails", () => {
+    it("should update Issue state", () => {
       const baseData = {};
-      const details = { state: 'open' };
+      const details = { state: "open" };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
-      expect(baseData.state).toBe('open');
+      expect(baseData.state).toBe("open");
     });
 
-    it('should extract state_reason for closed Issues', () => {
+    it("should extract state_reason for closed Issues", () => {
       const baseData = {};
-      const details = { state: 'closed', state_reason: 'not_planned' };
+      const details = { state: "closed", state_reason: "not_planned" };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
-      expect(baseData.state).toBe('closed');
-      expect(baseData.state_reason).toBe('not_planned');
+      expect(baseData.state).toBe("closed");
+      expect(baseData.state_reason).toBe("not_planned");
     });
 
-    it('should not set state_reason for PRs', () => {
+    it("should not set state_reason for PRs", () => {
       const baseData = {};
-      const details = { state: 'closed', state_reason: 'not_planned', merged: false };
+      const details = { state: "closed", state_reason: "not_planned", merged: false };
 
-      updateNotificationDetails(baseData, details, 'PullRequest');
+      updateNotificationDetails(baseData, details, "PullRequest");
 
       expect(baseData.state_reason).toBeUndefined();
     });
 
-    it('should update PR state and merged flag', () => {
+    it("should update PR state and merged flag", () => {
       const baseData = {};
-      const details = { state: 'closed', merged: true };
+      const details = { state: "closed", merged: true };
 
-      updateNotificationDetails(baseData, details, 'PullRequest');
+      updateNotificationDetails(baseData, details, "PullRequest");
 
-      expect(baseData.state).toBe('closed');
+      expect(baseData.state).toBe("closed");
       expect(baseData.merged).toBe(true);
     });
 
-    it('should update CheckSuite conclusion and status', () => {
+    it("should update CheckSuite conclusion and status", () => {
       const baseData = {};
-      const details = { conclusion: 'success', status: 'completed' };
+      const details = { conclusion: "success", status: "completed" };
 
-      updateNotificationDetails(baseData, details, 'CheckSuite');
+      updateNotificationDetails(baseData, details, "CheckSuite");
 
-      expect(baseData.conclusion).toBe('success');
-      expect(baseData.status).toBe('completed');
+      expect(baseData.conclusion).toBe("success");
+      expect(baseData.status).toBe("completed");
       expect(baseData.state).toBeUndefined();
     });
 
-    it('should extract author from user field', () => {
+    it("should extract author from user field", () => {
       const baseData = {};
       const details = {
-        state: 'open',
+        state: "open",
         user: {
-          login: 'testuser',
-          avatar_url: 'https://avatar.url',
-          html_url: 'https://github.com/testuser',
+          login: "testuser",
+          avatar_url: "https://avatar.url",
+          html_url: "https://github.com/testuser",
         },
       };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
       expect(baseData.author).toEqual({
-        login: 'testuser',
-        avatar_url: 'https://avatar.url',
-        html_url: 'https://github.com/testuser',
+        login: "testuser",
+        avatar_url: "https://avatar.url",
+        html_url: "https://github.com/testuser",
       });
     });
 
-    it('should extract author from author field as fallback', () => {
+    it("should extract author from author field as fallback", () => {
       const baseData = {};
       const details = {
-        state: 'open',
+        state: "open",
         author: {
-          login: 'authoruser',
-          avatar_url: 'https://author.avatar',
-          html_url: 'https://github.com/authoruser',
+          login: "authoruser",
+          avatar_url: "https://author.avatar",
+          html_url: "https://github.com/authoruser",
         },
       };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
-      expect(baseData.author.login).toBe('authoruser');
+      expect(baseData.author.login).toBe("authoruser");
     });
 
-    it('should copy all additional fields', () => {
+    it("should copy all additional fields", () => {
       const baseData = {};
       const details = {
-        state: 'open',
+        state: "open",
         comments: 5,
         number: 42,
-        created_at: '2024-01-01T00:00:00Z',
-        body: 'Description',
-        html_url: 'https://github.com/issue/42',
+        created_at: "2024-01-01T00:00:00Z",
+        body: "Description",
+        html_url: "https://github.com/issue/42",
       };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
       expect(baseData.comment_count).toBe(5);
       expect(baseData.number).toBe(42);
-      expect(baseData.created_at).toBe('2024-01-01T00:00:00Z');
-      expect(baseData.body).toBe('Description');
-      expect(baseData.html_url).toBe('https://github.com/issue/42');
+      expect(baseData.created_at).toBe("2024-01-01T00:00:00Z");
+      expect(baseData.body).toBe("Description");
+      expect(baseData.html_url).toBe("https://github.com/issue/42");
     });
 
-    it('should copy empty-string body (not skip it as falsy)', () => {
-      const baseData = { body: 'old body' };
-      const details = { body: '' };
+    it("should copy empty-string body (not skip it as falsy)", () => {
+      const baseData = { body: "old body" };
+      const details = { body: "" };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
       // An empty string body is a valid API response and must overwrite the cached value
-      expect(baseData.body).toBe('');
+      expect(baseData.body).toBe("");
     });
 
-    it('should copy null body (explicit null means no content, overwrites stale cache)', () => {
-      const baseData = { body: 'old body' };
+    it("should copy null body (explicit null means no content, overwrites stale cache)", () => {
+      const baseData = { body: "old body" };
       const details = { body: null };
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
       expect(baseData.body).toBeNull();
     });
 
-    it('should not copy body when field is absent (undefined means API did not return it)', () => {
-      const baseData = { body: 'keep me' };
+    it("should not copy body when field is absent (undefined means API did not return it)", () => {
+      const baseData = { body: "keep me" };
       const details = {}; // body is undefined / not in response
 
-      updateNotificationDetails(baseData, details, 'Issue');
+      updateNotificationDetails(baseData, details, "Issue");
 
-      expect(baseData.body).toBe('keep me');
+      expect(baseData.body).toBe("keep me");
     });
   });
 
-  describe('copyCachedDetails', () => {
-    it('should copy all defined cached fields', () => {
+  describe("copyCachedDetails", () => {
+    it("should copy all defined cached fields", () => {
       const baseData = {};
       const existing = {
-        state: 'closed',
+        state: "closed",
         merged: true,
-        author: { login: 'user' },
+        author: { login: "user" },
         comment_count: 10,
         number: 99,
-        created_at: '2024-01-01',
-        body: 'Body text',
-        html_url: 'https://url',
+        created_at: "2024-01-01",
+        body: "Body text",
+        html_url: "https://url",
       };
 
       copyCachedDetails(baseData, existing);
 
-      expect(baseData.state).toBe('closed');
+      expect(baseData.state).toBe("closed");
       expect(baseData.merged).toBe(true);
-      expect(baseData.author).toEqual({ login: 'user' });
+      expect(baseData.author).toEqual({ login: "user" });
       expect(baseData.comment_count).toBe(10);
       expect(baseData.number).toBe(99);
     });
 
-    it('should not copy undefined fields', () => {
-      const baseData = { existingField: 'keep' };
+    it("should not copy undefined fields", () => {
+      const baseData = { existingField: "keep" };
       const existing = {
-        state: 'open',
+        state: "open",
         // merged is not defined
       };
 
       copyCachedDetails(baseData, existing);
 
-      expect(baseData.state).toBe('open');
+      expect(baseData.state).toBe("open");
       expect(baseData.merged).toBeUndefined();
-      expect(baseData.existingField).toBe('keep');
+      expect(baseData.existingField).toBe("keep");
     });
 
-    it('should copy detailsFailed flag', () => {
+    it("should copy detailsFailed flag", () => {
       const baseData = {};
       const existing = { detailsFailed: true };
 
@@ -1079,7 +1098,7 @@ describe('service-worker helper functions', () => {
     });
   });
 
-  describe('showDesktopNotificationsForNew', () => {
+  describe("showDesktopNotificationsForNew", () => {
     /**
      * Helper to run showDesktopNotificationsForNew and flush timers
      */
@@ -1100,10 +1119,10 @@ describe('service-worker helper functions', () => {
       vi.useRealTimers();
     });
 
-    it('should do nothing when desktop notifications are disabled', async () => {
+    it("should do nothing when desktop notifications are disabled", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(false);
 
-      const notifications = [{ id: '1', isNew: true }];
+      const notifications = [{ id: "1", isNew: true }];
       await showDesktopNotificationsForNew(notifications);
 
       // Should still clear aggregated notification even when disabled
@@ -1112,23 +1131,23 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).not.toHaveBeenCalled();
     });
 
-    it('should clear previous aggregated notification', async () => {
+    it("should clear previous aggregated notification", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
 
-      const notifications = [{ id: '1', isNew: true }];
+      const notifications = [{ id: "1", isNew: true }];
       await showDesktopNotificationsForNew(notifications);
 
       expect(mockNotifications.clear).toHaveBeenCalledWith(AGGREGATED_NOTIFICATION_ID);
     });
 
-    it('should do nothing when there are no new notifications', async () => {
+    it("should do nothing when there are no new notifications", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
 
       const notifications = [
-        { id: '1', isNew: false },
-        { id: '2', isNew: false },
+        { id: "1", isNew: false },
+        { id: "2", isNew: false },
       ];
       await showDesktopNotificationsForNew(notifications);
 
@@ -1137,7 +1156,7 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).not.toHaveBeenCalled();
     });
 
-    it('should clear aggregated notification even when notification list is empty', async () => {
+    it("should clear aggregated notification even when notification list is empty", async () => {
       await showDesktopNotificationsForNew([]);
 
       // Should clear old aggregated notification to prevent stale notifications
@@ -1145,7 +1164,7 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).not.toHaveBeenCalled();
     });
 
-    it('should clear aggregated notification even with null/undefined input', async () => {
+    it("should clear aggregated notification even with null/undefined input", async () => {
       await showDesktopNotificationsForNew(null);
       expect(mockNotifications.clear).toHaveBeenCalledWith(AGGREGATED_NOTIFICATION_ID);
       expect(mockNotifications.create).not.toHaveBeenCalled();
@@ -1157,14 +1176,32 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).not.toHaveBeenCalled();
     });
 
-    it('should show all notifications when count is below limit', async () => {
+    it("should show all notifications when count is below limit", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
 
       const notifications = [
-        { id: '1', isNew: true, title: 'Notif 1', repository: { full_name: 'repo1' }, reason: 'mention' },
-        { id: '2', isNew: true, title: 'Notif 2', repository: { full_name: 'repo2' }, reason: 'assign' },
-        { id: '3', isNew: true, title: 'Notif 3', repository: { full_name: 'repo3' }, reason: 'review' },
+        {
+          id: "1",
+          isNew: true,
+          title: "Notif 1",
+          repository: { full_name: "repo1" },
+          reason: "mention",
+        },
+        {
+          id: "2",
+          isNew: true,
+          title: "Notif 2",
+          repository: { full_name: "repo2" },
+          reason: "assign",
+        },
+        {
+          id: "3",
+          isNew: true,
+          title: "Notif 3",
+          repository: { full_name: "repo3" },
+          reason: "review",
+        },
       ];
       await runWithTimers(notifications);
 
@@ -1172,23 +1209,23 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).toHaveBeenCalledWith(
         `${NOTIFICATION_ID_PREFIX}1`,
         expect.objectContaining({
-          type: 'basic',
-          title: 'Notif 1',
+          type: "basic",
+          title: "Notif 1",
         }),
       );
     });
 
-    it('should limit notifications to max and show aggregated notification', async () => {
+    it("should limit notifications to max and show aggregated notification", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(3);
 
       const notifications = [
-        { id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' },
-        { id: '2', isNew: true, title: 'N2', repository: { full_name: 'r2' }, reason: 'a' },
-        { id: '3', isNew: true, title: 'N3', repository: { full_name: 'r3' }, reason: 'r' },
-        { id: '4', isNew: true, title: 'N4', repository: { full_name: 'r4' }, reason: 's' },
-        { id: '5', isNew: true, title: 'N5', repository: { full_name: 'r5' }, reason: 'c' },
-        { id: '6', isNew: true, title: 'N6', repository: { full_name: 'r6' }, reason: 't' },
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "a" },
+        { id: "3", isNew: true, title: "N3", repository: { full_name: "r3" }, reason: "r" },
+        { id: "4", isNew: true, title: "N4", repository: { full_name: "r4" }, reason: "s" },
+        { id: "5", isNew: true, title: "N5", repository: { full_name: "r5" }, reason: "c" },
+        { id: "6", isNew: true, title: "N6", repository: { full_name: "r6" }, reason: "t" },
       ];
       await runWithTimers(notifications);
 
@@ -1196,22 +1233,31 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).toHaveBeenCalledTimes(4);
 
       // Check individual notifications
-      expect(mockNotifications.create).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}1`, expect.any(Object));
-      expect(mockNotifications.create).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}2`, expect.any(Object));
-      expect(mockNotifications.create).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}3`, expect.any(Object));
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}1`,
+        expect.any(Object),
+      );
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}2`,
+        expect.any(Object),
+      );
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}3`,
+        expect.any(Object),
+      );
 
       // Check aggregated notification
       expect(mockNotifications.create).toHaveBeenCalledWith(
         AGGREGATED_NOTIFICATION_ID,
         expect.objectContaining({
-          type: 'basic',
-          title: 'GitHub Notifications',
-          message: '... and 3 more new notifications',
+          type: "basic",
+          title: "GitHub Notifications",
+          message: "... and 3 more new notifications",
         }),
       );
     });
 
-    it('should handle edge case with exactly max notifications', async () => {
+    it("should handle edge case with exactly max notifications", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
 
@@ -1219,8 +1265,8 @@ describe('service-worker helper functions', () => {
         id: `${i + 1}`,
         isNew: true,
         title: `N${i + 1}`,
-        repository: { full_name: 'repo' },
-        reason: 'test',
+        repository: { full_name: "repo" },
+        reason: "test",
       }));
       await runWithTimers(notifications);
 
@@ -1228,72 +1274,83 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.create).toHaveBeenCalledTimes(5);
 
       // Should not create aggregated notification
-      expect(mockNotifications.create).not.toHaveBeenCalledWith(AGGREGATED_NOTIFICATION_ID, expect.any(Object));
+      expect(mockNotifications.create).not.toHaveBeenCalledWith(
+        AGGREGATED_NOTIFICATION_ID,
+        expect.any(Object),
+      );
     });
 
-    it('should handle edge case with max = 1', async () => {
+    it("should handle edge case with max = 1", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(1);
 
       const notifications = [
-        { id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' },
-        { id: '2', isNew: true, title: 'N2', repository: { full_name: 'r2' }, reason: 'a' },
-        { id: '3', isNew: true, title: 'N3', repository: { full_name: 'r3' }, reason: 'r' },
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "a" },
+        { id: "3", isNew: true, title: "N3", repository: { full_name: "r3" }, reason: "r" },
       ];
       await runWithTimers(notifications);
 
       // Should create 1 individual + 1 aggregated
       expect(mockNotifications.create).toHaveBeenCalledTimes(2);
-      expect(mockNotifications.create).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}1`, expect.any(Object));
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}1`,
+        expect.any(Object),
+      );
       expect(mockNotifications.create).toHaveBeenCalledWith(
         AGGREGATED_NOTIFICATION_ID,
         expect.objectContaining({
-          message: '... and 2 more new notifications',
+          message: "... and 2 more new notifications",
         }),
       );
     });
 
-    it('should use singular form for 1 remaining notification', async () => {
+    it("should use singular form for 1 remaining notification", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(1);
 
       const notifications = [
-        { id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' },
-        { id: '2', isNew: true, title: 'N2', repository: { full_name: 'r2' }, reason: 'a' },
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "a" },
       ];
       await runWithTimers(notifications);
 
       expect(mockNotifications.create).toHaveBeenCalledWith(
         AGGREGATED_NOTIFICATION_ID,
         expect.objectContaining({
-          message: '... and 1 more new notification',
+          message: "... and 1 more new notification",
         }),
       );
     });
 
-    it('should continue showing notifications even if clear fails', async () => {
+    it("should continue showing notifications even if clear fails", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
-      mockNotifications.clear.mockRejectedValueOnce(new Error('Clear failed'));
+      mockNotifications.clear.mockRejectedValueOnce(new Error("Clear failed"));
 
-      const notifications = [{ id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' }];
+      const notifications = [
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+      ];
       await runWithTimers(notifications);
 
       // Should still create the notification even though clear failed
-      expect(mockNotifications.create).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}1`, expect.any(Object));
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}1`,
+        expect.any(Object),
+      );
     });
 
-    it('should add 1-second delays between notifications', async () => {
+    it("should add 1-second delays between notifications", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
 
       // Spy on setTimeout to verify delays
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
 
       const notifications = [
-        { id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' },
-        { id: '2', isNew: true, title: 'N2', repository: { full_name: 'r2' }, reason: 'a' },
-        { id: '3', isNew: true, title: 'N3', repository: { full_name: 'r3' }, reason: 'r' },
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "a" },
+        { id: "3", isNew: true, title: "N3", repository: { full_name: "r3" }, reason: "r" },
       ];
 
       const promise = showDesktopNotificationsForNew(notifications);
@@ -1301,23 +1358,25 @@ describe('service-worker helper functions', () => {
       await promise;
 
       // Should have 2 delays between 3 notifications (before 2nd and 3rd)
-      const delayCalls = setTimeoutSpy.mock.calls.filter((call) => call[1] === NOTIFICATION_DELAY_MS);
+      const delayCalls = setTimeoutSpy.mock.calls.filter(
+        (call) => call[1] === NOTIFICATION_DELAY_MS,
+      );
       expect(delayCalls.length).toBe(2);
 
       setTimeoutSpy.mockRestore();
     });
 
-    it('should add delay before aggregated notification', async () => {
+    it("should add delay before aggregated notification", async () => {
       mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
       mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(2);
 
       // Spy on setTimeout to verify delays
-      const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
 
       const notifications = [
-        { id: '1', isNew: true, title: 'N1', repository: { full_name: 'r1' }, reason: 'm' },
-        { id: '2', isNew: true, title: 'N2', repository: { full_name: 'r2' }, reason: 'a' },
-        { id: '3', isNew: true, title: 'N3', repository: { full_name: 'r3' }, reason: 'r' },
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "m" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "a" },
+        { id: "3", isNew: true, title: "N3", repository: { full_name: "r3" }, reason: "r" },
       ];
 
       const promise = showDesktopNotificationsForNew(notifications);
@@ -1325,20 +1384,24 @@ describe('service-worker helper functions', () => {
       await promise;
 
       // Should have 2 delays: 1 between notifications + 1 before aggregated
-      const delayCalls = setTimeoutSpy.mock.calls.filter((call) => call[1] === NOTIFICATION_DELAY_MS);
+      const delayCalls = setTimeoutSpy.mock.calls.filter(
+        (call) => call[1] === NOTIFICATION_DELAY_MS,
+      );
       expect(delayCalls.length).toBe(2);
 
       setTimeoutSpy.mockRestore();
     });
   });
 
-  describe('notification click handler', () => {
+  describe("notification click handler", () => {
     /**
      * Helper to click a notification (with null-guard)
      */
     const clickNotification = async (id) => {
       if (!notificationClickHandler) {
-        throw new Error('Notification click handler not registered. Make sure service-worker module is imported.');
+        throw new Error(
+          "Notification click handler not registered. Make sure service-worker module is imported.",
+        );
       }
       return notificationClickHandler(id);
     };
@@ -1347,7 +1410,7 @@ describe('service-worker helper functions', () => {
       vi.clearAllMocks();
     });
 
-    it('should handle aggregated notification click', async () => {
+    it("should handle aggregated notification click", async () => {
       // Click the aggregated notification
       await clickNotification(AGGREGATED_NOTIFICATION_ID);
 
@@ -1358,11 +1421,15 @@ describe('service-worker helper functions', () => {
       expect(mockTabs.create).toHaveBeenCalledWith({ url: GITHUB_NOTIFICATIONS_URL });
     });
 
-    it('should handle individual notification click', async () => {
+    it("should handle individual notification click", async () => {
       const testNotification = {
-        id: '123',
-        subject: { title: 'Test PR', url: 'https://api.github.com/repos/owner/repo/pulls/456', type: 'PullRequest' },
-        repository: { full_name: 'owner/repo', html_url: 'https://github.com/owner/repo' },
+        id: "123",
+        subject: {
+          title: "Test PR",
+          url: "https://api.github.com/repos/owner/repo/pulls/456",
+          type: "PullRequest",
+        },
+        repository: { full_name: "owner/repo", html_url: "https://github.com/owner/repo" },
       };
 
       mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
@@ -1375,18 +1442,18 @@ describe('service-worker helper functions', () => {
       expect(mockNotifications.clear).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}123`);
 
       // Should open the repository URL (since subject.url is an API URL, it falls back to repo URL)
-      expect(mockTabs.create).toHaveBeenCalledWith({ url: 'https://github.com/owner/repo' });
+      expect(mockTabs.create).toHaveBeenCalledWith({ url: "https://github.com/owner/repo" });
 
       // Should mark as read
-      expect(mockGithub.markAsRead).toHaveBeenCalledWith('123');
+      expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
 
       // Should remove from storage
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
     });
 
-    it('should continue opening tab even if clear fails on aggregated notification', async () => {
+    it("should continue opening tab even if clear fails on aggregated notification", async () => {
       // Make clear fail
-      mockNotifications.clear.mockRejectedValueOnce(new Error('Clear failed'));
+      mockNotifications.clear.mockRejectedValueOnce(new Error("Clear failed"));
 
       // Click the aggregated notification
       await clickNotification(AGGREGATED_NOTIFICATION_ID);
@@ -1395,43 +1462,47 @@ describe('service-worker helper functions', () => {
       expect(mockTabs.create).toHaveBeenCalledWith({ url: GITHUB_NOTIFICATIONS_URL });
     });
 
-    it('should continue mark as read even if clear fails on individual notification', async () => {
+    it("should continue mark as read even if clear fails on individual notification", async () => {
       const testNotification = {
-        id: '123',
-        subject: { title: 'Test PR', url: 'https://api.github.com/repos/owner/repo/pulls/456', type: 'PullRequest' },
-        repository: { full_name: 'owner/repo', html_url: 'https://github.com/owner/repo' },
+        id: "123",
+        subject: {
+          title: "Test PR",
+          url: "https://api.github.com/repos/owner/repo/pulls/456",
+          type: "PullRequest",
+        },
+        repository: { full_name: "owner/repo", html_url: "https://github.com/owner/repo" },
       };
 
       mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
       mockGithub.markAsRead.mockResolvedValue(undefined);
 
       // Make clear fail
-      mockNotifications.clear.mockRejectedValueOnce(new Error('Clear failed'));
+      mockNotifications.clear.mockRejectedValueOnce(new Error("Clear failed"));
 
       // Click the individual notification
       await clickNotification(`${NOTIFICATION_ID_PREFIX}123`);
 
       // Should still open tab, mark as read, and update badge even though clear failed
-      expect(mockTabs.create).toHaveBeenCalledWith({ url: 'https://github.com/owner/repo' });
-      expect(mockGithub.markAsRead).toHaveBeenCalledWith('123');
+      expect(mockTabs.create).toHaveBeenCalledWith({ url: "https://github.com/owner/repo" });
+      expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
     });
 
-    it('should not open tab and log error when buildNotificationUrl throws on click', async () => {
+    it("should not open tab and log error when buildNotificationUrl throws on click", async () => {
       const testNotification = {
-        id: '456',
-        subject: { type: 'Issue', title: 'Test' },
-        repository: { name: 'repo' }, // no full_name/html_url — corrupt
+        id: "456",
+        subject: { type: "Issue", title: "Test" },
+        repository: { name: "repo" }, // no full_name/html_url — corrupt
       };
 
       mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
 
       // Force buildNotificationUrl to throw for this test
       vi.mocked(mockBuildNotificationUrl).mockImplementationOnce(() => {
-        throw new Error('repository data is incomplete');
+        throw new Error("repository data is incomplete");
       });
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       await clickNotification(`${NOTIFICATION_ID_PREFIX}456`);
 

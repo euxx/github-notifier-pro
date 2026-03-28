@@ -2,9 +2,9 @@
  * Background Service Worker for GitHub Notifier
  */
 
-import github from '../lib/github-api.js';
-import * as storage from '../lib/storage.js';
-import { action, alarms, runtime, tabs, notifications } from '../lib/chrome-api.js';
+import github from "../lib/github-api.js";
+import * as storage from "../lib/storage.js";
+import { action, alarms, runtime, tabs, notifications } from "../lib/chrome-api.js";
 import {
   ALARM_NAME,
   MIN_POLL_INTERVAL_SECONDS,
@@ -12,20 +12,20 @@ import {
   MESSAGE_TYPES,
   NOTIFICATION_TYPES,
   NOTIFICATION_TYPE_ICONS,
-} from '../lib/constants.js';
-import { formatReason } from '../lib/format-utils.js';
-import { buildNotificationUrl } from '../lib/url-builder.js';
-import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from '../lib/lru-cache.js';
+} from "../lib/constants.js";
+import { formatReason } from "../lib/format-utils.js";
+import { buildNotificationUrl } from "../lib/url-builder.js";
+import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 
 /**
  * Desktop notification constants
  * @exported for testing
  */
-export const NOTIFICATION_ID_PREFIX = 'github-notif-';
-export const AGGREGATED_NOTIFICATION_ID = 'github-notif-more';
+export const NOTIFICATION_ID_PREFIX = "github-notif-";
+export const AGGREGATED_NOTIFICATION_ID = "github-notif-more";
 export const NOTIFICATION_DELAY_MS = 1000;
-export const GITHUB_NOTIFICATIONS_URL = 'https://github.com/notifications';
-const NOTIFICATION_ICON_PATH = 'images/icon.png';
+export const GITHUB_NOTIFICATIONS_URL = "https://github.com/notifications";
+const NOTIFICATION_ICON_PATH = "images/icon.png";
 const CHROME_PRIORITY_NORMAL = 2; // Individual notifications
 const CHROME_PRIORITY_LOW = 1; // Aggregated notifications
 
@@ -33,17 +33,17 @@ const CHROME_PRIORITY_LOW = 1; // Aggregated notifications
  * Badge background colors for different states
  */
 const BADGE_COLORS = {
-  UNAUTHENTICATED: '#6B7280', // Gray - not logged in
-  NORMAL: '#2563EB', // Blue - has notifications
-  RATE_LIMITED: '#f59e0b', // Orange - rate limit error
-  TIMEOUT: '#ef4444', // Red - timeout error
+  UNAUTHENTICATED: "#6B7280", // Gray - not logged in
+  NORMAL: "#2563EB", // Blue - has notifications
+  RATE_LIMITED: "#f59e0b", // Orange - rate limit error
+  TIMEOUT: "#ef4444", // Red - timeout error
 };
 
 /**
  * Detect Chrome/Chromium browser
  * Firefox doesn't support priority and requireInteraction notification options
  */
-const isChrome = typeof chrome !== 'undefined' && typeof browser === 'undefined';
+const isChrome = typeof chrome !== "undefined" && typeof browser === "undefined";
 
 /**
  * Apply Chrome-specific notification options
@@ -65,18 +65,18 @@ function applyChromeNotificationOptions(options, priority) {
 const authorCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
 
 const CACHED_DETAIL_FIELDS = [
-  'state',
-  'state_reason',
-  'merged',
-  'conclusion',
-  'status',
-  'detailsFailed',
-  'author',
-  'comment_count',
-  'number',
-  'created_at',
-  'body',
-  'html_url',
+  "state",
+  "state_reason",
+  "merged",
+  "conclusion",
+  "status",
+  "detailsFailed",
+  "author",
+  "comment_count",
+  "number",
+  "created_at",
+  "body",
+  "html_url",
 ];
 
 // Tracks whether the last successful notifications fetch had additional pages.
@@ -94,7 +94,7 @@ let initializePromise = null;
  */
 async function initialize() {
   if (initializePromise) {
-    console.log('initialize() already running, skipping duplicate call');
+    console.log("initialize() already running, skipping duplicate call");
     return initializePromise;
   }
 
@@ -107,7 +107,7 @@ async function initialize() {
 }
 
 async function doInitialize() {
-  console.log('initialize() starting');
+  console.log("initialize() starting");
   const token = await storage.getToken();
   if (token) {
     github.token = token;
@@ -140,7 +140,7 @@ async function initializeAuthorCache() {
       }
     }
   } catch (error) {
-    console.error('Failed to initialize author cache:', error);
+    console.error("Failed to initialize author cache:", error);
   }
 }
 
@@ -152,10 +152,10 @@ async function initializeAuthorCache() {
 async function updateBadge(count, hasMore = false) {
   if (count === null) {
     // Not authenticated
-    await action.setBadgeText({ text: '?' });
+    await action.setBadgeText({ text: "?" });
     await action.setBadgeBackgroundColor({ color: BADGE_COLORS.UNAUTHENTICATED });
   } else if (count === 0) {
-    await action.setBadgeText({ text: '' });
+    await action.setBadgeText({ text: "" });
   } else {
     const badgeText = hasMore ? `${count}+` : count.toString();
     await action.setBadgeText({ text: badgeText });
@@ -259,7 +259,7 @@ function createDetailFetchTask(notification, index, detailedNotifications) {
     } catch (error) {
       console.error(`Failed to fetch details for notification ${notification.id}:`, error);
       if (notification.subject.type !== NOTIFICATION_TYPES.CHECK_SUITE) {
-        detailedNotifications[index].state = 'open';
+        detailedNotifications[index].state = "open";
       }
       detailedNotifications[index].detailsFailed = true;
       return { success: false, id: notification.id, index, error: error.message };
@@ -305,7 +305,8 @@ async function checkNotifications() {
     // Check if poll interval changed (even on 304) and update alarm accordingly
     // GitHub may send new X-Poll-Interval in 304 responses
     if (github.pollInterval !== previousPollInterval) {
-      const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } = getClampedPollInterval();
+      const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } =
+        getClampedPollInterval();
       console.log(
         `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
       );
@@ -329,7 +330,9 @@ async function checkNotifications() {
 
       // Check if a newer fetch has already started
       if (currentFetchVersion < notificationFetchVersion) {
-        console.log(`Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`);
+        console.log(
+          `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`,
+        );
         return;
       }
 
@@ -384,7 +387,9 @@ async function checkNotifications() {
         return;
       }
       const currentStoredIds = new Set(currentStored.map((n) => n.id));
-      const safeBasic = basicProcessed.filter((n) => !existingIds.has(n.id) || currentStoredIds.has(n.id));
+      const safeBasic = basicProcessed.filter(
+        (n) => !existingIds.has(n.id) || currentStoredIds.has(n.id),
+      );
 
       // Save basic data immediately - popup can display now.
       // Update hasMoreNotifications here (inside all version checks) so it only
@@ -431,7 +436,9 @@ async function checkNotifications() {
         // Log priority loading results
         const prioritySuccess = priorityResults.filter((r) => r.success === true).length;
         const priorityFailed = priorityResults.filter((r) => r.success === false).length;
-        console.log(`Fetch #${currentFetchVersion} priority: ${prioritySuccess} loaded, ${priorityFailed} failed`);
+        console.log(
+          `Fetch #${currentFetchVersion} priority: ${prioritySuccess} loaded, ${priorityFailed} failed`,
+        );
 
         // Check if superseded before updating
         if (currentFetchVersion >= notificationFetchVersion) {
@@ -444,7 +451,9 @@ async function checkNotifications() {
 
             // Save priority notifications immediately
             await storage.setNotifications(safeDetailed);
-            console.log(`Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`);
+            console.log(
+              `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
+            );
           }
         }
       }
@@ -477,7 +486,9 @@ async function checkNotifications() {
 
             // Log cache statistics for monitoring
             const cacheStats = authorCache.getStats();
-            console.log(`Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`);
+            console.log(
+              `Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`,
+            );
 
             // Double-check before final save
             if (currentFetchVersion >= notificationFetchVersion) {
@@ -486,18 +497,28 @@ async function checkNotifications() {
               // Re-check version after async read: a user mark-as-read may have bumped
               // notificationFetchVersion between the read and write, making our snapshot stale.
               if (currentFetchVersion >= notificationFetchVersion) {
-                const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStoredNotifications);
+                const safeDetailed = filterToCurrentlyStored(
+                  detailedNotifications,
+                  currentStoredNotifications,
+                );
 
                 // Update storage with all completed details
                 await storage.setNotifications(safeDetailed);
-                console.log(`Fetch #${currentFetchVersion} updated storage with detailed notifications`);
+                console.log(
+                  `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
+                );
               }
             } else {
-              console.log(`Fetch #${currentFetchVersion} superseded before final save, skipping storage update`);
+              console.log(
+                `Fetch #${currentFetchVersion} superseded before final save, skipping storage update`,
+              );
             }
           })
           .catch((error) => {
-            console.error(`Error fetching background notification details (fetch #${currentFetchVersion}):`, error);
+            console.error(
+              `Error fetching background notification details (fetch #${currentFetchVersion}):`,
+              error,
+            );
           });
       }
 
@@ -508,25 +529,28 @@ async function checkNotifications() {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
 
     // Handle different error types with appropriate UI feedback
-    if (error.message && error.message.includes('Rate limited')) {
+    if (error.message && error.message.includes("Rate limited")) {
       // Rate limited - show timer badge with reset info
       const rateLimitInfo = github.getRateLimitInfo();
-      await action.setBadgeText({ text: '⏱' });
+      await action.setBadgeText({ text: "⏱" });
       await action.setBadgeBackgroundColor({ color: BADGE_COLORS.RATE_LIMITED });
       await action.setTitle({
-        title: `Rate limited. Resets ${rateLimitInfo.resetIn || 'soon'}`,
+        title: `Rate limited. Resets ${rateLimitInfo.resetIn || "soon"}`,
       });
-    } else if (error.message && error.message.includes('timeout')) {
+    } else if (error.message && error.message.includes("timeout")) {
       // Network timeout
-      await action.setBadgeText({ text: '⏱' });
+      await action.setBadgeText({ text: "⏱" });
       await action.setBadgeBackgroundColor({ color: BADGE_COLORS.TIMEOUT });
-      await action.setTitle({ title: 'Request timeout - will retry' });
-    } else if (error.message && (error.message.includes('NetworkError') || error.message.includes('Failed to fetch'))) {
+      await action.setTitle({ title: "Request timeout - will retry" });
+    } else if (
+      error.message &&
+      (error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))
+    ) {
       // Network error - keep last known state, update title only
-      await action.setTitle({ title: 'Offline - showing cached data' });
+      await action.setTitle({ title: "Offline - showing cached data" });
     } else {
       // Other errors
-      console.error('Unexpected error:', error);
+      console.error("Unexpected error:", error);
       await action.setTitle({ title: `Error: ${error.message}` });
     }
   }
@@ -537,7 +561,7 @@ async function checkNotifications() {
  * @exported for testing
  */
 export function getIconForType(type) {
-  return NOTIFICATION_TYPE_ICONS[type] || 'notification';
+  return NOTIFICATION_TYPE_ICONS[type] || "notification";
 }
 
 /**
@@ -589,7 +613,7 @@ runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message)
     .then(sendResponse)
     .catch((error) => {
-      console.error('Message handling error:', error);
+      console.error("Message handling error:", error);
       sendResponse({ error: error.message });
     });
   return true; // Keep channel open for async response
@@ -643,10 +667,10 @@ async function handleMessage(message) {
   }
 }
 
-async function handleLogin(authMethod = 'oauth', token = null) {
+async function handleLogin(authMethod = "oauth", token = null) {
   try {
     if (!token) {
-      throw new Error('Token is required');
+      throw new Error("Token is required");
     }
 
     github.token = token;
@@ -711,7 +735,7 @@ async function openNotification(notificationId) {
   const notification = notifications.find((n) => n.id === notificationId);
 
   if (!notification) {
-    throw new Error('Notification not found');
+    throw new Error("Notification not found");
   }
 
   // Build URL using centralized builder
@@ -722,7 +746,7 @@ async function openNotification(notificationId) {
 
   // Mark as read in background (don't block the opening)
   markAsRead(notificationId).catch((error) => {
-    console.error('Failed to mark as read:', error);
+    console.error("Failed to mark as read:", error);
   });
 
   return { success: true, url };
@@ -744,7 +768,7 @@ async function markAsRead(notificationId) {
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to mark as read:', error);
+    console.error("Failed to mark as read:", error);
     return { success: false, error: error.message };
   }
 }
@@ -763,7 +787,7 @@ async function markAllAsRead() {
 
     return { success: true };
   } catch (error) {
-    console.error('Failed to mark all as read:', error);
+    console.error("Failed to mark all as read:", error);
     return { success: false, error: error.message };
   }
 }
@@ -784,7 +808,7 @@ async function markRepoAsRead(owner, repo) {
 
     return { success: true, notifications: updated };
   } catch (error) {
-    console.error('Failed to mark repo as read:', error);
+    console.error("Failed to mark repo as read:", error);
     return { success: false, error: error.message };
   }
 }
@@ -864,7 +888,7 @@ export async function showDesktopNotificationsForNew(notificationsList) {
       await showAggregatedNotification(remainingCount);
     }
   } catch (error) {
-    console.error('Failed to show desktop notifications:', error);
+    console.error("Failed to show desktop notifications:", error);
   }
 }
 
@@ -881,7 +905,7 @@ export async function showDesktopNotification(notif) {
     }
 
     const notificationOptions = {
-      type: 'basic',
+      type: "basic",
       iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
       title: displayTitle, // Primary: #123 Title
       message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
@@ -896,7 +920,7 @@ export async function showDesktopNotification(notif) {
     const notificationId = `${NOTIFICATION_ID_PREFIX}${notif.id}`;
     await notifications.create(notificationId, notificationOptions);
   } catch (error) {
-    console.error('Failed to create desktop notification:', error);
+    console.error("Failed to create desktop notification:", error);
   }
 }
 
@@ -907,10 +931,10 @@ export async function showDesktopNotification(notif) {
 export async function showAggregatedNotification(remainingCount) {
   try {
     const notificationOptions = {
-      type: 'basic',
+      type: "basic",
       iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
-      title: 'GitHub Notifications',
-      message: `... and ${remainingCount} more new notification${remainingCount > 1 ? 's' : ''}`,
+      title: "GitHub Notifications",
+      message: `... and ${remainingCount} more new notification${remainingCount > 1 ? "s" : ""}`,
     };
 
     // Add Chrome-specific options (Firefox doesn't support these)
@@ -919,7 +943,7 @@ export async function showAggregatedNotification(remainingCount) {
     // Create aggregated notification
     await notifications.create(AGGREGATED_NOTIFICATION_ID, notificationOptions);
   } catch (error) {
-    console.error('Failed to create aggregated notification:', error);
+    console.error("Failed to create aggregated notification:", error);
   }
 }
 
@@ -939,7 +963,7 @@ notifications.onClicked.addListener(async (notificationId) => {
 
     // Validate and extract notification ID from the chrome notification ID
     if (!notificationId.startsWith(NOTIFICATION_ID_PREFIX)) {
-      console.error('Invalid notification ID format:', notificationId);
+      console.error("Invalid notification ID format:", notificationId);
       return;
     }
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
@@ -970,7 +994,7 @@ notifications.onClicked.addListener(async (notificationId) => {
       await updateBadge(updatedNotifications.length, hasMoreNotifications);
     }
   } catch (error) {
-    console.error('Failed to handle notification click:', error);
+    console.error("Failed to handle notification click:", error);
   }
 });
 

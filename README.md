@@ -17,11 +17,10 @@
 - ✨ Clean, minimal UI — feature-rich without the clutter
 - 🎨 Light / Dark / System theme with adjustable popup width
 
-<!-- oxfmt-ignore -->
-| | |
-|---|---|
-| <img src=".github/assets/notifications.png" alt="Notifications" width="400"> | <img src=".github/assets/actions.gif" alt="Actions" width="400"> |
-| <img src=".github/assets/signin.png" alt="Sign in" width="400"> | <img src=".github/assets/settings.png" alt="Settings" width="400"> |
+|                                                                              |                                                                    |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| <img src=".github/assets/notifications.png" alt="Notifications" width="400"> | <img src=".github/assets/actions.gif" alt="Actions" width="400">   |
+| <img src=".github/assets/signin.png" alt="Sign in" width="400">              | <img src=".github/assets/settings.png" alt="Settings" width="400"> |
 
 ## Usage
 

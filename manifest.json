@@ -4,15 +4,8 @@
   "version": "1.0.5",
   "description": "GitHub notifications in the browser toolbar",
   "minimum_chrome_version": "99",
-  "permissions": [
-    "alarms",
-    "storage",
-    "notifications"
-  ],
-  "host_permissions": [
-    "https://api.github.com/*",
-    "https://github.com/*"
-  ],
+  "permissions": ["alarms", "storage", "notifications"],
+  "host_permissions": ["https://api.github.com/*", "https://github.com/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },

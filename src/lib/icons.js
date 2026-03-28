@@ -54,25 +54,25 @@ export const ICON_SVGS = {
 export function getIconSVG(type, state, merged, conclusion, stateReason) {
   const iconKeyMap = {
     issue: () => {
-      if (state === 'closed') {
-        return stateReason === 'not_planned' ? 'issue_not_planned' : 'issue_closed';
+      if (state === "closed") {
+        return stateReason === "not_planned" ? "issue_not_planned" : "issue_closed";
       }
-      return 'issue_open';
+      return "issue_open";
     },
-    pr: () => (merged ? 'pr_merged' : state === 'closed' ? 'pr_closed' : 'pr_open'),
+    pr: () => (merged ? "pr_merged" : state === "closed" ? "pr_closed" : "pr_open"),
     actions: () => {
       const conclusionMap = {
-        success: 'actions_success',
-        failure: 'actions_failure',
-        cancelled: 'actions_cancelled',
-        skipped: 'actions_skipped',
+        success: "actions_success",
+        failure: "actions_failure",
+        cancelled: "actions_cancelled",
+        skipped: "actions_skipped",
       };
-      return conclusionMap[conclusion] || 'actions_pending';
+      return conclusionMap[conclusion] || "actions_pending";
     },
   };
 
   const iconKey = iconKeyMap[type] ? iconKeyMap[type]() : type;
-  return ICON_SVGS[iconKey] || ICON_SVGS['notification'];
+  return ICON_SVGS[iconKey] || ICON_SVGS["notification"];
 }
 
 /**

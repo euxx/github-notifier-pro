@@ -9,4 +9,4 @@
  * Note: Device Flow OAuth doesn't require CLIENT_SECRET - it's secure for browser extensions!
  */
 
-export const CLIENT_ID = 'YOUR_CLIENT_ID_HERE';
+export const CLIENT_ID = "YOUR_CLIENT_ID_HERE";

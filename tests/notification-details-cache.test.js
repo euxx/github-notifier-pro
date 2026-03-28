@@ -2,34 +2,34 @@
  * Tests for notification details caching
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { github } from '../src/lib/github-api.js';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { github } from "../src/lib/github-api.js";
 
-describe('Notification Details Cache', () => {
+describe("Notification Details Cache", () => {
   beforeEach(() => {
-    github.token = 'test_token';
-    github.username = 'testuser';
+    github.token = "test_token";
+    github.username = "testuser";
     github.detailsCache.clear();
     vi.clearAllMocks();
   });
 
-  it('should cache notification details by URL', async () => {
+  it("should cache notification details by URL", async () => {
     const notification = {
       subject: {
-        type: 'Issue',
-        title: 'Test Issue',
-        url: 'https://api.github.com/repos/test/repo/issues/1',
+        type: "Issue",
+        title: "Test Issue",
+        url: "https://api.github.com/repos/test/repo/issues/1",
       },
       repository: {
-        name: 'repo',
-        full_name: 'test/repo',
-        html_url: 'https://github.com/test/repo',
+        name: "repo",
+        full_name: "test/repo",
+        html_url: "https://github.com/test/repo",
       },
     };
 
     const mockDetails = {
-      state: 'open',
-      user: { login: 'tester', avatar_url: 'https://avatar.url' },
+      state: "open",
+      user: { login: "tester", avatar_url: "https://avatar.url" },
       number: 1,
       comments: 5,
     };
@@ -61,23 +61,23 @@ describe('Notification Details Cache', () => {
     expect(github.detailsCache.has(notification.subject.url)).toBe(true);
   });
 
-  it('should respect forceRefresh parameter', async () => {
+  it("should respect forceRefresh parameter", async () => {
     const notification = {
       subject: {
-        type: 'PullRequest',
-        title: 'Test PR',
-        url: 'https://api.github.com/repos/test/repo/pulls/1',
+        type: "PullRequest",
+        title: "Test PR",
+        url: "https://api.github.com/repos/test/repo/pulls/1",
       },
       repository: {
-        name: 'repo',
-        full_name: 'test/repo',
-        html_url: 'https://github.com/test/repo',
+        name: "repo",
+        full_name: "test/repo",
+        html_url: "https://github.com/test/repo",
       },
     };
 
     const mockDetails = {
-      state: 'open',
-      user: { login: 'tester', avatar_url: 'https://avatar.url' },
+      state: "open",
+      user: { login: "tester", avatar_url: "https://avatar.url" },
       number: 1,
     };
 
@@ -104,23 +104,23 @@ describe('Notification Details Cache', () => {
     expect(result.fetchCount).toBe(2);
   });
 
-  it('should not cache notifications without subject.url', async () => {
+  it("should not cache notifications without subject.url", async () => {
     const notification = {
       subject: {
-        type: 'CheckSuite',
-        title: 'Test workflow run succeeded',
+        type: "CheckSuite",
+        title: "Test workflow run succeeded",
         url: null, // No URL
       },
       repository: {
-        name: 'repo',
-        full_name: 'test/repo',
-        html_url: 'https://github.com/test/repo',
-        owner: { login: 'test', avatar_url: 'https://avatar.url' },
+        name: "repo",
+        full_name: "test/repo",
+        html_url: "https://github.com/test/repo",
+        owner: { login: "test", avatar_url: "https://avatar.url" },
       },
       updated_at: new Date().toISOString(),
     };
 
-    github.userInfo = { login: 'test', avatar_url: 'https://avatar.url' };
+    github.userInfo = { login: "test", avatar_url: "https://avatar.url" };
 
     const result = await github.getNotificationDetails(notification);
 
@@ -129,13 +129,13 @@ describe('Notification Details Cache', () => {
     expect(github.detailsCache.size).toBe(0);
   });
 
-  it('should clear cache on logout', () => {
+  it("should clear cache on logout", () => {
     // Add some data to cache
-    github.detailsCache.set('https://api.github.com/repos/test/repo/issues/1', {
-      state: 'open',
+    github.detailsCache.set("https://api.github.com/repos/test/repo/issues/1", {
+      state: "open",
     });
-    github.detailsCache.set('https://api.github.com/repos/test/repo/pulls/2', {
-      state: 'closed',
+    github.detailsCache.set("https://api.github.com/repos/test/repo/pulls/2", {
+      state: "closed",
     });
 
     expect(github.detailsCache.size).toBe(2);
@@ -147,42 +147,42 @@ describe('Notification Details Cache', () => {
     expect(github.lastModified).toBeNull();
   });
 
-  it('should have cache size limit of 100', () => {
+  it("should have cache size limit of 100", () => {
     expect(github.detailsCache.maxSize).toBe(100);
   });
 
-  it('should evict oldest entries when cache is full', async () => {
+  it("should evict oldest entries when cache is full", async () => {
     // Fill cache to capacity
     for (let i = 0; i < 100; i++) {
       github.detailsCache.set(`url_${i}`, { id: i });
     }
 
     expect(github.detailsCache.size).toBe(100);
-    expect(github.detailsCache.has('url_0')).toBe(true);
+    expect(github.detailsCache.has("url_0")).toBe(true);
 
     // Add one more - should evict oldest
-    github.detailsCache.set('url_100', { id: 100 });
+    github.detailsCache.set("url_100", { id: 100 });
 
     expect(github.detailsCache.size).toBe(100);
-    expect(github.detailsCache.has('url_0')).toBe(false);
-    expect(github.detailsCache.has('url_100')).toBe(true);
+    expect(github.detailsCache.has("url_0")).toBe(false);
+    expect(github.detailsCache.has("url_100")).toBe(true);
   });
 
-  it('should cache details and return same instance on subsequent calls', async () => {
+  it("should cache details and return same instance on subsequent calls", async () => {
     const notification = {
       subject: {
-        type: 'Issue',
-        title: 'Test',
-        url: 'https://api.github.com/repos/test/repo/issues/123',
+        type: "Issue",
+        title: "Test",
+        url: "https://api.github.com/repos/test/repo/issues/123",
       },
       repository: {
-        name: 'repo',
-        full_name: 'test/repo',
-        html_url: 'https://github.com/test/repo',
+        name: "repo",
+        full_name: "test/repo",
+        html_url: "https://github.com/test/repo",
       },
     };
 
-    const mockDetails = { state: 'open', number: 123 };
+    const mockDetails = { state: "open", number: 123 };
 
     global.fetch = vi.fn(async () => ({
       ok: true,

@@ -3,21 +3,21 @@
  *
  * DOM integration tests for mark-as-read behavior in notification-renderer.
  */
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 
 // jsdom 28 doesn't expose window.CSS — polyfill CSS.escape for the renderer
 beforeAll(() => {
-  if (typeof CSS === 'undefined' || !CSS.escape) {
+  if (typeof CSS === "undefined" || !CSS.escape) {
     // @ts-ignore
     globalThis.CSS = {
       escape(value) {
         const str = String(value);
         const length = str.length;
-        let result = '';
+        let result = "";
         for (let i = 0; i < length; i++) {
           const code = str.charCodeAt(i);
           if (code === 0x0000) {
-            result += '\uFFFD';
+            result += "\uFFFD";
             continue;
           }
           // Control chars and first-char digit require hex escaping per CSS spec
@@ -51,24 +51,24 @@ beforeAll(() => {
 
 // ── Mocks must be hoisted before any imports that use them ──────────────────
 
-vi.mock('../src/lib/constants.js', () => ({
+vi.mock("../src/lib/constants.js", () => ({
   ANIMATION_DURATION: { FADE_OUT: 0, ERROR_BACKGROUND_FADE: 0 },
-  NOTIFICATION_TYPES: { RELEASE: 'Release' },
+  NOTIFICATION_TYPES: { RELEASE: "Release" },
   MESSAGE_TYPES: {
-    MARK_AS_READ: 'markAsRead',
-    OPEN_NOTIFICATION: 'openNotification',
+    MARK_AS_READ: "markAsRead",
+    OPEN_NOTIFICATION: "openNotification",
   },
   TIME_CONVERSION: { MS_PER_MINUTE: 60000 },
 }));
 
-vi.mock('../src/lib/format-utils.js', () => ({
+vi.mock("../src/lib/format-utils.js", () => ({
   formatReason: vi.fn((r) => r),
-  getNotificationStatus: vi.fn(() => ''),
+  getNotificationStatus: vi.fn(() => ""),
 }));
 
-vi.mock('../src/lib/icons.js', () => ({
+vi.mock("../src/lib/icons.js", () => ({
   getIconSVGElement: vi.fn(() => {
-    const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     return el;
   }),
 }));
@@ -76,7 +76,7 @@ vi.mock('../src/lib/icons.js', () => ({
 const sendMessage = vi.fn();
 
 const { initRenderer, renderNotifications, clearNotificationCache } =
-  await import('../src/popup/notification-renderer.js');
+  await import("../src/popup/notification-renderer.js");
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -84,21 +84,21 @@ function makeNotif(id) {
   return {
     id: String(id),
     title: `Notification ${id}`,
-    reason: 'mention',
+    reason: "mention",
     updated_at: new Date().toISOString(),
-    icon: 'issue',
-    type: 'Issue',
-    url: 'https://github.com/owner/repo/issues/1',
+    icon: "issue",
+    type: "Issue",
+    url: "https://github.com/owner/repo/issues/1",
     repository: {
-      full_name: 'owner/repo',
-      html_url: 'https://github.com/owner/repo',
+      full_name: "owner/repo",
+      html_url: "https://github.com/owner/repo",
     },
   };
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
 
-describe('mark single notification as read — repo header count', () => {
+describe("mark single notification as read — repo header count", () => {
   let notificationsList;
   let emptyState;
   let markAllBtn;
@@ -114,9 +114,9 @@ describe('mark single notification as read — repo header count', () => {
       <button id="mark-all-btn"></button>
     `;
 
-    notificationsList = document.getElementById('notifications-list');
-    emptyState = document.getElementById('empty-state');
-    markAllBtn = document.getElementById('mark-all-btn');
+    notificationsList = document.getElementById("notifications-list");
+    emptyState = document.getElementById("empty-state");
+    markAllBtn = document.getElementById("mark-all-btn");
 
     initRenderer({
       notificationsList,
@@ -129,13 +129,13 @@ describe('mark single notification as read — repo header count', () => {
     });
   });
 
-  it('decrements repo-count when one of multiple notifications is marked read', async () => {
+  it("decrements repo-count when one of multiple notifications is marked read", async () => {
     const notifications = [makeNotif(1), makeNotif(2)];
     renderNotifications(notifications);
 
     // Initial count should be 2
-    const repoCountSpan = notificationsList.querySelector('.repo-count');
-    expect(repoCountSpan.textContent).toBe('2');
+    const repoCountSpan = notificationsList.querySelector(".repo-count");
+    expect(repoCountSpan.textContent).toBe("2");
 
     // Mark notification 1 as read
     sendMessage.mockResolvedValueOnce({ success: true });
@@ -148,12 +148,12 @@ describe('mark single notification as read — repo header count', () => {
     });
 
     // Count should now be 1
-    expect(repoCountSpan.textContent).toBe('1');
+    expect(repoCountSpan.textContent).toBe("1");
     // Repo header should still be present
-    expect(notificationsList.querySelector('.repo-group-header')).not.toBeNull();
+    expect(notificationsList.querySelector(".repo-group-header")).not.toBeNull();
   });
 
-  it('removes repo header when last notification in repo is marked read', async () => {
+  it("removes repo header when last notification in repo is marked read", async () => {
     renderNotifications([makeNotif(1)]);
 
     sendMessage.mockResolvedValueOnce({ success: true });
@@ -161,20 +161,20 @@ describe('mark single notification as read — repo header count', () => {
     btn.click();
 
     await vi.waitFor(() => {
-      expect(notificationsList.querySelector('.repo-group-header')).toBeNull();
+      expect(notificationsList.querySelector(".repo-group-header")).toBeNull();
     });
 
-    expect(notificationsList.querySelector('.notification-item')).toBeNull();
+    expect(notificationsList.querySelector(".notification-item")).toBeNull();
     expect(emptyState.hidden).toBe(false);
   });
 
-  it('does not update repo-count on API failure', async () => {
+  it("does not update repo-count on API failure", async () => {
     renderNotifications([makeNotif(1), makeNotif(2)]);
 
-    const repoCountSpan = notificationsList.querySelector('.repo-count');
-    expect(repoCountSpan.textContent).toBe('2');
+    const repoCountSpan = notificationsList.querySelector(".repo-count");
+    expect(repoCountSpan.textContent).toBe("2");
 
-    sendMessage.mockResolvedValueOnce({ success: false, error: 'API error' });
+    sendMessage.mockResolvedValueOnce({ success: false, error: "API error" });
     const btn = notificationsList.querySelector('.notification-item[data-id="1"] .btn-mark-read');
     btn.click();
 
@@ -182,7 +182,7 @@ describe('mark single notification as read — repo header count', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     // Count should remain 2
-    expect(repoCountSpan.textContent).toBe('2');
+    expect(repoCountSpan.textContent).toBe("2");
     // Notification should still be present
     expect(notificationsList.querySelector('.notification-item[data-id="1"]')).not.toBeNull();
   });

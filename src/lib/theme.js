@@ -8,17 +8,17 @@
  * @param {string} theme - Theme name: 'light', 'dark', or 'system'
  */
 export function applyTheme(theme) {
-  if (theme === 'dark') {
-    document.body.classList.add('dark-theme');
-  } else if (theme === 'light') {
-    document.body.classList.remove('dark-theme');
-  } else if (theme === 'system') {
+  if (theme === "dark") {
+    document.body.classList.add("dark-theme");
+  } else if (theme === "light") {
+    document.body.classList.remove("dark-theme");
+  } else if (theme === "system") {
     // Follow system preference
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     if (prefersDark) {
-      document.body.classList.add('dark-theme');
+      document.body.classList.add("dark-theme");
     } else {
-      document.body.classList.remove('dark-theme');
+      document.body.classList.remove("dark-theme");
     }
   }
 }
@@ -30,5 +30,5 @@ export function applyTheme(theme) {
  */
 export async function initTheme(getTheme) {
   const theme = await getTheme();
-  applyTheme(theme || 'system');
+  applyTheme(theme || "system");
 }

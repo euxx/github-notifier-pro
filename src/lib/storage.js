@@ -6,22 +6,22 @@
  * We use them directly instead of callback-based wrappers.
  */
 
-import { DEFAULT_POPUP_WIDTH } from './constants.js';
-import { storage as browserStorage } from './chrome-api.js';
+import { DEFAULT_POPUP_WIDTH } from "./constants.js";
+import { storage as browserStorage } from "./chrome-api.js";
 
 const STORAGE_KEYS = {
-  TOKEN: 'token',
-  USERNAME: 'username',
-  USER_INFO: 'userInfo', // {login, avatar_url, html_url}
-  AUTH_METHOD: 'authMethod', // 'oauth' or 'pat'
-  NOTIFICATIONS: 'notifications',
-  LAST_CHECK: 'lastCheck',
-  THEME: 'theme', // 'light', 'dark', or 'system'
-  POPUP_WIDTH: 'popupWidth', // 400-800
-  SHOW_HOVER_CARDS: 'showHoverCards', // boolean
+  TOKEN: "token",
+  USERNAME: "username",
+  USER_INFO: "userInfo", // {login, avatar_url, html_url}
+  AUTH_METHOD: "authMethod", // 'oauth' or 'pat'
+  NOTIFICATIONS: "notifications",
+  LAST_CHECK: "lastCheck",
+  THEME: "theme", // 'light', 'dark', or 'system'
+  POPUP_WIDTH: "popupWidth", // 400-800
+  SHOW_HOVER_CARDS: "showHoverCards", // boolean
   // Desktop notification settings
-  ENABLE_DESKTOP_NOTIFICATIONS: 'enableDesktopNotifications', // boolean
-  MAX_DESKTOP_NOTIFICATIONS: 'maxDesktopNotifications', // number (default 5)
+  ENABLE_DESKTOP_NOTIFICATIONS: "enableDesktopNotifications", // boolean
+  MAX_DESKTOP_NOTIFICATIONS: "maxDesktopNotifications", // number (default 5)
 };
 
 /**
@@ -115,7 +115,7 @@ export async function setNotifications(notifications) {
 }
 
 export async function getAuthMethod() {
-  return get(STORAGE_KEYS.AUTH_METHOD, 'pat'); // Default to PAT
+  return get(STORAGE_KEYS.AUTH_METHOD, "pat"); // Default to PAT
 }
 
 export async function setAuthMethod(authMethod) {
@@ -123,7 +123,7 @@ export async function setAuthMethod(authMethod) {
 }
 
 export async function getTheme() {
-  return get(STORAGE_KEYS.THEME, 'system'); // default to system (follow system)
+  return get(STORAGE_KEYS.THEME, "system"); // default to system (follow system)
 }
 
 export async function setTheme(theme) {

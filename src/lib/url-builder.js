@@ -3,7 +3,7 @@
  * Centralized logic for constructing URLs from notification data
  */
 
-import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from './constants.js';
+import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from "./constants.js";
 
 /**
  * Build URL for a GitHub notification
@@ -32,7 +32,7 @@ import { GITHUB_SITE_BASE, NOTIFICATION_TYPES } from './constants.js';
  */
 export function buildNotificationUrl(notification) {
   if (!notification) {
-    throw new Error('Cannot build notification URL: notification is missing');
+    throw new Error("Cannot build notification URL: notification is missing");
   }
 
   if (notification.html_url) {
@@ -48,7 +48,7 @@ export function buildNotificationUrl(notification) {
       return repo.html_url;
     }
     // No usable URL — throw so the caller can skip silently instead of opening about:blank
-    throw new Error('Cannot build notification URL: repository data is incomplete');
+    throw new Error("Cannot build notification URL: repository data is incomplete");
   }
 
   const type = notification.type;

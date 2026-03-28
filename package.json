@@ -1,8 +1,20 @@
 {
   "name": "github-notifier-pro",
   "version": "1.0.5",
-  "type": "module",
   "description": "GitHub notifications in the browser toolbar",
+  "keywords": [
+    "chrome-extension",
+    "github",
+    "notifications",
+    "webextension"
+  ],
+  "license": "MIT",
+  "author": "euxx",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/euxx/github-notifier-pro"
+  },
+  "type": "module",
   "scripts": {
     "ci": "npm run test && npm run lint && npm run format",
     "dev": "npm run ci && npm run dev:firefox",
@@ -15,33 +27,6 @@
     "format:check": "oxfmt --check .",
     "prepare": "husky"
   },
-  "lint-staged": {
-    "*.js": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{html,css}": [
-      "prettier --write"
-    ],
-    "*.md": [
-      "prettier --write --prose-wrap preserve"
-    ],
-    "*.{yml,yaml}": [
-      "prettier --write"
-    ]
-  },
-  "keywords": [
-    "github",
-    "notifications",
-    "chrome-extension",
-    "webextension"
-  ],
-  "author": "euxx",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/euxx/github-notifier-pro"
-  },
   "devDependencies": {
     "husky": "latest",
     "jsdom": "latest",
@@ -50,5 +35,13 @@
     "oxlint": "latest",
     "prettier": "latest",
     "vitest": "latest"
+  },
+  "lint-staged": {
+    "*.{js,html,css,md,yml,yaml,json}": [
+      "oxfmt --write"
+    ],
+    "*.js": [
+      "oxlint"
+    ]
   }
 }

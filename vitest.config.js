@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
@@ -7,18 +7,18 @@ export default defineConfig({
     onConsoleLog(log, type) {
       // List of expected error patterns that are intentionally tested
       const expectedErrors = [
-        'Message handling error',
-        'Failed to mark as read',
-        'Failed to mark repo as read',
-        'Failed to create desktop notification',
-        'Failed to clear notification',
-        'Failed to fetch details for notification',
-        'Failed to notify background worker',
-        'Device Flow error',
+        "Message handling error",
+        "Failed to mark as read",
+        "Failed to mark repo as read",
+        "Failed to create desktop notification",
+        "Failed to clear notification",
+        "Failed to fetch details for notification",
+        "Failed to notify background worker",
+        "Device Flow error",
       ];
 
       // Hide expected error logs
-      if (type === 'stderr') {
+      if (type === "stderr") {
         return !expectedErrors.some((pattern) => log.includes(pattern));
       }
 

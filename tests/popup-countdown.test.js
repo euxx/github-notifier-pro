@@ -3,11 +3,11 @@
  *
  * Tests for updateCountdown() alarm-reset detection in popup.js.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // -- Mocks (hoisted before popup.js import) ----------------------------------
 
-vi.mock('../src/lib/chrome-api.js', () => ({
+vi.mock("../src/lib/chrome-api.js", () => ({
   alarms: { getAll: vi.fn().mockResolvedValue([]) },
   storage: {
     local: { get: vi.fn().mockResolvedValue({}), set: vi.fn(), remove: vi.fn() },
@@ -20,9 +20,9 @@ vi.mock('../src/lib/chrome-api.js', () => ({
   tabs: { create: vi.fn() },
 }));
 
-vi.mock('../src/lib/storage.js', () => ({
+vi.mock("../src/lib/storage.js", () => ({
   getToken: vi.fn().mockResolvedValue(null),
-  getTheme: vi.fn().mockResolvedValue('system'),
+  getTheme: vi.fn().mockResolvedValue("system"),
   setTheme: vi.fn().mockResolvedValue(undefined),
   getUsername: vi.fn().mockResolvedValue(null),
   getUserInfo: vi.fn().mockResolvedValue(null),
@@ -37,18 +37,18 @@ vi.mock('../src/lib/storage.js', () => ({
   getMaxDesktopNotifications: vi.fn().mockResolvedValue(5),
 }));
 
-vi.mock('../src/lib/theme.js', () => ({
+vi.mock("../src/lib/theme.js", () => ({
   applyTheme: vi.fn(),
 }));
 
-vi.mock('../src/popup/notification-renderer.js', () => ({
+vi.mock("../src/popup/notification-renderer.js", () => ({
   initRenderer: vi.fn(),
   renderNotifications: vi.fn(),
   getCachedNotifications: vi.fn().mockReturnValue(null),
   clearNotificationCache: vi.fn(),
 }));
 
-vi.mock('../src/lib/constants.js', () => ({
+vi.mock("../src/lib/constants.js", () => ({
   ANIMATION_DURATION: {
     FADE_OUT: 200,
     STAGGER_DELAY: 50,
@@ -61,22 +61,22 @@ vi.mock('../src/lib/constants.js', () => ({
     GITHUB_OPEN_DELAY: 1000,
     COUNTDOWN_INTERVAL: 1000,
   },
-  TOKEN_PREFIXES: ['ghp_', 'github_pat_'],
+  TOKEN_PREFIXES: ["ghp_", "github_pat_"],
   MESSAGE_TYPES: {
-    LOGIN: 'login',
-    LOGOUT: 'logout',
-    GET_STATE: 'getState',
-    GET_RATE_LIMIT: 'getRateLimit',
-    OPEN_NOTIFICATION: 'openNotification',
-    MARK_AS_READ: 'markAsRead',
-    MARK_ALL_AS_READ: 'markAllAsRead',
-    MARK_REPO_AS_READ: 'markRepoAsRead',
-    REFRESH: 'refresh',
+    LOGIN: "login",
+    LOGOUT: "logout",
+    GET_STATE: "getState",
+    GET_RATE_LIMIT: "getRateLimit",
+    OPEN_NOTIFICATION: "openNotification",
+    MARK_AS_READ: "markAsRead",
+    MARK_ALL_AS_READ: "markAllAsRead",
+    MARK_REPO_AS_READ: "markRepoAsRead",
+    REFRESH: "refresh",
   },
   NOTIFICATION_TYPES: {
-    ISSUE: 'Issue',
-    PULL_REQUEST: 'PullRequest',
-    RELEASE: 'Release',
+    ISSUE: "Issue",
+    PULL_REQUEST: "PullRequest",
+    RELEASE: "Release",
   },
   MIN_POPUP_WIDTH: 400,
   MAX_POPUP_WIDTH: 800,
@@ -132,19 +132,19 @@ window.matchMedia = vi.fn().mockReturnValue({ addEventListener: vi.fn() });
 
 // -- Load modules ------------------------------------------------------------
 
-const { alarms } = await import('../src/lib/chrome-api.js');
-const { updateCountdown } = await import('../src/popup/popup.js');
+const { alarms } = await import("../src/lib/chrome-api.js");
+const { updateCountdown } = await import("../src/popup/popup.js");
 
 // -- Tests -------------------------------------------------------------------
 
 const BASE_TIME = 1_700_000_000_000;
 
-describe('updateCountdown — alarm reset detection', () => {
+describe("updateCountdown — alarm reset detection", () => {
   let refreshCountdownEl;
   let dateSpy;
 
   beforeEach(async () => {
-    refreshCountdownEl = document.getElementById('refresh-countdown');
+    refreshCountdownEl = document.getElementById("refresh-countdown");
     // Reset lastAlarmTime to null by calling updateCountdown with no alarm
     alarms.getAll.mockResolvedValueOnce([]);
     await updateCountdown();
@@ -154,38 +154,48 @@ describe('updateCountdown — alarm reset detection', () => {
     dateSpy?.mockRestore();
   });
 
-  it('skips display update when alarm reset is detected', async () => {
-    dateSpy = vi.spyOn(Date, 'now').mockReturnValue(BASE_TIME - 30_000);
+  it("skips display update when alarm reset is detected", async () => {
+    dateSpy = vi.spyOn(Date, "now").mockReturnValue(BASE_TIME - 30_000);
 
     // Tick 1: normal update — establishes lastAlarmTime and displays countdown
-    alarms.getAll.mockResolvedValueOnce([{ name: 'check-notifications', scheduledTime: BASE_TIME }]);
+    alarms.getAll.mockResolvedValueOnce([
+      { name: "check-notifications", scheduledTime: BASE_TIME },
+    ]);
     await updateCountdown();
-    expect(refreshCountdownEl.textContent).toBe('30s');
+    expect(refreshCountdownEl.textContent).toBe("30s");
 
     // Tick 2: scheduledTime jumps > 5000ms — alarm reset
-    alarms.getAll.mockResolvedValueOnce([{ name: 'check-notifications', scheduledTime: BASE_TIME + 10_000 }]);
+    alarms.getAll.mockResolvedValueOnce([
+      { name: "check-notifications", scheduledTime: BASE_TIME + 10_000 },
+    ]);
     await updateCountdown();
 
     // Display must not change during the reset tick
-    expect(refreshCountdownEl.textContent).toBe('30s');
+    expect(refreshCountdownEl.textContent).toBe("30s");
   });
 
-  it('shows correct countdown on the tick after alarm reset', async () => {
-    dateSpy = vi.spyOn(Date, 'now').mockReturnValue(BASE_TIME - 30_000);
+  it("shows correct countdown on the tick after alarm reset", async () => {
+    dateSpy = vi.spyOn(Date, "now").mockReturnValue(BASE_TIME - 30_000);
 
     // Tick 1: normal update
-    alarms.getAll.mockResolvedValueOnce([{ name: 'check-notifications', scheduledTime: BASE_TIME }]);
+    alarms.getAll.mockResolvedValueOnce([
+      { name: "check-notifications", scheduledTime: BASE_TIME },
+    ]);
     await updateCountdown();
 
     // Tick 2: alarm reset — early return, display frozen at '30s'
-    alarms.getAll.mockResolvedValueOnce([{ name: 'check-notifications', scheduledTime: BASE_TIME + 10_000 }]);
+    alarms.getAll.mockResolvedValueOnce([
+      { name: "check-notifications", scheduledTime: BASE_TIME + 10_000 },
+    ]);
     await updateCountdown();
 
     // Tick 3: same scheduled time, no reset — display refreshes
-    alarms.getAll.mockResolvedValueOnce([{ name: 'check-notifications', scheduledTime: BASE_TIME + 10_000 }]);
+    alarms.getAll.mockResolvedValueOnce([
+      { name: "check-notifications", scheduledTime: BASE_TIME + 10_000 },
+    ]);
     await updateCountdown();
 
     // remaining = (BASE_TIME + 10_000) - (BASE_TIME - 30_000) = 40_000ms → 40s
-    expect(refreshCountdownEl.textContent).toBe('40s');
+    expect(refreshCountdownEl.textContent).toBe("40s");
   });
 });

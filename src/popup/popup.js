@@ -2,8 +2,8 @@
  * Popup script for GitHub Notifier
  */
 
-import * as storage from '../lib/storage.js';
-import { storage as browserStorage, alarms, runtime, tabs } from '../lib/chrome-api.js';
+import * as storage from "../lib/storage.js";
+import { storage as browserStorage, alarms, runtime, tabs } from "../lib/chrome-api.js";
 import {
   ANIMATION_DURATION,
   TOKEN_PREFIXES,
@@ -13,14 +13,14 @@ import {
   DEFAULT_POPUP_WIDTH,
   POPUP_WIDTH_STEP,
   TIMING_THRESHOLDS,
-} from '../lib/constants.js';
-import { applyTheme } from '../lib/theme.js';
+} from "../lib/constants.js";
+import { applyTheme } from "../lib/theme.js";
 import {
   initRenderer,
   renderNotifications,
   getCachedNotifications,
   clearNotificationCache,
-} from './notification-renderer.js';
+} from "./notification-renderer.js";
 
 /**
  * Get auth method labels
@@ -28,8 +28,8 @@ import {
  * @returns {{shortLabel: string, fullLabel: string}}
  */
 function getAuthMethodLabels(authMethod) {
-  if (authMethod === 'oauth') return { shortLabel: 'OAuth', fullLabel: 'OAuth' };
-  return { shortLabel: 'PAT', fullLabel: 'Personal Access Token' };
+  if (authMethod === "oauth") return { shortLabel: "OAuth", fullLabel: "OAuth" };
+  return { shortLabel: "PAT", fullLabel: "Personal Access Token" };
 }
 
 /**
@@ -46,7 +46,7 @@ function buildUserProfileUrl(username, userInfo) {
 
   // Fallback to building URL from username (GitHub.com only)
   const login = username || userInfo?.login;
-  if (!login || login === 'User') return null;
+  if (!login || login === "User") return null;
   return `https://github.com/${encodeURIComponent(login)}`;
 }
 
@@ -57,28 +57,28 @@ function buildUserProfileUrl(username, userInfo) {
  */
 function updateProfileLinks(username, userInfo) {
   const url = buildUserProfileUrl(username, userInfo);
-  const displayName = username || userInfo?.login || 'User';
-  const ariaLabel = displayName !== 'User' ? `Open ${displayName} profile` : 'Open GitHub profile';
+  const displayName = username || userInfo?.login || "User";
+  const ariaLabel = displayName !== "User" ? `Open ${displayName} profile` : "Open GitHub profile";
 
   [userProfileLink, settingsAvatarLink, settingsUsernameLink].forEach((link) => {
     if (!link) return;
     if (url) {
       link.href = url;
-      link.setAttribute('aria-label', ariaLabel);
+      link.setAttribute("aria-label", ariaLabel);
     } else {
-      link.removeAttribute('href');
-      link.removeAttribute('aria-label');
+      link.removeAttribute("href");
+      link.removeAttribute("aria-label");
     }
   });
 }
 
 // Elements
-const loginView = document.getElementById('login-view');
-const mainView = document.getElementById('main-view');
+const loginView = document.getElementById("login-view");
+const mainView = document.getElementById("main-view");
 
-const POPUP_LAST_VIEW_KEY = 'popupLastView';
-const POPUP_WIDTH_KEY = 'popupWidth';
-const POPUP_THEME_KEY = 'popupTheme';
+const POPUP_LAST_VIEW_KEY = "popupLastView";
+const POPUP_WIDTH_KEY = "popupWidth";
+const POPUP_THEME_KEY = "popupTheme";
 
 // Generic localStorage wrapper with error handling
 function getStorageValue(key, defaultValue) {
@@ -116,7 +116,7 @@ function setCachedPopupWidth(width) {
 
 function getCachedPopupView() {
   const value = getStorageValue(POPUP_LAST_VIEW_KEY, null);
-  return value === 'login' || value === 'main' ? value : null;
+  return value === "login" || value === "main" ? value : null;
 }
 
 function setCachedPopupView(view) {
@@ -124,7 +124,7 @@ function setCachedPopupView(view) {
 }
 
 function getCachedTheme() {
-  return getStorageValue(POPUP_THEME_KEY, 'system');
+  return getStorageValue(POPUP_THEME_KEY, "system");
 }
 
 function setCachedTheme(theme) {
@@ -135,15 +135,15 @@ function applyInitialPopupWidth() {
   const cachedView = getCachedPopupView();
   const cachedWidth = getCachedPopupWidth();
 
-  if (cachedView === 'login' || cachedView === null) {
-    document.body.style.width = '400px';
+  if (cachedView === "login" || cachedView === null) {
+    document.body.style.width = "400px";
   } else {
     document.body.style.width = `${cachedWidth}px`;
   }
 
   // Apply cached theme synchronously before making popup visible
   applyTheme(getCachedTheme());
-  document.body.classList.add('popup-ready');
+  document.body.classList.add("popup-ready");
 }
 
 applyInitialPopupWidth();
@@ -153,48 +153,48 @@ let lastUserActionTime = 0;
 let lastAnimationDuration = 400; // Default to single notification animation duration
 
 // Auth method selection
-const authMethods = document.getElementById('auth-methods');
-const oauthMethod = document.getElementById('oauth-method');
-const patMethod = document.getElementById('pat-method');
-const patInputForm = document.getElementById('pat-input-form');
-const patInput = document.getElementById('pat-input');
-const patCancelBtn = document.getElementById('pat-cancel-btn');
-const patLoginBtn = document.getElementById('pat-login-btn');
-const loginErrorEl = document.getElementById('login-error');
+const authMethods = document.getElementById("auth-methods");
+const oauthMethod = document.getElementById("oauth-method");
+const patMethod = document.getElementById("pat-method");
+const patInputForm = document.getElementById("pat-input-form");
+const patInput = document.getElementById("pat-input");
+const patCancelBtn = document.getElementById("pat-cancel-btn");
+const patLoginBtn = document.getElementById("pat-login-btn");
+const loginErrorEl = document.getElementById("login-error");
 
 // Main view elements
-const settingsIconBtn = document.getElementById('settings-icon-btn');
-const refreshBtn = document.getElementById('refresh-btn');
-const markAllBtn = document.getElementById('mark-all-btn');
-const usernameEl = document.getElementById('username');
-const avatarEl = document.getElementById('user-avatar');
-const userProfileLink = document.getElementById('user-profile-link');
-const notificationsList = document.getElementById('notifications-list');
-const emptyState = document.getElementById('empty-state');
+const settingsIconBtn = document.getElementById("settings-icon-btn");
+const refreshBtn = document.getElementById("refresh-btn");
+const markAllBtn = document.getElementById("mark-all-btn");
+const usernameEl = document.getElementById("username");
+const avatarEl = document.getElementById("user-avatar");
+const userProfileLink = document.getElementById("user-profile-link");
+const notificationsList = document.getElementById("notifications-list");
+const emptyState = document.getElementById("empty-state");
 
 // Settings view elements
-const settingsView = document.getElementById('settings-view');
-const settingsBackBtn = document.getElementById('settings-back-btn');
+const settingsView = document.getElementById("settings-view");
+const settingsBackBtn = document.getElementById("settings-back-btn");
 const themeRadios = document.querySelectorAll('input[name="theme"]');
-const settingsLogoutBtn = document.getElementById('settings-logout-btn');
-const settingsUsernameEl = document.getElementById('settings-username');
-const settingsAvatarEl = document.getElementById('settings-avatar');
-const settingsAvatarLink = document.getElementById('settings-avatar-link');
-const settingsUsernameLink = document.getElementById('settings-username-link');
-const settingsAuthMethodEl = document.getElementById('settings-auth-method');
-const notificationsContainer = document.getElementById('notifications-container');
-const refreshCountdownEl = document.getElementById('refresh-countdown');
+const settingsLogoutBtn = document.getElementById("settings-logout-btn");
+const settingsUsernameEl = document.getElementById("settings-username");
+const settingsAvatarEl = document.getElementById("settings-avatar");
+const settingsAvatarLink = document.getElementById("settings-avatar-link");
+const settingsUsernameLink = document.getElementById("settings-username-link");
+const settingsAuthMethodEl = document.getElementById("settings-auth-method");
+const notificationsContainer = document.getElementById("notifications-container");
+const refreshCountdownEl = document.getElementById("refresh-countdown");
 
 // Popup size controls
-const popupWidthInput = document.getElementById('popup-width-input');
-const widthDecreaseBtn = document.getElementById('width-decrease');
-const widthIncreaseBtn = document.getElementById('width-increase');
+const popupWidthInput = document.getElementById("popup-width-input");
+const widthDecreaseBtn = document.getElementById("width-decrease");
+const widthIncreaseBtn = document.getElementById("width-increase");
 
 // Hover cards toggle
-const hoverCardsToggle = document.getElementById('hover-cards-toggle');
+const hoverCardsToggle = document.getElementById("hover-cards-toggle");
 
 // Desktop notification settings
-const desktopNotificationsToggle = document.getElementById('desktop-notifications-toggle');
+const desktopNotificationsToggle = document.getElementById("desktop-notifications-toggle");
 
 let scrollbarCompensationRaf = null;
 
@@ -202,30 +202,34 @@ function showLoginError(message) {
   if (!loginErrorEl) return;
   loginErrorEl.textContent = message;
   loginErrorEl.hidden = false;
-  patInput.classList.add('input-error');
-  patInput.setAttribute('aria-invalid', 'true');
+  patInput.classList.add("input-error");
+  patInput.setAttribute("aria-invalid", "true");
 }
 
 function clearLoginError() {
   if (!loginErrorEl) return;
   loginErrorEl.hidden = true;
-  loginErrorEl.textContent = '';
-  patInput.classList.remove('input-error');
-  patInput.setAttribute('aria-invalid', 'false');
+  loginErrorEl.textContent = "";
+  patInput.classList.remove("input-error");
+  patInput.setAttribute("aria-invalid", "false");
 }
 
 function updateScrollbarCompensation() {
   if (!mainView || !notificationsContainer) return;
 
   if (mainView.hidden || notificationsContainer.hidden) {
-    mainView.style.setProperty('--scrollbar-compensation', '0px');
+    mainView.style.setProperty("--scrollbar-compensation", "0px");
     return;
   }
 
-  const scrollbarWidth = Math.max(0, notificationsContainer.offsetWidth - notificationsContainer.clientWidth);
-  const hasScrollbar = notificationsContainer.scrollHeight > notificationsContainer.clientHeight + 1;
+  const scrollbarWidth = Math.max(
+    0,
+    notificationsContainer.offsetWidth - notificationsContainer.clientWidth,
+  );
+  const hasScrollbar =
+    notificationsContainer.scrollHeight > notificationsContainer.clientHeight + 1;
   const compensation = hasScrollbar ? scrollbarWidth : 0;
-  mainView.style.setProperty('--scrollbar-compensation', `${compensation}px`);
+  mainView.style.setProperty("--scrollbar-compensation", `${compensation}px`);
 }
 
 function scheduleScrollbarCompensation() {
@@ -236,14 +240,14 @@ function scheduleScrollbarCompensation() {
   });
 }
 
-if (notificationsContainer && typeof ResizeObserver !== 'undefined') {
+if (notificationsContainer && typeof ResizeObserver !== "undefined") {
   const resizeObserver = new ResizeObserver(() => {
     scheduleScrollbarCompensation();
   });
   resizeObserver.observe(notificationsContainer);
 }
 
-if (notificationsList && typeof MutationObserver !== 'undefined') {
+if (notificationsList && typeof MutationObserver !== "undefined") {
   const mutationObserver = new MutationObserver(() => {
     scheduleScrollbarCompensation();
   });
@@ -255,18 +259,18 @@ if (notificationsList && typeof MutationObserver !== 'undefined') {
  */
 function hasExtensionNotifications() {
   return (
-    (typeof chrome !== 'undefined' && !!chrome.notifications) ||
-    (typeof browser !== 'undefined' && !!browser.notifications)
+    (typeof chrome !== "undefined" && !!chrome.notifications) ||
+    (typeof browser !== "undefined" && !!browser.notifications)
   );
 }
 
 function checkNotificationPermission() {
   if (hasExtensionNotifications()) {
-    return 'granted';
+    return "granted";
   }
-  if (typeof Notification === 'undefined') {
-    console.warn('Notification API not available');
-    return 'unsupported';
+  if (typeof Notification === "undefined") {
+    console.warn("Notification API not available");
+    return "unsupported";
   }
   return Notification.permission;
 }
@@ -276,19 +280,19 @@ function checkNotificationPermission() {
  */
 async function requestNotificationPermission() {
   if (hasExtensionNotifications()) {
-    return 'granted';
+    return "granted";
   }
-  if (typeof Notification === 'undefined') {
-    console.warn('Notification API not available');
-    return 'unsupported';
+  if (typeof Notification === "undefined") {
+    console.warn("Notification API not available");
+    return "unsupported";
   }
 
   try {
     const permission = await Notification.requestPermission();
     return permission;
   } catch (error) {
-    console.error('Failed to request notification permission:', error);
-    return 'denied';
+    console.error("Failed to request notification permission:", error);
+    return "denied";
   }
 }
 
@@ -304,11 +308,11 @@ let lastAlarmTime = null;
 export async function updateCountdown() {
   try {
     const allAlarms = await alarms.getAll();
-    const notificationAlarm = allAlarms.find((a) => a.name === 'check-notifications');
+    const notificationAlarm = allAlarms.find((a) => a.name === "check-notifications");
 
     if (!notificationAlarm || !notificationAlarm.scheduledTime) {
-      refreshCountdownEl.textContent = '';
-      refreshCountdownEl.title = '';
+      refreshCountdownEl.textContent = "";
+      refreshCountdownEl.title = "";
       lastAlarmTime = null;
       return;
     }
@@ -317,7 +321,10 @@ export async function updateCountdown() {
     const remaining = notificationAlarm.scheduledTime - now;
 
     // Detect alarm reset (when scheduledTime jumps to a future time)
-    if (lastAlarmTime && notificationAlarm.scheduledTime > lastAlarmTime + TIMING_THRESHOLDS.ALARM_RESET_DETECTION) {
+    if (
+      lastAlarmTime &&
+      notificationAlarm.scheduledTime > lastAlarmTime + TIMING_THRESHOLDS.ALARM_RESET_DETECTION
+    ) {
       // Alarm was reset — accept the new time and skip this tick so the display
       // updates smoothly on the next interval rather than showing a big jump.
       lastAlarmTime = notificationAlarm.scheduledTime;
@@ -326,8 +333,8 @@ export async function updateCountdown() {
     lastAlarmTime = notificationAlarm.scheduledTime;
 
     if (remaining <= 0) {
-      refreshCountdownEl.textContent = '';
-      refreshCountdownEl.title = '';
+      refreshCountdownEl.textContent = "";
+      refreshCountdownEl.title = "";
       return;
     }
 
@@ -337,18 +344,18 @@ export async function updateCountdown() {
     // Update tooltip with poll interval information
     if (notificationAlarm.periodInMinutes) {
       const intervalMinutes = notificationAlarm.periodInMinutes;
-      const intervalText = intervalMinutes === 1 ? '1 minute' : `${intervalMinutes} minutes`;
+      const intervalText = intervalMinutes === 1 ? "1 minute" : `${intervalMinutes} minutes`;
 
       // Show reason when interval is longer than default
-      const reasonSuffix = intervalMinutes > 1 ? ' (requested by GitHub)' : '';
+      const reasonSuffix = intervalMinutes > 1 ? " (requested by GitHub)" : "";
       refreshCountdownEl.title = `Refreshes every ${intervalText}${reasonSuffix}`;
     } else {
-      refreshCountdownEl.title = '';
+      refreshCountdownEl.title = "";
     }
   } catch (error) {
-    console.error('Error updating countdown:', error);
-    refreshCountdownEl.textContent = '';
-    refreshCountdownEl.title = '';
+    console.error("Error updating countdown:", error);
+    refreshCountdownEl.textContent = "";
+    refreshCountdownEl.title = "";
   }
 }
 
@@ -365,7 +372,7 @@ function stopCountdown() {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
-  refreshCountdownEl.textContent = '';
+  refreshCountdownEl.textContent = "";
 }
 
 /**
@@ -373,7 +380,7 @@ function stopCountdown() {
  */
 async function showSettings() {
   // Load current theme
-  const theme = (await storage.getTheme()) || 'system';
+  const theme = (await storage.getTheme()) || "system";
   themeRadios.forEach((radio) => {
     radio.checked = radio.value === theme;
   });
@@ -386,11 +393,11 @@ async function showSettings() {
     settingsUsernameEl.textContent = username;
   }
   if (settingsAuthMethodEl) {
-    settingsAuthMethodEl.textContent = shortLabel || '';
+    settingsAuthMethodEl.textContent = shortLabel || "";
     if (fullLabel) {
       settingsAuthMethodEl.title = fullLabel;
     } else {
-      settingsAuthMethodEl.removeAttribute('title');
+      settingsAuthMethodEl.removeAttribute("title");
     }
   }
 
@@ -399,7 +406,7 @@ async function showSettings() {
   updateProfileLinks(username, userInfo);
   if (settingsAvatarEl && userInfo?.avatar_url) {
     settingsAvatarEl.src = userInfo.avatar_url;
-    settingsAvatarEl.alt = userInfo.login || 'User';
+    settingsAvatarEl.alt = userInfo.login || "User";
     settingsAvatarEl.hidden = false;
     if (settingsAvatarLink) {
       settingsAvatarLink.hidden = false;
@@ -427,17 +434,17 @@ async function showSettings() {
   const permission = checkNotificationPermission();
 
   // Update toggle state based on permission
-  if (permission === 'denied') {
+  if (permission === "denied") {
     desktopNotificationsToggle.disabled = true;
     desktopNotificationsToggle.parentElement.title =
-      'Browser notification permission denied. Please enable it in browser settings.';
-  } else if (permission === 'unsupported') {
+      "Browser notification permission denied. Please enable it in browser settings.";
+  } else if (permission === "unsupported") {
     desktopNotificationsToggle.disabled = true;
-    desktopNotificationsToggle.parentElement.title = 'Browser notifications not supported.';
+    desktopNotificationsToggle.parentElement.title = "Browser notifications not supported.";
   }
   // Hide header and footer
-  document.querySelector('.header').hidden = true;
-  document.querySelector('.footer').hidden = true;
+  document.querySelector(".header").hidden = true;
+  document.querySelector(".footer").hidden = true;
 
   // Show settings view
   notificationsContainer.hidden = true;
@@ -449,8 +456,8 @@ async function showSettings() {
  */
 function hideSettings() {
   // Show header and footer
-  document.querySelector('.header').hidden = false;
-  document.querySelector('.footer').hidden = false;
+  document.querySelector(".header").hidden = false;
+  document.querySelector(".footer").hidden = false;
 
   settingsView.hidden = true;
   notificationsContainer.hidden = false;
@@ -461,13 +468,13 @@ function hideSettings() {
  */
 async function handleThemeChange() {
   const selectedTheme = document.querySelector('input[name="theme"]:checked');
-  const theme = selectedTheme ? selectedTheme.value : 'system';
+  const theme = selectedTheme ? selectedTheme.value : "system";
 
   // Save to storage and cache for instant apply on next open
   try {
     await storage.setTheme(theme);
   } catch (error) {
-    console.error('Failed to save theme:', error);
+    console.error("Failed to save theme:", error);
   }
   setCachedTheme(theme);
 
@@ -492,7 +499,7 @@ async function handleWidthChange() {
   try {
     await storage.setPopupWidth(width);
   } catch (error) {
-    console.error('Failed to save popup width:', error);
+    console.error("Failed to save popup width:", error);
   }
 }
 
@@ -532,23 +539,23 @@ async function sendMessage(action, data = {}) {
  * Show a specific view
  */
 async function showView(view) {
-  loginView.hidden = view !== 'login';
-  mainView.hidden = view !== 'main';
+  loginView.hidden = view !== "login";
+  mainView.hidden = view !== "main";
 
   // Apply different widths for different views
-  if (view === 'login') {
+  if (view === "login") {
     // Fixed width for login view
-    document.body.style.width = '400px';
-    setCachedPopupView('login');
-  } else if (view === 'main') {
+    document.body.style.width = "400px";
+    setCachedPopupView("login");
+  } else if (view === "main") {
     // Use saved width for main view
     const width = await storage.getPopupWidth();
     document.body.style.width = `${width}px`;
     setCachedPopupWidth(width);
-    setCachedPopupView('main');
+    setCachedPopupView("main");
   }
 
-  document.body.classList.add('popup-ready');
+  document.body.classList.add("popup-ready");
 }
 
 /**
@@ -566,7 +573,7 @@ async function markAllAsRead() {
   markAllBtn.replaceChildren(spinner);
 
   // Immediate visual feedback: start overlay animation with stagger
-  const items = [...notificationsList.querySelectorAll('.repo-group-header, .notification-item')];
+  const items = [...notificationsList.querySelectorAll(".repo-group-header, .notification-item")];
   const anim = beginStaggerAnimation(items);
 
   function rollback() {
@@ -587,11 +594,11 @@ async function markAllAsRead() {
       markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
     } else {
       rollback();
-      console.error('Failed to mark all as read:', result.error);
+      console.error("Failed to mark all as read:", result.error);
     }
   } catch (error) {
     rollback();
-    console.error('Failed to mark all as read:', error);
+    console.error("Failed to mark all as read:", error);
   }
 }
 
@@ -601,7 +608,7 @@ async function markAllAsRead() {
 async function refresh() {
   // Immediate visual feedback
   refreshBtn.disabled = true;
-  refreshBtn.classList.add('spinning');
+  refreshBtn.classList.add("spinning");
 
   // Temporarily hide countdown while refreshing
   const wasRunning = countdownInterval !== null;
@@ -612,30 +619,34 @@ async function refresh() {
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
     renderNotifications(state.notifications, true); // Re-sort on refresh
   } catch (error) {
-    console.error('Failed to refresh:', error);
+    console.error("Failed to refresh:", error);
 
     // Show appropriate error message based on error type
     const cachedNotifications = await storage.getNotifications();
     renderNotifications(cachedNotifications, true); // Re-sort even on error
 
     let message;
-    let className = 'error-message';
+    let className = "error-message";
 
-    if (!navigator.onLine || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
-      message = '⚠️ Offline - showing cached notifications';
-      className = 'offline-message';
-    } else if (error.message?.includes('timeout')) {
-      message = '⏱ Request timeout - showing cached data';
-      className = 'warning-message';
-    } else if (error.message?.includes('Rate limited')) {
-      message = '⏱ Rate limited - will retry automatically';
-      className = 'warning-message';
+    if (
+      !navigator.onLine ||
+      error.message?.includes("NetworkError") ||
+      error.message?.includes("Failed to fetch")
+    ) {
+      message = "⚠️ Offline - showing cached notifications";
+      className = "offline-message";
+    } else if (error.message?.includes("timeout")) {
+      message = "⏱ Request timeout - showing cached data";
+      className = "warning-message";
+    } else if (error.message?.includes("Rate limited")) {
+      message = "⏱ Rate limited - will retry automatically";
+      className = "warning-message";
     } else {
-      message = `❌ Error: ${error.message || 'Failed to refresh'}`;
+      message = `❌ Error: ${error.message || "Failed to refresh"}`;
     }
 
     // Show error/warning message
-    const msgEl = document.createElement('div');
+    const msgEl = document.createElement("div");
     msgEl.className = className;
     msgEl.textContent = message;
     notificationsList.insertBefore(msgEl, notificationsList.firstChild);
@@ -644,7 +655,7 @@ async function refresh() {
   } finally {
     setTimeout(() => {
       refreshBtn.disabled = false;
-      refreshBtn.classList.remove('spinning');
+      refreshBtn.classList.remove("spinning");
       // Restart countdown after refresh
       if (wasRunning) {
         setTimeout(startCountdown, 100);
@@ -669,7 +680,7 @@ function setUserAvatar(userInfo) {
 /**
  * Login
  */
-async function login(authMethod = 'oauth', token = null) {
+async function login(authMethod = "oauth", token = null) {
   const result = await sendMessage(MESSAGE_TYPES.LOGIN, { authMethod, token });
 
   if (result.success) {
@@ -680,13 +691,13 @@ async function login(authMethod = 'oauth', token = null) {
     setUserAvatar(userInfo);
     updateProfileLinks(result.username, userInfo);
 
-    await showView('main'); // Show main view first
+    await showView("main"); // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
     renderNotifications(state.notifications, true); // Then render notifications
     // Start countdown timer after successful login
     startCountdown();
   } else {
-    showLoginError(result.error || 'Login failed');
+    showLoginError(result.error || "Login failed");
   }
 }
 
@@ -696,7 +707,7 @@ async function login(authMethod = 'oauth', token = null) {
 function showPATForm() {
   authMethods.hidden = true;
   patInputForm.hidden = false;
-  patInput.value = '';
+  patInput.value = "";
   clearLoginError();
   patInput.focus();
 }
@@ -707,7 +718,7 @@ function showPATForm() {
 function hidePATForm() {
   authMethods.hidden = false;
   patInputForm.hidden = true;
-  patInput.value = '';
+  patInput.value = "";
   clearLoginError();
 }
 
@@ -718,7 +729,7 @@ async function handlePATLogin() {
   const token = patInput.value.trim();
 
   if (!token) {
-    showLoginError('Please enter your token');
+    showLoginError("Please enter your token");
     return;
   }
 
@@ -732,16 +743,16 @@ async function handlePATLogin() {
   }
 
   patLoginBtn.disabled = true;
-  patLoginBtn.textContent = 'Connecting...';
+  patLoginBtn.textContent = "Connecting...";
   clearLoginError();
 
   try {
-    await login('pat', token);
+    await login("pat", token);
   } catch (error) {
-    console.error('PAT login error:', error);
+    console.error("PAT login error:", error);
   } finally {
     patLoginBtn.disabled = false;
-    patLoginBtn.textContent = 'Connect';
+    patLoginBtn.textContent = "Connect";
   }
 }
 
@@ -750,7 +761,7 @@ async function handlePATLogin() {
  */
 async function handleOAuthLogin() {
   // Open Device Flow authorization page in a new tab
-  const authUrl = runtime.getURL('src/auth/device-flow.html');
+  const authUrl = runtime.getURL("src/auth/device-flow.html");
   tabs.create({ url: authUrl });
 
   // Close popup (optional - let user keep it open)
@@ -764,7 +775,7 @@ async function logout() {
   stopCountdown();
   await sendMessage(MESSAGE_TYPES.LOGOUT);
   hideSettings();
-  await showView('login');
+  await showView("login");
 }
 
 // Cap stagger to avoid long animation when many items are off-screen
@@ -822,16 +833,15 @@ function beginStaggerAnimation(elements) {
  */
 function startStaggerFadeOut(elements, staggerDelay) {
   for (const el of elements) {
-    el.classList.add('marking-read');
+    el.classList.add("marking-read");
   }
-  // eslint-disable-next-line no-unused-expressions
-  document.body.offsetHeight; // Force reflow
+  void document.body.offsetHeight; // Force reflow
 
   const timeoutIds = [];
   elements.forEach((el, index) => {
     const delay = Math.min(index, MAX_STAGGER_COUNT - 1) * staggerDelay;
     const id = setTimeout(() => {
-      el.classList.add('fade-out');
+      el.classList.add("fade-out");
     }, delay);
     timeoutIds.push(id);
   });
@@ -844,7 +854,7 @@ function startStaggerFadeOut(elements, staggerDelay) {
  */
 function removeOverlayFadeOut(elements) {
   for (const el of elements) {
-    el.classList.remove('marking-read', 'fade-out');
+    el.classList.remove("marking-read", "fade-out");
   }
 }
 
@@ -853,7 +863,7 @@ function removeOverlayFadeOut(elements) {
  * @param {string} repoFullName - Repository full name (owner/repo)
  */
 async function handleMarkRepoAsRead(repoFullName) {
-  const [owner, repo] = repoFullName.split('/');
+  const [owner, repo] = repoFullName.split("/");
 
   // Immediate visual feedback: start animation before API response
   const escapedRepo = CSS.escape(repoFullName);
@@ -875,7 +885,7 @@ async function handleMarkRepoAsRead(repoFullName) {
       // Defensive fallback: if payload shape is unexpected, reload full state.
       let nextNotifications = response.notifications;
       if (!Array.isArray(nextNotifications)) {
-        console.warn('MARK_REPO_AS_READ returned invalid notifications payload, reloading state');
+        console.warn("MARK_REPO_AS_READ returned invalid notifications payload, reloading state");
         const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
         nextNotifications = Array.isArray(state.notifications) ? state.notifications : [];
       }
@@ -884,11 +894,11 @@ async function handleMarkRepoAsRead(repoFullName) {
       renderNotifications(nextNotifications, false);
     } else {
       anim.rollback();
-      console.error('Failed to mark repo as read:', response.error);
+      console.error("Failed to mark repo as read:", response.error);
     }
   } catch (error) {
     anim.rollback();
-    console.error('Error marking repo as read:', error);
+    console.error("Error marking repo as read:", error);
   }
 }
 
@@ -923,10 +933,10 @@ async function init() {
   });
 
   // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async () => {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", async () => {
     const currentTheme = await storage.getTheme();
-    if (currentTheme === 'system') {
-      applyTheme('system');
+    if (currentTheme === "system") {
+      applyTheme("system");
     }
   });
 
@@ -934,7 +944,7 @@ async function init() {
 
   if (state.isAuthenticated) {
     // Set username with fallback
-    const username = state.username || (await storage.getUsername()) || 'User';
+    const username = state.username || (await storage.getUsername()) || "User";
     usernameEl.textContent = username;
 
     // Set user avatar
@@ -942,49 +952,49 @@ async function init() {
     setUserAvatar(userInfo);
 
     renderNotifications(state.notifications, true); // Re-sort on init
-    await showView('main'); // This will apply saved width
+    await showView("main"); // This will apply saved width
     updateProfileLinks(username, userInfo);
     // Start countdown timer for next refresh
     startCountdown();
   } else {
-    await showView('login'); // This will set 400px width
+    await showView("login"); // This will set 400px width
   }
 }
 
 // Event listeners
-oauthMethod.addEventListener('click', handleOAuthLogin);
-patMethod.addEventListener('click', showPATForm);
-patCancelBtn.addEventListener('click', hidePATForm);
-patLoginBtn.addEventListener('click', handlePATLogin);
-patInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
+oauthMethod.addEventListener("click", handleOAuthLogin);
+patMethod.addEventListener("click", showPATForm);
+patCancelBtn.addEventListener("click", hidePATForm);
+patLoginBtn.addEventListener("click", handlePATLogin);
+patInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
     handlePATLogin();
   }
 });
-patInput.addEventListener('input', () => {
+patInput.addEventListener("input", () => {
   if (!loginErrorEl.hidden) {
     clearLoginError();
   }
 });
 
 // Settings
-settingsIconBtn.addEventListener('click', showSettings);
-settingsBackBtn.addEventListener('click', hideSettings);
+settingsIconBtn.addEventListener("click", showSettings);
+settingsBackBtn.addEventListener("click", hideSettings);
 themeRadios.forEach((radio) => {
-  radio.addEventListener('change', handleThemeChange);
+  radio.addEventListener("change", handleThemeChange);
 });
-popupWidthInput.addEventListener('change', handleWidthChange);
-popupWidthInput.addEventListener('blur', handleWidthChange);
-widthDecreaseBtn.addEventListener('click', decreaseWidth);
-widthIncreaseBtn.addEventListener('click', increaseWidth);
-hoverCardsToggle.addEventListener('change', async () => {
+popupWidthInput.addEventListener("change", handleWidthChange);
+popupWidthInput.addEventListener("blur", handleWidthChange);
+widthDecreaseBtn.addEventListener("click", decreaseWidth);
+widthIncreaseBtn.addEventListener("click", increaseWidth);
+hoverCardsToggle.addEventListener("change", async () => {
   showHoverCards = hoverCardsToggle.checked;
   await storage.setShowHoverCards(showHoverCards);
 
   // Hide any currently visible hover cards when disabling
   if (!showHoverCards) {
-    document.querySelectorAll('.notification-hover-card.visible').forEach((card) => {
-      card.classList.remove('visible');
+    document.querySelectorAll(".notification-hover-card.visible").forEach((card) => {
+      card.classList.remove("visible");
     });
   }
 
@@ -997,7 +1007,7 @@ hoverCardsToggle.addEventListener('change', async () => {
 });
 
 // Desktop notification settings
-desktopNotificationsToggle.addEventListener('change', async () => {
+desktopNotificationsToggle.addEventListener("change", async () => {
   const enabled = desktopNotificationsToggle.checked;
 
   if (enabled) {
@@ -1005,24 +1015,24 @@ desktopNotificationsToggle.addEventListener('change', async () => {
     let permission = checkNotificationPermission();
 
     // Request permission if not granted
-    if (permission === 'default' || permission === 'prompt') {
+    if (permission === "default" || permission === "prompt") {
       permission = await requestNotificationPermission();
     }
 
     // Only enable if permission granted
-    if (permission === 'granted') {
+    if (permission === "granted") {
       await storage.setEnableDesktopNotifications(true);
     } else {
       // Permission denied or unavailable
       desktopNotificationsToggle.checked = false;
       await storage.setEnableDesktopNotifications(false);
 
-      if (permission === 'denied') {
+      if (permission === "denied") {
         alert(
-          'Browser notification permission was denied. Please enable it in your browser settings to use desktop notifications.',
+          "Browser notification permission was denied. Please enable it in your browser settings to use desktop notifications.",
         );
-      } else if (permission === 'unsupported') {
-        alert('Browser notifications are not supported in this browser.');
+      } else if (permission === "unsupported") {
+        alert("Browser notifications are not supported in this browser.");
       }
     }
   } else {
@@ -1032,17 +1042,17 @@ desktopNotificationsToggle.addEventListener('change', async () => {
 });
 
 // User menu
-settingsLogoutBtn.addEventListener('click', logout);
-refreshBtn.addEventListener('click', refresh);
-markAllBtn.addEventListener('click', markAllAsRead);
+settingsLogoutBtn.addEventListener("click", logout);
+refreshBtn.addEventListener("click", refresh);
+markAllBtn.addEventListener("click", markAllAsRead);
 
 // Listen for storage changes to auto-update the notification list
 // This handles updates from background refresh or other sources
 browserStorage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && changes.notifications && !mainView.hidden) {
+  if (areaName === "local" && changes.notifications && !mainView.hidden) {
     // Prevent race condition: ignore updates during and shortly after user actions
     const timeSinceUserAction = Date.now() - lastUserActionTime;
-    const hasOngoingAnimations = document.querySelectorAll('.marking-read').length > 0;
+    const hasOngoingAnimations = document.querySelectorAll(".marking-read").length > 0;
 
     // Use dynamic animation duration to cover both single and bulk operations
     if (hasOngoingAnimations || timeSinceUserAction < lastAnimationDuration) {
@@ -1057,7 +1067,7 @@ browserStorage.onChanged.addListener((changes, areaName) => {
 });
 
 // Cleanup countdown timer when popup closes
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   stopCountdown();
 });
 
@@ -1066,7 +1076,7 @@ window.addEventListener('beforeunload', () => {
   await preloadTheme();
   // Enable transitions after initial theme is applied
   requestAnimationFrame(() => {
-    document.body.classList.add('transitions-enabled');
+    document.body.classList.add("transitions-enabled");
   });
   // Then initialize (showView will set the correct width)
   init();

@@ -3,7 +3,7 @@
  * Supports Device Flow OAuth and Personal Access Token authentication
  */
 
-import { CLIENT_ID } from '../config/config.js';
+import { CLIENT_ID } from "../config/config.js";
 import {
   GITHUB_API_BASE,
   GITHUB_SITE_BASE,
@@ -12,9 +12,9 @@ import {
   TIMING_THRESHOLDS,
   TIME_CONVERSION,
   NOTIFICATION_TYPES,
-} from './constants.js';
-import { buildNotificationUrl } from './url-builder.js';
-import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from './lru-cache.js';
+} from "./constants.js";
+import { buildNotificationUrl } from "./url-builder.js";
+import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "./lru-cache.js";
 
 /**
  * Retry configuration for mutation requests (mark as read, etc.)
@@ -22,7 +22,7 @@ import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from './lru-cache.js';
 const RETRY_MUTATION_OPTIONS = {
   maxRetries: 2,
   baseDelay: API_TIMEOUTS.RETRY_REQUEST_BASE_DELAY,
-  backoff: 'linear',
+  backoff: "linear",
   retryOn: [500],
   checkResponse: true,
 };
@@ -45,8 +45,8 @@ async function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUTS.DEFAUL
     });
     return response;
   } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timeout', { cause: error });
+    if (error.name === "AbortError") {
+      throw new Error("Request timeout", { cause: error });
     }
     throw error;
   } finally {
@@ -69,7 +69,7 @@ async function retryWithStrategy(fetchFn, options = {}) {
   const {
     maxRetries = 3,
     baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY,
-    backoff = 'exponential',
+    backoff = "exponential",
     retryOn = [401, 429],
     checkResponse = true,
   } = options;
@@ -81,14 +81,15 @@ async function retryWithStrategy(fetchFn, options = {}) {
       const response = await fetchFn();
 
       // If checking response and got a response object
-      if (checkResponse && response && typeof response.status === 'number') {
+      if (checkResponse && response && typeof response.status === "number") {
         // Success cases
         if (response.ok || response.status === 205) {
           return response;
         }
 
         // Check if we should retry this status code
-        const shouldRetry = retryOn.includes(response.status) || (response.status >= 500 && retryOn.includes(500));
+        const shouldRetry =
+          retryOn.includes(response.status) || (response.status >= 500 && retryOn.includes(500));
 
         if (!shouldRetry || attempt === maxRetries) {
           // Don't retry or last attempt - throw error
@@ -126,7 +127,8 @@ async function retryWithStrategy(fetchFn, options = {}) {
     }
 
     // Calculate delay based on backoff strategy
-    const delay = backoff === 'exponential' ? baseDelay * Math.pow(2, attempt) : baseDelay * (attempt + 1);
+    const delay =
+      backoff === "exponential" ? baseDelay * Math.pow(2, attempt) : baseDelay * (attempt + 1);
 
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
@@ -161,11 +163,11 @@ class GitHubAPI {
 
   get headers() {
     const h = {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
     };
     if (this.token) {
-      h['Authorization'] = `Bearer ${this.token}`;
+      h["Authorization"] = `Bearer ${this.token}`;
     }
     return h;
   }
@@ -174,9 +176,9 @@ class GitHubAPI {
    * Update rate limit from response headers
    */
   updateRateLimit(response) {
-    const limit = response.headers.get('X-RateLimit-Limit');
-    const remaining = response.headers.get('X-RateLimit-Remaining');
-    const reset = response.headers.get('X-RateLimit-Reset');
+    const limit = response.headers.get("X-RateLimit-Limit");
+    const remaining = response.headers.get("X-RateLimit-Remaining");
+    const reset = response.headers.get("X-RateLimit-Reset");
 
     if (limit && remaining && reset) {
       const remainingNum = parseInt(remaining, 10);
@@ -217,7 +219,7 @@ class GitHubAPI {
       const diffMins = Math.ceil(diffMs / TIME_CONVERSION.MS_PER_MINUTE);
 
       info.resetTime = resetDate.toLocaleTimeString();
-      info.resetIn = diffMins > 0 ? `${diffMins} min` : 'soon';
+      info.resetIn = diffMins > 0 ? `${diffMins} min` : "soon";
       info.resetDate = resetDate;
     }
     return info;
@@ -230,21 +232,21 @@ class GitHubAPI {
     const response = await fetchWithTimeout(
       `${GITHUB_SITE_BASE}/login/device/code`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           client_id: CLIENT_ID,
-          scope: 'repo notifications',
+          scope: "repo notifications",
         }),
       },
       API_TIMEOUTS.DEFAULT,
     );
 
     if (!response.ok) {
-      throw new Error('Failed to request device code');
+      throw new Error("Failed to request device code");
     }
 
     const data = await response.json();
@@ -258,7 +260,13 @@ class GitHubAPI {
   /**
    * Poll for access token using device code
    */
-  async pollForToken(deviceCode, interval = 5, expiresIn = null, onProgress = null, onCancel = null) {
+  async pollForToken(
+    deviceCode,
+    interval = 5,
+    expiresIn = null,
+    onProgress = null,
+    onCancel = null,
+  ) {
     // Use expires_in if provided, otherwise default to 15 minutes
     const DEFAULT_EXPIRES_IN = 900; // 15 minutes
     const effectiveExpiresIn = expiresIn || DEFAULT_EXPIRES_IN;
@@ -269,7 +277,7 @@ class GitHubAPI {
     for (let attempt = 0; Date.now() < deadline; attempt++) {
       // Check if cancelled
       if (onCancel && onCancel()) {
-        throw new Error('Device Flow cancelled by user');
+        throw new Error("Device Flow cancelled by user");
       }
 
       // Wait before polling
@@ -277,7 +285,7 @@ class GitHubAPI {
 
       // Check if cancelled during wait
       if (onCancel && onCancel()) {
-        throw new Error('Device Flow cancelled by user');
+        throw new Error("Device Flow cancelled by user");
       }
 
       // Notify progress if callback provided
@@ -293,15 +301,15 @@ class GitHubAPI {
         const response = await fetchWithTimeout(
           `${GITHUB_SITE_BASE}/login/oauth/access_token`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
+              Accept: "application/json",
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               client_id: CLIENT_ID,
               device_code: deviceCode,
-              grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+              grant_type: "urn:ietf:params:oauth:grant-type:device_code",
             }),
           },
           API_TIMEOUTS.DEFAULT,
@@ -319,12 +327,12 @@ class GitHubAPI {
         }
 
         // Still waiting for user authorization
-        if (data.error === 'authorization_pending') {
+        if (data.error === "authorization_pending") {
           continue;
         }
 
         // Slow down polling
-        if (data.error === 'slow_down') {
+        if (data.error === "slow_down") {
           currentInterval += 5;
           continue;
         }
@@ -337,7 +345,7 @@ class GitHubAPI {
         // - 'Request timeout': AbortController fired inside fetchWithTimeout
         // Business errors (access_denied, expired_token, etc.) are thrown
         // explicitly above and must NOT be retried.
-        const isTransient = error instanceof TypeError || error.message === 'Request timeout';
+        const isTransient = error instanceof TypeError || error.message === "Request timeout";
         if (isTransient && Date.now() < deadline) {
           continue;
         }
@@ -345,7 +353,7 @@ class GitHubAPI {
       }
     }
 
-    throw new Error('Authorization timeout - please try again');
+    throw new Error("Authorization timeout - please try again");
   }
 
   /**
@@ -389,11 +397,11 @@ class GitHubAPI {
    * @param {string} token - PAT token (required if authMethod is 'pat')
    * @param {Object} callbacks - { onDeviceCode, onProgress, onCancel } for Device Flow
    */
-  async login(authMethod = 'pat', token = null, callbacks = {}) {
+  async login(authMethod = "pat", token = null, callbacks = {}) {
     // If using PAT, skip OAuth flow
-    if (authMethod === 'pat') {
+    if (authMethod === "pat") {
       if (!token) {
-        throw new Error('Token required for PAT authentication');
+        throw new Error("Token required for PAT authentication");
       }
       this.token = token;
       await this.fetchUsername();
@@ -429,16 +437,16 @@ class GitHubAPI {
       return this.username;
     }
 
-    let apiMessage = '';
+    let apiMessage = "";
     try {
       const errorData = await response.json();
-      apiMessage = errorData?.message || '';
+      apiMessage = errorData?.message || "";
     } catch {
       // Ignore parse errors for non-JSON responses
     }
 
     if (response.status === 401) {
-      throw new Error('Invalid token or missing required scopes (repo, notifications)');
+      throw new Error("Invalid token or missing required scopes (repo, notifications)");
     }
 
     if (apiMessage) {
@@ -465,7 +473,7 @@ class GitHubAPI {
    */
   async getNotifications() {
     if (!this.isAuthenticated) {
-      throw new Error('Not authenticated');
+      throw new Error("Not authenticated");
     }
 
     // Check rate limit before making request
@@ -480,21 +488,25 @@ class GitHubAPI {
     // participating=false means get all notifications (not just ones you're involved in)
     // all=false means only unread notifications
     // per_page=50 is the maximum allowed
-    url.searchParams.set('participating', 'false');
-    url.searchParams.set('all', 'false');
-    url.searchParams.set('per_page', '50');
+    url.searchParams.set("participating", "false");
+    url.searchParams.set("all", "false");
+    url.searchParams.set("per_page", "50");
 
     // Build headers with If-Modified-Since for optimized polling
     // Auto-expire after 1 hour to pick up external changes (e.g., GitHub web UI)
     const MAX_CONDITIONAL_AGE_MS = 60 * 60 * 1000;
-    if (this.lastModified && this.lastModifiedAt && Date.now() - this.lastModifiedAt > MAX_CONDITIONAL_AGE_MS) {
+    if (
+      this.lastModified &&
+      this.lastModifiedAt &&
+      Date.now() - this.lastModifiedAt > MAX_CONDITIONAL_AGE_MS
+    ) {
       this.lastModified = null;
       this.lastModifiedAt = null;
     }
 
     const headers = { ...this.headers };
     if (this.lastModified) {
-      headers['If-Modified-Since'] = this.lastModified;
+      headers["If-Modified-Since"] = this.lastModified;
     }
 
     const response = await retryWithStrategy(
@@ -503,7 +515,7 @@ class GitHubAPI {
           url.toString(),
           {
             headers,
-            cache: 'no-store', // Force no cache
+            cache: "no-store", // Force no cache
           },
           API_TIMEOUTS.DEFAULT,
         );
@@ -520,7 +532,7 @@ class GitHubAPI {
       {
         maxRetries: 3,
         baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
-        backoff: 'exponential',
+        backoff: "exponential",
         retryOn: [429, 500],
         checkResponse: false, // Already checking resp.ok above
       },
@@ -529,13 +541,13 @@ class GitHubAPI {
     this.updateRateLimit(response);
 
     // Update poll interval from response headers
-    const pollHeader = response.headers.get('X-Poll-Interval');
+    const pollHeader = response.headers.get("X-Poll-Interval");
     if (pollHeader) {
       this.pollInterval = Math.max(parseInt(pollHeader, 10), MIN_POLL_INTERVAL_SECONDS);
     }
 
     // Save Last-Modified header for next request
-    const lastModified = response.headers.get('Last-Modified');
+    const lastModified = response.headers.get("Last-Modified");
     if (lastModified) {
       this.lastModified = lastModified;
       this.lastModifiedAt = Date.now();
@@ -552,7 +564,7 @@ class GitHubAPI {
       const notifications = await response.json();
 
       // Check if there are more pages
-      const linkHeader = response.headers.get('Link');
+      const linkHeader = response.headers.get("Link");
       const hasMore = linkHeader ? linkHeader.includes('rel="next"') : false;
 
       return {
@@ -573,16 +585,18 @@ class GitHubAPI {
     const lower = title.toLowerCase();
 
     const patterns = [
-      { keywords: ['succeeded', 'passed', 'success'], conclusion: 'success', status: 'completed' },
-      { keywords: ['failed', 'failure'], conclusion: 'failure', status: 'completed' },
-      { keywords: ['cancelled'], conclusion: 'cancelled', status: 'completed' },
-      { keywords: ['skipped'], conclusion: 'skipped', status: 'completed' },
-      { keywords: ['in progress', 'running'], conclusion: null, status: 'in_progress' },
-      { keywords: ['queued', 'pending'], conclusion: null, status: 'queued' },
+      { keywords: ["succeeded", "passed", "success"], conclusion: "success", status: "completed" },
+      { keywords: ["failed", "failure"], conclusion: "failure", status: "completed" },
+      { keywords: ["cancelled"], conclusion: "cancelled", status: "completed" },
+      { keywords: ["skipped"], conclusion: "skipped", status: "completed" },
+      { keywords: ["in progress", "running"], conclusion: null, status: "in_progress" },
+      { keywords: ["queued", "pending"], conclusion: null, status: "queued" },
     ];
 
     const match = patterns.find((p) => p.keywords.some((kw) => lower.includes(kw)));
-    return match ? { conclusion: match.conclusion, status: match.status } : { conclusion: null, status: 'completed' };
+    return match
+      ? { conclusion: match.conclusion, status: match.status }
+      : { conclusion: null, status: "completed" };
   }
 
   /**
@@ -596,7 +610,8 @@ class GitHubAPI {
 
     // Check cache first (unless forcing refresh)
     // CheckSuite has no subject.url; use notification id as fallback key
-    const cacheKey = notification.subject.url || (notification.id ? `no-url:${notification.id}` : null);
+    const cacheKey =
+      notification.subject.url || (notification.id ? `no-url:${notification.id}` : null);
     if (cacheKey && !forceRefresh) {
       const cached = this.detailsCache.get(cacheKey);
       if (cached) {
@@ -633,7 +648,8 @@ class GitHubAPI {
                 const matchingRun = runsData.workflow_runs?.find(
                   (run) =>
                     run.name === workflowName &&
-                    Math.abs(notifTime - new Date(run.updated_at).getTime()) < TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW,
+                    Math.abs(notifTime - new Date(run.updated_at).getTime()) <
+                      TIMING_THRESHOLDS.WORKFLOW_MATCH_WINDOW,
                 );
 
                 if (matchingRun?.actor) {
@@ -649,7 +665,7 @@ class GitHubAPI {
                 }
               }
             } catch (e) {
-              console.warn('Failed to fetch workflow runs for CheckSuite:', e);
+              console.warn("Failed to fetch workflow runs for CheckSuite:", e);
             }
           }
 
@@ -692,7 +708,7 @@ class GitHubAPI {
       {
         maxRetries: 2,
         baseDelay: API_TIMEOUTS.RETRY_BASE_DELAY,
-        backoff: 'exponential',
+        backoff: "exponential",
         retryOn: [429, 500],
         checkResponse: false, // Already checking resp.ok above
       },
@@ -702,7 +718,11 @@ class GitHubAPI {
     const details = await response.json();
 
     // For releases with empty body, fetch commit message from target_commitish
-    if (subjectType === NOTIFICATION_TYPES.RELEASE && !details.body?.trim() && details.target_commitish) {
+    if (
+      subjectType === NOTIFICATION_TYPES.RELEASE &&
+      !details.body?.trim() &&
+      details.target_commitish
+    ) {
       try {
         const commitUrl = `${GITHUB_API_BASE}/repos/${repo.full_name}/commits/${details.target_commitish}`;
         const commitResp = await fetchWithTimeout(
@@ -721,7 +741,10 @@ class GitHubAPI {
           }
         }
       } catch (error) {
-        console.warn(`Failed to fetch commit message for release ${notification.subject.title}:`, error);
+        console.warn(
+          `Failed to fetch commit message for release ${notification.subject.title}:`,
+          error,
+        );
         // Don't fail the whole operation, just skip commit message
       }
     }
@@ -744,7 +767,7 @@ class GitHubAPI {
       return await fetchWithTimeout(
         url,
         {
-          method: 'PATCH',
+          method: "PATCH",
           headers: this.headers,
         },
         API_TIMEOUTS.DEFAULT,
@@ -767,10 +790,10 @@ class GitHubAPI {
       return await fetchWithTimeout(
         `${GITHUB_API_BASE}/notifications`,
         {
-          method: 'PUT',
+          method: "PUT",
           headers: {
             ...this.headers,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             last_read_at: this.lastUpdate,
@@ -796,10 +819,10 @@ class GitHubAPI {
       return await fetchWithTimeout(
         url,
         {
-          method: 'PUT',
+          method: "PUT",
           headers: {
             ...this.headers,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             last_read_at: new Date().toISOString(),

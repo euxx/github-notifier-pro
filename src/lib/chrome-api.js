@@ -12,7 +12,7 @@
 
 // Firefox uses the `browser` namespace; Chrome uses `chrome`.
 // Both return Promises from their extension APIs at the declared minimum versions.
-const api = typeof browser !== 'undefined' ? browser : chrome;
+const api = typeof browser !== "undefined" ? browser : chrome;
 
 // Storage API
 export const storage = {
