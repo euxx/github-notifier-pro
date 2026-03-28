@@ -26,9 +26,8 @@
 | `npm run all`          | Run CI then build Chrome & Firefox packages |
 | `npm test`             | Run tests (Vitest)                          |
 | `npm run prepare`      | Setup Husky git hooks                       |
-| `npm run lint`         | Lint code                                   |
-| `npm run lint:fix`     | Lint and auto-fix                           |
-| `npm run format`       | Format code with Prettier                   |
+| `npm run lint`         | Lint code (oxlint)                          |
+| `npm run format`       | Format code (oxfmt)                         |
 | `npm run format:check` | Check code formatting                       |
 | `npm run build`        | Build Chrome and Firefox packages           |
 | `npm run dev:firefox`  | Create Firefox dev environment              |

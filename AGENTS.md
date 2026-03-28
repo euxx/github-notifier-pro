@@ -11,8 +11,8 @@ After modifying code, ensure to run the following commands to maintain code qual
 Or run individually:
 
 - `npm test` - Run tests (Vitest)
-- `npm run lint` - Lint code
-- `npm run format` - Format code with Prettier
+- `npm run lint` - Lint code (oxlint)
+- `npm run format` - Format code (oxfmt)
 
 Refer to [DEVELOPMENT.md](DEVELOPMENT.md) for more details on available scripts and project setup.
 
