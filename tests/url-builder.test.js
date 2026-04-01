@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildNotificationUrl } from "../src/lib/url-builder.js";
+import { buildNotificationUrl, buildProfileUrl } from "../src/lib/url-builder.js";
 
 const GITHUB_BASE = "https://github.com";
 
@@ -180,5 +180,21 @@ describe("buildNotificationUrl", () => {
       const corrupted = { id: "123", type: "Issue", repository: { name: "repo" } };
       expect(() => buildNotificationUrl(corrupted)).toThrow();
     });
+  });
+});
+
+describe("buildProfileUrl", () => {
+  it("should build URL from login", () => {
+    expect(buildProfileUrl("octocat")).toBe("https://github.com/octocat");
+  });
+
+  it("should encode special characters in login", () => {
+    expect(buildProfileUrl("user name")).toBe("https://github.com/user%20name");
+  });
+
+  it("should return null for falsy login", () => {
+    expect(buildProfileUrl(null)).toBeNull();
+    expect(buildProfileUrl(undefined)).toBeNull();
+    expect(buildProfileUrl("")).toBeNull();
   });
 });

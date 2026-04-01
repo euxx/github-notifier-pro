@@ -134,11 +134,23 @@ vi.mock("../src/lib/constants.js", () => ({
     Release: "release",
     CheckSuite: "actions",
   },
+  CONCURRENCY: {
+    PRIORITY: 5,
+    BACKGROUND: 3,
+    VISIBLE_COUNT: 10,
+  },
 }));
 
 // Mock format-utils
 vi.mock("../src/lib/format-utils.js", () => ({
   formatReason: vi.fn((reason) => reason || "Unknown"),
+  classifyError: vi.fn((error) => {
+    const msg = error?.message || "";
+    if (msg.includes("Rate limited")) return "rate-limited";
+    if (msg.includes("timeout")) return "timeout";
+    if (msg.includes("NetworkError") || msg.includes("Failed to fetch")) return "offline";
+    return "unknown";
+  }),
 }));
 
 // Mock url-builder

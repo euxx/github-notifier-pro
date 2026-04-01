@@ -48,6 +48,7 @@ beforeAll(() => {
 
 // Mock dependencies before importing
 vi.mock("../src/lib/constants.js", () => ({
+  GITHUB_SITE_BASE: "https://github.com",
   ANIMATION_DURATION: {
     FADE_OUT: 200,
     ERROR_BACKGROUND_FADE: 1000,
