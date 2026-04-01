@@ -1061,6 +1061,15 @@ settingsLogoutBtn.addEventListener("click", logout);
 refreshBtn.addEventListener("click", refresh);
 markAllBtn.addEventListener("click", markAllAsRead);
 
+// Open GitHub Notifications via tabs.create for consistent tab placement
+// Intercept all external links to open at the end of the tab strip
+document.addEventListener("click", (e) => {
+  const link = e.target.closest('a[target="_blank"]');
+  if (!link) return;
+  e.preventDefault();
+  tabs.create({ url: link.href });
+});
+
 // Listen for storage changes to auto-update the notification list
 // This handles updates from background refresh or other sources
 browserStorage.onChanged.addListener((changes, areaName) => {
