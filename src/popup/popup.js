@@ -197,6 +197,7 @@ const hoverCardsToggle = document.getElementById("hover-cards-toggle");
 
 // Desktop notification settings
 const desktopNotificationsToggle = document.getElementById("desktop-notifications-toggle");
+const desktopNotificationsHint = document.getElementById("desktop-notifications-hint");
 
 let scrollbarCompensationRaf = null;
 
@@ -440,9 +441,18 @@ async function showSettings() {
     desktopNotificationsToggle.disabled = true;
     desktopNotificationsToggle.parentElement.title =
       "Browser notification permission denied. Please enable it in browser settings.";
+    if (desktopNotificationsHint) {
+      desktopNotificationsHint.textContent =
+        "Permission denied. Please enable notifications in browser settings.";
+      desktopNotificationsHint.hidden = false;
+    }
   } else if (permission === "unsupported") {
     desktopNotificationsToggle.disabled = true;
     desktopNotificationsToggle.parentElement.title = "Browser notifications not supported.";
+    if (desktopNotificationsHint) {
+      desktopNotificationsHint.textContent = "Browser notifications are not supported.";
+      desktopNotificationsHint.hidden = false;
+    }
   }
   // Hide header and footer
   document.querySelector(".header").hidden = true;
@@ -1011,6 +1021,8 @@ hoverCardsToggle.addEventListener("change", async () => {
 desktopNotificationsToggle.addEventListener("change", async () => {
   const enabled = desktopNotificationsToggle.checked;
 
+  if (desktopNotificationsHint) desktopNotificationsHint.hidden = true;
+
   if (enabled) {
     // Check current permission
     let permission = checkNotificationPermission();
@@ -1028,12 +1040,14 @@ desktopNotificationsToggle.addEventListener("change", async () => {
       desktopNotificationsToggle.checked = false;
       await storage.setEnableDesktopNotifications(false);
 
-      if (permission === "denied") {
-        alert(
-          "Browser notification permission was denied. Please enable it in your browser settings to use desktop notifications.",
-        );
-      } else if (permission === "unsupported") {
-        alert("Browser notifications are not supported in this browser.");
+      if (desktopNotificationsHint) {
+        if (permission === "denied") {
+          desktopNotificationsHint.textContent =
+            "Permission denied. Please enable notifications in browser settings.";
+        } else if (permission === "unsupported") {
+          desktopNotificationsHint.textContent = "Browser notifications are not supported.";
+        }
+        desktopNotificationsHint.hidden = false;
       }
     }
   } else {

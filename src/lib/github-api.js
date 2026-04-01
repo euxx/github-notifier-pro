@@ -87,7 +87,8 @@ async function retryWithStrategy(fetchFn, options = {}) {
           return response;
         }
 
-        // Check if we should retry this status code
+        // Check if we should retry this status code.
+        // Note: including 500 in retryOn acts as a wildcard for all 5xx errors.
         const shouldRetry =
           retryOn.includes(response.status) || (response.status >= 500 && retryOn.includes(500));
 
