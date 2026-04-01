@@ -1525,4 +1525,138 @@ describe("service-worker helper functions", () => {
       consoleSpy.mockRestore();
     });
   });
+
+  describe("storage write failures during checkNotifications", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 60;
+    });
+
+    it("should set error badge when setNotifications rejects during refresh", async () => {
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [
+          {
+            id: "1",
+            subject: { title: "Issue 1", type: "Issue", url: null },
+            reason: "mention",
+            unread: true,
+            updated_at: "2024-01-01T00:00:00Z",
+            repository: {
+              name: "repo",
+              full_name: "owner/repo",
+              html_url: "https://github.com/owner/repo",
+            },
+          },
+        ],
+        hasMore: false,
+      });
+
+      mockStorageFunctions.getNotifications.mockResolvedValue([]);
+      mockStorageFunctions.setNotifications.mockRejectedValue(new Error("Storage quota exceeded"));
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: "refresh" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // The error should propagate to checkNotifications' catch block
+      // which sets an error title on the badge
+      expect(mockAction.setTitle).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringContaining("Storage quota exceeded"),
+        }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should handle getEnableDesktopNotifications rejection gracefully", async () => {
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [
+          {
+            id: "1",
+            subject: { title: "Issue 1", type: "Issue", url: null },
+            reason: "mention",
+            unread: true,
+            updated_at: "2024-01-01T00:00:00Z",
+            repository: {
+              name: "repo",
+              full_name: "owner/repo",
+              html_url: "https://github.com/owner/repo",
+            },
+          },
+        ],
+        hasMore: false,
+      });
+
+      mockStorageFunctions.getNotifications.mockResolvedValue([]);
+      mockStorageFunctions.setNotifications.mockResolvedValue(undefined);
+      // Desktop notification preference fetch fails
+      mockStorageFunctions.getEnableDesktopNotifications.mockRejectedValue(
+        new Error("Storage read error"),
+      );
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: "refresh" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // showDesktopNotificationsForNew catches its own errors internally,
+      // so the refresh should still succeed
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("desktop notification partial failure in batch", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should continue creating remaining notifications when one create call fails", async () => {
+      mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(true);
+      mockStorageFunctions.getMaxDesktopNotifications.mockResolvedValue(5);
+
+      // First notification.create succeeds, second fails, third succeeds
+      mockNotifications.create
+        .mockResolvedValueOnce("notif-1")
+        .mockRejectedValueOnce(new Error("Notification create failed"))
+        .mockResolvedValueOnce("notif-3");
+
+      const notifications = [
+        { id: "1", isNew: true, title: "N1", repository: { full_name: "r1" }, reason: "mention" },
+        { id: "2", isNew: true, title: "N2", repository: { full_name: "r2" }, reason: "assign" },
+        { id: "3", isNew: true, title: "N3", repository: { full_name: "r3" }, reason: "review" },
+      ];
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const promise = showDesktopNotificationsForNew(notifications);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // All three should be attempted (showDesktopNotification catches its own errors)
+      expect(mockNotifications.create).toHaveBeenCalledTimes(3);
+      // First and third should have been called with correct IDs
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}1`,
+        expect.any(Object),
+      );
+      expect(mockNotifications.create).toHaveBeenCalledWith(
+        `${NOTIFICATION_ID_PREFIX}3`,
+        expect.any(Object),
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
 });

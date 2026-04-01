@@ -942,3 +942,171 @@ describe("Device Flow error handling", () => {
     await rejection;
   });
 });
+
+describe("error handling and retry - extended", () => {
+  let mockFetch;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    github.token = "test-token";
+    github.rateLimit.isLimited = false;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should throw Request timeout when fetchUsername stalls past USER_INFO timeout", async () => {
+    // fetchWithTimeout uses AbortController; simulate a hanging fetch that aborts
+    mockFetch.mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener("abort", () => {
+          reject(new DOMException("The signal is aborted", "AbortError"));
+        });
+      });
+    });
+
+    const promise = github.fetchUsername();
+    const rejection = expect(promise).rejects.toThrow("Request timeout");
+
+    // USER_INFO timeout is 10000ms
+    await vi.advanceTimersByTimeAsync(11000);
+
+    await rejection;
+  });
+
+  it("should not retry getNotifications on 403 (non-retryable 4xx)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => null },
+    });
+
+    await expect(github.getNotifications()).rejects.toThrow("403");
+    // retryOn is [429, 500] — 403 should not be retried
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("should throw after exhausting all retries on 500 for getNotifications", async () => {
+    // getNotifications: maxRetries=3, exponential backoff, baseDelay=1000ms
+    // Delays: 1000, 2000, 4000 ms for attempts 0, 1, 2
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+    });
+
+    const promise = github.getNotifications();
+    const rejection = expect(promise).rejects.toThrow("500");
+
+    // Advance past each retry delay
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(4000);
+
+    await rejection;
+    // Initial attempt + 3 retries = 4 calls
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("should retry markAsRead on 500 twice and succeed on third attempt", async () => {
+    // RETRY_MUTATION_OPTIONS: maxRetries=2, linear backoff, baseDelay=500ms
+    // Linear delays: 500*(0+1)=500, 500*(1+1)=1000
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 205,
+        headers: { get: () => null },
+      });
+
+    const promise = github.markAsRead("12345");
+
+    // Advance past first retry delay (500ms)
+    await vi.advanceTimersByTimeAsync(500);
+    // Advance past second retry delay (1000ms)
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const result = await promise;
+
+    expect(result).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("should not retry markAsRead on 403 (mutation non-retryable)", async () => {
+    // RETRY_MUTATION_OPTIONS retryOn: [500] — 403 should not be retried
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => null },
+    });
+
+    await expect(github.markAsRead("12345")).rejects.toThrow("403");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fetchUsername error responses", () => {
+  let mockFetch;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    github.token = "test-token";
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("should throw scopes message on 401", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ message: "Bad credentials" }),
+    });
+
+    await expect(github.fetchUsername()).rejects.toThrow(
+      "Invalid token or missing required scopes (repo, notifications)",
+    );
+  });
+
+  it("should throw with API message on 500", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ message: "Internal Server Error" }),
+    });
+
+    await expect(github.fetchUsername()).rejects.toThrow(
+      "Failed to fetch username: Internal Server Error",
+    );
+  });
+
+  it("should throw with status code when response body is not JSON", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      headers: { get: () => null },
+      json: () => Promise.reject(new SyntaxError("Unexpected token")),
+    });
+
+    await expect(github.fetchUsername()).rejects.toThrow("Failed to fetch username (HTTP 502)");
+  });
+});
