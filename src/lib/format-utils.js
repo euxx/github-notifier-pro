@@ -82,20 +82,6 @@ export function getNotificationStatus(notif) {
 }
 
 /**
- * Escape HTML to prevent XSS
- * Uses string replacement instead of DOM manipulation for better performance
- */
-export function escapeHtml(text) {
-  if (text === null || text === undefined) return "";
-  return String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/**
  * Classify a network/API error into a category for consistent handling
  * @param {Error} error - Error object
  * @returns {'rate-limited'|'timeout'|'offline'|'unknown'} Error category

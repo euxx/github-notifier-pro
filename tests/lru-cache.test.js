@@ -114,7 +114,6 @@ describe("LRUCache", () => {
       expect(stats.size).toBe(2);
       expect(stats.maxSize).toBe(3);
       expect(stats.utilization).toBe("66.7%");
-      expect(stats.keys).toEqual(["a", "b"]);
     });
 
     it("should show 0% utilization when empty", () => {

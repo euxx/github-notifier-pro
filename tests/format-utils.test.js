@@ -4,7 +4,6 @@ import {
   formatType,
   formatState,
   getNotificationStatus,
-  escapeHtml,
   classifyError,
 } from "../src/lib/format-utils.js";
 
@@ -112,31 +111,6 @@ describe("getNotificationStatus", () => {
   it("should return type only when no state/conclusion", () => {
     const notif = { type: "Release" };
     expect(getNotificationStatus(notif)).toBe("Release");
-  });
-});
-
-describe("escapeHtml", () => {
-  it("should escape HTML special characters", () => {
-    expect(escapeHtml("<script>")).toBe("&lt;script&gt;");
-    expect(escapeHtml("a & b")).toBe("a &amp; b");
-    expect(escapeHtml('"quotes"')).toBe("&quot;quotes&quot;");
-    expect(escapeHtml("'apostrophe'")).toBe("&#39;apostrophe&#39;");
-  });
-
-  it("should handle combined special characters", () => {
-    expect(escapeHtml('<a href="url">link</a>')).toBe(
-      "&lt;a href=&quot;url&quot;&gt;link&lt;/a&gt;",
-    );
-  });
-
-  it("should handle null/undefined", () => {
-    expect(escapeHtml(null)).toBe("");
-    expect(escapeHtml(undefined)).toBe("");
-  });
-
-  it("should convert non-string values to string", () => {
-    expect(escapeHtml(123)).toBe("123");
-    expect(escapeHtml(true)).toBe("true");
   });
 });
 

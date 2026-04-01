@@ -70,7 +70,7 @@ async function retryWithStrategy(fetchFn, options = {}) {
     maxRetries = 3,
     baseDelay = API_TIMEOUTS.RETRY_BASE_DELAY,
     backoff = "exponential",
-    retryOn = [401, 429],
+    retryOn = [429],
     checkResponse = true,
   } = options;
 
