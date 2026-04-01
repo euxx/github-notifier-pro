@@ -251,10 +251,10 @@ async function fetchWithConcurrencyLimit(tasks, limit = 5) {
  * @param {Array} detailedNotifications - Array to update with details
  * @returns {Function} Async function to fetch details
  */
-function createDetailFetchTask(notification, index, detailedNotifications) {
+function createDetailFetchTask(notification, index, detailedNotifications, forceRefresh = false) {
   return async () => {
     try {
-      const details = await github.getNotificationDetails(notification);
+      const details = await github.getNotificationDetails(notification, forceRefresh);
       updateNotificationDetails(detailedNotifications[index], details, notification.subject.type);
       return { success: true, id: notification.id, index };
     } catch (error) {
@@ -452,7 +452,7 @@ async function checkNotifications() {
       if (priorityNotifications.length > 0) {
         priorityResults = await fetchWithConcurrencyLimit(
           priorityNotifications.map(({ notification: n, index }) =>
-            createDetailFetchTask(n, index, detailedNotifications),
+            createDetailFetchTask(n, index, detailedNotifications, true),
           ),
           CONCURRENCY.PRIORITY,
         );
@@ -482,7 +482,7 @@ async function checkNotifications() {
       if (backgroundNotifications.length > 0) {
         fetchWithConcurrencyLimit(
           backgroundNotifications.map(({ notification: n, index }) =>
-            createDetailFetchTask(n, index, detailedNotifications),
+            createDetailFetchTask(n, index, detailedNotifications, true),
           ),
           CONCURRENCY.BACKGROUND,
         )

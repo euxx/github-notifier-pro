@@ -1080,5 +1080,5 @@ window.addEventListener("beforeunload", () => {
     document.body.classList.add("transitions-enabled");
   });
   // Then initialize (showView will set the correct width)
-  init();
+  await init();
 })();

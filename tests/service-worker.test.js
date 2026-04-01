@@ -900,6 +900,39 @@ describe("service-worker", () => {
         expect(call[0].map((n) => n.id)).not.toContain("A");
       });
     });
+
+    it("should pass forceRefresh=true when fetching details for updated notifications", async () => {
+      const oldNotif = makeRawNotif("X");
+      oldNotif.subject.url = "https://api.github.com/repos/owner/repo/issues/1";
+      const updatedNotif = {
+        ...oldNotif,
+        updated_at: "2024-06-01T00:00:00Z", // newer than stored
+      };
+
+      mockGithub.getNotifications.mockResolvedValue({
+        items: [updatedNotif],
+        hasMore: false,
+      });
+
+      // Stored version has old updated_at → needsUpdate = true
+      mockStorageFunctions.getNotifications
+        .mockResolvedValueOnce([makeStoredNotif("X")]) // existingIds
+        .mockResolvedValueOnce([makeStoredNotif("X")]) // safeBasic re-read
+        .mockResolvedValueOnce([makeStoredNotif("X")]); // mergeAndSaveIfCurrent
+
+      mockGithub.getNotificationDetails.mockResolvedValue({
+        state: "closed",
+        user: { login: "alice", avatar_url: "https://example.com/a.png", html_url: "" },
+      });
+
+      messageHandler({ action: "refresh" }, {}, vi.fn());
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // getNotificationDetails must be called with forceRefresh=true
+      expect(mockGithub.getNotificationDetails).toHaveBeenCalled();
+      const [, forceRefresh] = mockGithub.getNotificationDetails.mock.calls[0];
+      expect(forceRefresh).toBe(true);
+    });
   });
 });
 
