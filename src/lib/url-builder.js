@@ -137,3 +137,13 @@ function buildVulnerabilityUrl(fullName) {
 function buildDependabotUrl(fullName) {
   return `${GITHUB_SITE_BASE}/${fullName}/security/dependabot`;
 }
+
+/**
+ * Build GitHub profile URL from a username/login
+ * @param {string|null|undefined} login - GitHub username
+ * @returns {string|null} Profile URL or null if login is falsy
+ */
+export function buildProfileUrl(login) {
+  if (!login) return null;
+  return `${GITHUB_SITE_BASE}/${encodeURIComponent(login)}`;
+}

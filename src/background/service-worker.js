@@ -12,8 +12,9 @@ import {
   MESSAGE_TYPES,
   NOTIFICATION_TYPES,
   NOTIFICATION_TYPE_ICONS,
+  CONCURRENCY,
 } from "../lib/constants.js";
-import { formatReason } from "../lib/format-utils.js";
+import { formatReason, classifyError } from "../lib/format-utils.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 
@@ -280,6 +281,30 @@ function filterToCurrentlyStored(detailedNotifications, currentStoredNotificatio
 }
 
 /**
+ * Merge notifications with current storage and save, guarded by fetch version.
+ * Aborts if a newer fetch has started (before or during the async storage read).
+ * @param {number} fetchVersion - Version of the fetch that produced these notifications
+ * @param {Array} notifications - Notifications to save
+ * @param {string} label - Log label for debugging
+ * @returns {Promise<boolean>} true if saved, false if superseded
+ */
+async function mergeAndSaveIfCurrent(fetchVersion, notifications, label) {
+  if (fetchVersion < notificationFetchVersion) {
+    console.log(`Fetch #${fetchVersion} superseded before ${label}, skipping`);
+    return false;
+  }
+  const currentStored = await storage.getNotifications();
+  // Re-check after async read: user mark-as-read may have bumped the version
+  if (fetchVersion < notificationFetchVersion) {
+    console.log(`Fetch #${fetchVersion} superseded during ${label} storage read, skipping`);
+    return false;
+  }
+  const safe = filterToCurrentlyStored(notifications, currentStored);
+  await storage.setNotifications(safe);
+  return true;
+}
+
+/**
  * Check for new notifications
  *
  * Race condition prevention:
@@ -414,23 +439,22 @@ async function checkNotifications() {
         }
       }
 
-      // Split into priority (first 10 visible) and background loading
-      const VISIBLE_COUNT = 10; // Approximately one screen of notifications
-      const priorityNotifications = notificationsNeedingDetails.slice(0, VISIBLE_COUNT);
-      const backgroundNotifications = notificationsNeedingDetails.slice(VISIBLE_COUNT);
+      // Split into priority (visible) and background loading
+      const priorityNotifications = notificationsNeedingDetails.slice(0, CONCURRENCY.VISIBLE_COUNT);
+      const backgroundNotifications = notificationsNeedingDetails.slice(CONCURRENCY.VISIBLE_COUNT);
 
       console.log(
         `Loading details: ${priorityNotifications.length} priority, ${backgroundNotifications.length} background`,
       );
 
-      // Priority loading: First 10 notifications (visible on screen)
+      // Priority loading: First visible notifications
       let priorityResults = []; // Define in outer scope for background logging
       if (priorityNotifications.length > 0) {
         priorityResults = await fetchWithConcurrencyLimit(
           priorityNotifications.map(({ notification: n, index }) =>
             createDetailFetchTask(n, index, detailedNotifications),
           ),
-          5, // Concurrency limit: 5 requests at a time
+          CONCURRENCY.PRIORITY,
         );
 
         // Log priority loading results
@@ -440,21 +464,16 @@ async function checkNotifications() {
           `Fetch #${currentFetchVersion} priority: ${prioritySuccess} loaded, ${priorityFailed} failed`,
         );
 
-        // Check if superseded before updating
-        if (currentFetchVersion >= notificationFetchVersion) {
-          // Merge with current storage to avoid overwriting user deletions
-          const currentStored = await storage.getNotifications();
-          // Re-check version after async read: a user mark-as-read may have bumped
-          // notificationFetchVersion between the read and write, making our snapshot stale.
-          if (currentFetchVersion >= notificationFetchVersion) {
-            const safeDetailed = filterToCurrentlyStored(detailedNotifications, currentStored);
-
-            // Save priority notifications immediately
-            await storage.setNotifications(safeDetailed);
-            console.log(
-              `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
-            );
-          }
+        // Merge with current storage and save (guarded by version check)
+        const saved = await mergeAndSaveIfCurrent(
+          currentFetchVersion,
+          detailedNotifications,
+          "priority save",
+        );
+        if (saved) {
+          console.log(
+            `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
+          );
         }
       }
 
@@ -465,7 +484,7 @@ async function checkNotifications() {
           backgroundNotifications.map(({ notification: n, index }) =>
             createDetailFetchTask(n, index, detailedNotifications),
           ),
-          3, // Lower concurrency for background: 3 requests at a time
+          CONCURRENCY.BACKGROUND,
         )
           .then(async (backgroundResults) => {
             // Check if a newer fetch has completed while we were fetching details
@@ -490,27 +509,15 @@ async function checkNotifications() {
               `Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`,
             );
 
-            // Double-check before final save
-            if (currentFetchVersion >= notificationFetchVersion) {
-              // Merge with current storage to avoid overwriting user deletions
-              const currentStoredNotifications = await storage.getNotifications();
-              // Re-check version after async read: a user mark-as-read may have bumped
-              // notificationFetchVersion between the read and write, making our snapshot stale.
-              if (currentFetchVersion >= notificationFetchVersion) {
-                const safeDetailed = filterToCurrentlyStored(
-                  detailedNotifications,
-                  currentStoredNotifications,
-                );
-
-                // Update storage with all completed details
-                await storage.setNotifications(safeDetailed);
-                console.log(
-                  `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
-                );
-              }
-            } else {
+            // Merge with current storage and save (guarded by version check)
+            const saved = await mergeAndSaveIfCurrent(
+              currentFetchVersion,
+              detailedNotifications,
+              "background save",
+            );
+            if (saved) {
               console.log(
-                `Fetch #${currentFetchVersion} superseded before final save, skipping storage update`,
+                `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
               );
             }
           })
@@ -529,27 +536,21 @@ async function checkNotifications() {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
 
     // Handle different error types with appropriate UI feedback
-    if (error.message && error.message.includes("Rate limited")) {
-      // Rate limited - show timer badge with reset info
+    const errorType = classifyError(error);
+    if (errorType === "rate-limited") {
       const rateLimitInfo = github.getRateLimitInfo();
       await action.setBadgeText({ text: "⏱" });
       await action.setBadgeBackgroundColor({ color: BADGE_COLORS.RATE_LIMITED });
       await action.setTitle({
         title: `Rate limited. Resets ${rateLimitInfo.resetIn || "soon"}`,
       });
-    } else if (error.message && error.message.includes("timeout")) {
-      // Network timeout
+    } else if (errorType === "timeout") {
       await action.setBadgeText({ text: "⏱" });
       await action.setBadgeBackgroundColor({ color: BADGE_COLORS.TIMEOUT });
       await action.setTitle({ title: "Request timeout - will retry" });
-    } else if (
-      error.message &&
-      (error.message.includes("NetworkError") || error.message.includes("Failed to fetch"))
-    ) {
-      // Network error - keep last known state, update title only
+    } else if (errorType === "offline") {
       await action.setTitle({ title: "Offline - showing cached data" });
     } else {
-      // Other errors
       console.error("Unexpected error:", error);
       await action.setTitle({ title: `Error: ${error.message}` });
     }

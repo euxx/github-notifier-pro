@@ -10,6 +10,7 @@ import {
 } from "../lib/constants.js";
 import { formatReason, getNotificationStatus } from "../lib/format-utils.js";
 import { getIconSVGElement } from "../lib/icons.js";
+import { buildProfileUrl } from "../lib/url-builder.js";
 
 /**
  * Build icon class with state information
@@ -51,10 +52,7 @@ export function truncateReleaseBody(body, maxLength = 200) {
   return trimmed.substring(0, maxLength);
 }
 
-function buildAuthorProfileUrl(login) {
-  if (!login) return null;
-  return `https://github.com/${encodeURIComponent(login)}`;
-}
+// Author profile URL construction delegated to url-builder.js (buildProfileUrl)
 
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
@@ -141,7 +139,7 @@ export function createHoverCard(notif) {
   const hasAuthor = notif.author?.login;
   const hasComments = notif.comment_count > 0;
   const hasDescription = notif.body?.trim();
-  const authorProfileUrl = hasAuthor ? buildAuthorProfileUrl(notif.author.login) : null;
+  const authorProfileUrl = hasAuthor ? buildProfileUrl(notif.author.login) : null;
 
   const card = document.createElement("div");
   card.className = "notification-hover-card";
@@ -284,7 +282,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   const releaseBody =
     notif.type === NOTIFICATION_TYPES.RELEASE && notif.body ? notif.body.trim() : "";
   const truncatedBody = releaseBody ? truncateReleaseBody(releaseBody) : "";
-  const authorProfileUrl = notif.author?.login ? buildAuthorProfileUrl(notif.author.login) : null;
+  const authorProfileUrl = notif.author?.login ? buildProfileUrl(notif.author.login) : null;
 
   // Create notification icon container
   const iconDiv = document.createElement("div");

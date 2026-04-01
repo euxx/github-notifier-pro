@@ -5,7 +5,7 @@
 
 // Alarm Configuration
 export const ALARM_NAME = "check-notifications";
-export const DEFAULT_POLL_INTERVAL_MINUTES = 1; // Chrome minimum is 1 minute
+export const DEFAULT_POLL_INTERVAL_MINUTES = 1; // Browser minimum is 1 minute
 
 // API Configuration
 export const GITHUB_API_BASE = "https://api.github.com";
@@ -40,6 +40,13 @@ export const API_TIMEOUTS = {
   NOTIFICATION_DETAILS: 15000,
   RETRY_BASE_DELAY: 1000,
   RETRY_REQUEST_BASE_DELAY: 500,
+};
+
+// Concurrency Configuration
+export const CONCURRENCY = {
+  PRIORITY: 5, // Concurrent requests for visible notifications
+  BACKGROUND: 3, // Concurrent requests for remaining notifications
+  VISIBLE_COUNT: 10, // Approximately one screen of notifications
 };
 
 // Time Conversion

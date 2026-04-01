@@ -15,6 +15,8 @@ import {
   TIMING_THRESHOLDS,
 } from "../lib/constants.js";
 import { applyTheme } from "../lib/theme.js";
+import { buildProfileUrl } from "../lib/url-builder.js";
+import { classifyError } from "../lib/format-utils.js";
 import {
   initRenderer,
   renderNotifications,
@@ -47,7 +49,7 @@ function buildUserProfileUrl(username, userInfo) {
   // Fallback to building URL from username (GitHub.com only)
   const login = username || userInfo?.login;
   if (!login || login === "User") return null;
-  return `https://github.com/${encodeURIComponent(login)}`;
+  return buildProfileUrl(login);
 }
 
 /**
@@ -628,17 +630,16 @@ async function refresh() {
     let message;
     let className = "error-message";
 
-    if (
-      !navigator.onLine ||
-      error.message?.includes("NetworkError") ||
-      error.message?.includes("Failed to fetch")
-    ) {
+    // Use shared error classification (also used by service-worker)
+    const errorType = classifyError(error);
+
+    if (!navigator.onLine || errorType === "offline") {
       message = "⚠️ Offline - showing cached notifications";
       className = "offline-message";
-    } else if (error.message?.includes("timeout")) {
+    } else if (errorType === "timeout") {
       message = "⏱ Request timeout - showing cached data";
       className = "warning-message";
-    } else if (error.message?.includes("Rate limited")) {
+    } else if (errorType === "rate-limited") {
       message = "⏱ Rate limited - will retry automatically";
       className = "warning-message";
     } else {

@@ -94,3 +94,16 @@ export function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+/**
+ * Classify a network/API error into a category for consistent handling
+ * @param {Error} error - Error object
+ * @returns {'rate-limited'|'timeout'|'offline'|'unknown'} Error category
+ */
+export function classifyError(error) {
+  const msg = error?.message || "";
+  if (msg.includes("Rate limited")) return "rate-limited";
+  if (msg.includes("timeout")) return "timeout";
+  if (msg.includes("NetworkError") || msg.includes("Failed to fetch")) return "offline";
+  return "unknown";
+}
