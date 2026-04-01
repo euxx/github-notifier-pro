@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.6] - 2026-04-01
+
+### Fixed
+
+- Notification detail cache not refreshed when a notification is updated, showing stale state/author info
+- Replace blocking `alert()` with inline hint text for notification permission feedback in settings
+- Build script no longer wipes `dist/firefox-dev` directory
+
+### Improved
+
+- Switch linter and formatter from ESLint/Prettier to oxlint/oxfmt
+- Extract shared utilities and constants for better code organization
+- Remove dead code and tighten default values
+
 ## [1.0.5] - 2026-03-13
 
 ### Fixed
