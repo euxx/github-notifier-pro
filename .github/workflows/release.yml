@@ -52,5 +52,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
-            dist/github-notifier-pro-chrome.zip \
-            dist/github-notifier-pro-firefox.zip
+            dist/github-notifier-pro-chrome-${{ steps.version.outputs.version }}.zip \
+            dist/github-notifier-pro-firefox-${{ steps.version.outputs.version }}.zip
