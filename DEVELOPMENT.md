@@ -19,18 +19,19 @@
 
 ## Scripts
 
-| Command                | Description                                 |
-| ---------------------- | ------------------------------------------- |
-| `npm run ci`           | Run all checks (test + lint + format)       |
-| `npm run dev`          | Run CI then prepare Firefox dev environment |
-| `npm run all`          | Run CI then build Chrome & Firefox packages |
-| `npm test`             | Run tests (Vitest)                          |
-| `npm run prepare`      | Setup Husky git hooks                       |
-| `npm run lint`         | Lint code (oxlint)                          |
-| `npm run format`       | Format code (oxfmt)                         |
-| `npm run format:check` | Check code formatting                       |
-| `npm run build`        | Build Chrome and Firefox packages           |
-| `npm run dev:firefox`  | Create Firefox dev environment              |
+| Command                | Description                                          |
+| ---------------------- | ---------------------------------------------------- |
+| `npm run ci`           | Run all checks (syntax + lint + format:check + test) |
+| `npm run dev`          | Run CI then prepare Firefox dev environment          |
+| `npm run all`          | Run CI then build Chrome & Firefox packages          |
+| `npm test`             | Run tests (Vitest)                                   |
+| `npm run prepare`      | Setup Husky git hooks                                |
+| `npm run syntax`       | Check source files for syntax errors                 |
+| `npm run lint`         | Lint code (oxlint)                                   |
+| `npm run format`       | Format code (oxfmt)                                  |
+| `npm run format:check` | Check code formatting                                |
+| `npm run build`        | Build Chrome and Firefox packages                    |
+| `npm run dev:firefox`  | Create Firefox dev environment                       |
 
 ## Project Structure
 
@@ -65,5 +66,5 @@ npm run dev:firefox
 
 ```bash
 npm test     # Run all tests
-npm run ci   # Run tests + lint + format in one step
+npm run ci   # Run syntax + lint + format:check + test in one step
 ```
