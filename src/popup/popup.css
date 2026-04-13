@@ -28,10 +28,18 @@ body {
   text-rendering: optimizeLegibility;
   /* Use tabular figures for aligned numbers throughout the app */
   font-variant-numeric: tabular-nums;
+  --login-focus: rgba(0, 0, 0, 0.18);
+  --login-focus-border: rgba(0, 0, 0, 0.16);
+  --button-focus: var(--login-focus);
 }
 
 body.popup-ready {
   visibility: visible;
+}
+
+body.dark-theme {
+  --login-focus: rgba(255, 255, 255, 0.24);
+  --login-focus-border: rgba(255, 255, 255, 0.2);
 }
 
 /* Only enable transitions after page load to prevent flash */
@@ -62,11 +70,16 @@ body.transitions-enabled * {
   --list-divider: rgba(0, 0, 0, 0.1);
   --row-divider: rgba(0, 0, 0, 0.07);
   --scrollbar-compensation: 0px;
+  --action-focus: rgba(0, 0, 0, 0.14);
+  --action-focus-border: rgba(0, 0, 0, 0.18);
+  --button-focus: var(--action-focus);
 }
 
 body.dark-theme #main-view {
   --list-divider: rgba(255, 255, 255, 0.1);
   --row-divider: rgba(255, 255, 255, 0.07);
+  --action-focus: rgba(255, 255, 255, 0.18);
+  --action-focus-border: rgba(255, 255, 255, 0.24);
 }
 
 /* Login View */
@@ -114,12 +127,15 @@ body.dark-theme #main-view {
   border: 2px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
-  transition: all 0.2s;
   cursor: pointer;
   width: 100%;
   text-align: center;
   font-family: inherit;
   color: inherit;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .auth-method-card:hover {
@@ -131,6 +147,13 @@ body.dark-theme #main-view {
 .auth-method-card:active {
   transform: translateY(0);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.auth-method-card:focus-visible {
+  outline: none;
+  border-color: var(--login-focus-border);
+  background: var(--bg-hover);
+  box-shadow: 0 0 0 3px var(--login-focus);
 }
 
 .auth-method-content {
@@ -208,10 +231,10 @@ body.dark-theme #main-view {
     box-shadow 0.15s;
 }
 
-.pat-input:focus {
+.pat-input:focus-visible {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--login-focus-border);
+  box-shadow: 0 0 0 3px var(--login-focus);
 }
 
 .pat-input.input-error {
@@ -237,6 +260,13 @@ body.dark-theme .pat-input.input-error {
 
 .pat-hint a:hover {
   text-decoration: underline;
+}
+
+.pat-hint a:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px var(--login-focus);
 }
 
 .pat-hint code {
@@ -289,7 +319,15 @@ body.dark-theme .pat-input.input-error {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--button-focus);
 }
 
 .btn-primary {
@@ -315,12 +353,20 @@ body.dark-theme .pat-input.input-error {
   cursor: pointer;
   transition:
     background-color 0.15s,
-    color 0.15s;
+    color 0.15s,
+    box-shadow 0.15s;
 }
 
 .btn-icon:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.btn-icon:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 /* Header */
@@ -351,10 +397,25 @@ body.dark-theme .pat-input.input-error {
   align-items: center;
   color: inherit;
   text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .profile-link .username:hover,
 .profile-link .setting-account-name:hover {
+  text-decoration: underline;
+}
+
+.profile-link:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: 0 0 0 3px var(--action-focus);
+}
+
+.profile-link:focus-visible .username,
+.profile-link:focus-visible .setting-account-name {
   text-decoration: underline;
 }
 
@@ -426,7 +487,9 @@ body.dark-theme .pat-input.input-error {
   text-decoration: none;
   color: inherit;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .notifications-list > .repo-group-header:first-child {
@@ -435,6 +498,12 @@ body.dark-theme .pat-input.input-error {
 
 .repo-group-header:hover {
   background: var(--bg-hover);
+}
+
+.repo-group-header:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 1px var(--action-focus-border);
 }
 
 .repo-info {
@@ -504,11 +573,13 @@ body.dark-theme .pat-input.input-error {
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition:
     opacity 0.15s ease,
     background-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .repo-mark-read-btn:hover {
@@ -521,14 +592,24 @@ body.dark-theme .pat-input.input-error {
 }
 
 .repo-group-header:hover .repo-count,
+.repo-group-header:focus-visible .repo-count,
 .repo-actions:has(.repo-mark-read-btn:focus-visible) .repo-count {
   opacity: 0;
 }
 
 .repo-group-header:hover .repo-mark-read-btn,
+.repo-group-header:focus-visible .repo-mark-read-btn,
 .repo-mark-read-btn:focus-visible {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+}
+
+.repo-mark-read-btn:focus-visible {
+  outline: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 .notification-item {
@@ -600,6 +681,7 @@ body.dark-theme .pat-input.input-error {
   z-index: 10000; /* Very high to ensure visibility */
   pointer-events: none;
   opacity: 0;
+  visibility: hidden;
   transform: scale(0.95);
   transition:
     opacity 0.15s ease-out,
@@ -610,6 +692,7 @@ body.dark-theme .pat-input.input-error {
 
 .notification-hover-card.visible {
   opacity: 1;
+  visibility: visible;
   transform: scale(1);
   pointer-events: auto; /* Enable mouse interaction when visible */
 }
@@ -824,6 +907,12 @@ body.dark-theme .notification-hover-card {
   color: inherit;
   text-decoration: none;
   align-items: center;
+  border-radius: 999px;
+}
+
+.author-profile-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 .notification-time {
@@ -899,6 +988,7 @@ body.dark-theme .notification-hover-card {
   top: 50%;
   transform: translateY(-50%);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   background: transparent;
   padding: 2px 10px;
@@ -909,8 +999,10 @@ body.dark-theme .notification-hover-card {
 }
 
 .notification-item:hover .notification-actions,
+.notification-item:focus-within .notification-actions,
 .notification-actions:has(.btn-mark-read:focus-visible) {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
   background: linear-gradient(to right, transparent 0%, var(--bg-hover) 30%);
 }
@@ -927,13 +1019,22 @@ body.dark-theme .notification-hover-card {
   transition:
     color 0.15s ease,
     background-color 0.15s ease,
-    border-color 0.15s ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .btn-mark-read:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: var(--border-color);
+}
+
+.btn-mark-read:focus-visible:not(:disabled) {
+  outline: none;
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 .btn-mark-read:disabled {
@@ -977,13 +1078,21 @@ body.dark-theme .notification-hover-card {
   font-weight: 500;
   transition:
     background-color 0.15s,
-    color 0.15s;
+    color 0.15s,
+    box-shadow 0.15s;
 }
 
 .footer a:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   text-decoration: none;
+}
+
+.footer a:focus-visible {
+  outline: none;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 .footer-link-icon {
@@ -1014,8 +1123,10 @@ body.dark-theme .notification-hover-card {
   --control-hover: rgba(0, 0, 0, 0.1);
   --control-active: rgba(0, 0, 0, 0.16);
   --control-focus: rgba(0, 0, 0, 0.22);
+  --control-focus-border: rgba(0, 0, 0, 0.18);
   --list-divider: rgba(0, 0, 0, 0.1);
   --row-divider: rgba(0, 0, 0, 0.06);
+  --button-focus: var(--control-focus);
 }
 
 body.dark-theme .settings-view {
@@ -1023,6 +1134,7 @@ body.dark-theme .settings-view {
   --control-hover: rgba(255, 255, 255, 0.14);
   --control-active: rgba(255, 255, 255, 0.22);
   --control-focus: rgba(255, 255, 255, 0.28);
+  --control-focus-border: rgba(255, 255, 255, 0.24);
   --list-divider: rgba(255, 255, 255, 0.1);
   --row-divider: rgba(255, 255, 255, 0.06);
 }
@@ -1167,11 +1279,16 @@ body.dark-theme .settings-view {
   background: var(--control-bg);
   color: var(--text-primary);
   appearance: textfield;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.width-input:focus {
+.width-input:focus-visible {
   outline: none;
-  border-color: var(--control-focus);
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .width-input::-webkit-inner-spin-button,
@@ -1199,6 +1316,12 @@ body.dark-theme .settings-view {
 
 .width-btn:hover:not(:disabled) {
   background: var(--control-hover);
+}
+
+.width-btn:focus-visible {
+  outline: none;
+  background: var(--control-hover);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .width-btn:disabled {
@@ -1276,7 +1399,8 @@ body.dark-theme .settings-view {
   color: var(--text-secondary);
   transition:
     background-color 0.15s,
-    color 0.15s;
+    color 0.15s,
+    box-shadow 0.15s;
 }
 
 .theme-option:hover .theme-option-label {
@@ -1287,6 +1411,11 @@ body.dark-theme .settings-view {
 .theme-option input:checked + .theme-option-label {
   color: var(--text-primary);
   background: var(--control-hover);
+}
+
+.theme-option input:focus-visible + .theme-option-label {
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .theme-option-icon {
@@ -1432,10 +1561,10 @@ body.dark-theme .settings-view {
     box-shadow 0.15s;
 }
 
-.setting-input:focus {
+.setting-input:focus-visible {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .setting-select {
@@ -1460,10 +1589,10 @@ body.dark-theme .settings-view {
   background-size: 12px;
 }
 
-.setting-select:focus {
+.setting-select:focus-visible {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.1);
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
 }
 
 .setting-hint {
