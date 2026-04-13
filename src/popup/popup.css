@@ -800,6 +800,29 @@ body.dark-theme .notification-hover-card {
   color: var(--text-secondary);
 }
 
+.notification-open-target {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.notification-open-target:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--action-focus);
+}
+
 /* Issue states */
 .notification-icon.issue.open {
   color: var(--icon-issue-open);

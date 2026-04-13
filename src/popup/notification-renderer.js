@@ -275,6 +275,11 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   li.dataset.id = notif.id;
   li.dataset.repo = repoFullName;
 
+  async function openNotification() {
+    await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: notif.id });
+    window.close();
+  }
+
   // Build icon class with state information
   const iconClass = buildIconClass(notif);
 
@@ -299,6 +304,10 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   // Create main content area
   const mainDiv = document.createElement("div");
   mainDiv.className = "notification-main";
+
+  const openTarget = document.createElement("button");
+  openTarget.type = "button";
+  openTarget.className = "notification-open-target";
 
   const titleDiv = document.createElement("div");
   titleDiv.className = "notification-title";
@@ -325,7 +334,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     titleDiv.appendChild(previewSpan);
   }
 
-  mainDiv.appendChild(titleDiv);
+  openTarget.appendChild(titleDiv);
+  mainDiv.appendChild(openTarget);
   contentDiv.appendChild(mainDiv);
 
   // Create metadata area
@@ -445,8 +455,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     if (e.target.closest(".btn-mark-read") || e.target.closest("a")) {
       return;
     }
-    await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: notif.id });
-    window.close();
+    await openNotification();
   });
 
   // Mark as read button with immediate visual feedback
