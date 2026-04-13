@@ -368,6 +368,7 @@ body.dark-theme .pat-input.input-error {
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--avatar-ring-color);
 }
 
 .user-info .username {
@@ -487,11 +488,10 @@ body.dark-theme .pat-input.input-error {
   transition: opacity 0.15s ease;
 }
 
-/* Mark as read button - hidden by default */
 .repo-mark-read-btn {
   position: absolute;
   right: -2px;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
@@ -502,8 +502,13 @@ body.dark-theme .pat-input.input-error {
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: all 0.15s ease;
   flex-shrink: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .repo-mark-read-btn:hover {
@@ -515,13 +520,15 @@ body.dark-theme .pat-input.input-error {
   transform: scale(0.95);
 }
 
-/* Show button on header hover, hide count */
-.repo-group-header:hover .repo-count {
+.repo-group-header:hover .repo-count,
+.repo-actions:has(.repo-mark-read-btn:focus-visible) .repo-count {
   opacity: 0;
 }
 
-.repo-group-header:hover .repo-mark-read-btn {
-  display: flex;
+.repo-group-header:hover .repo-mark-read-btn,
+.repo-mark-read-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .notification-item {
@@ -810,6 +817,7 @@ body.dark-theme .notification-hover-card {
   height: 16px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--avatar-ring-color);
 }
 
 .author-profile-link {
@@ -890,20 +898,21 @@ body.dark-theme .notification-hover-card {
   right: 0px;
   top: 50%;
   transform: translateY(-50%);
+  opacity: 0;
   pointer-events: none;
   background: transparent;
   padding: 2px 10px;
   border-radius: var(--radius-sm);
-  /* Remove transition to avoid flash */
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.notification-item:hover .notification-actions {
+.notification-item:hover .notification-actions,
+.notification-actions:has(.btn-mark-read:focus-visible) {
+  opacity: 1;
   pointer-events: auto;
   background: linear-gradient(to right, transparent 0%, var(--bg-hover) 30%);
-}
-
-.notification-item:hover .btn-mark-read {
-  color: var(--text-secondary);
 }
 
 .btn-mark-read {
@@ -912,9 +921,13 @@ body.dark-theme .notification-hover-card {
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
-  color: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   min-width: 32px;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .btn-mark-read:hover:not(:disabled) {
@@ -1094,6 +1107,7 @@ body.dark-theme .settings-view {
   height: 24px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--avatar-ring-color);
 }
 
 .settings-user-details {

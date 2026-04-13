@@ -15,6 +15,7 @@
   --bg-hover: #f3f4f6;
   --bg-secondary: #f9fafb;
   --bg-primary: #ffffff;
+  --avatar-ring-color: rgba(31, 41, 55, 0.12);
 
   /* Radius */
   --radius-sm: 6px;
@@ -42,6 +43,7 @@ body.dark-theme {
   --bg-hover: #2d333b;
   --bg-secondary: #22272e;
   --bg-primary: #22272e;
+  --avatar-ring-color: rgba(255, 255, 255, 0.14);
 
   /* Icon Colors - GitHub Style (softer) */
   --icon-issue-open: #2ea043; /* Darker green for open issues */
