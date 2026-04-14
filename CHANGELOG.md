@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0] - 2026-04-14
+
+### Added
+
+- Split repo header links into separate actions for better usability
+- Add main open target option for notifications
+
+### Fixed
+
+- Preserve focus after marking notifications as read
+
+### Improved
+
+- Unify focus states and fix hidden tab targets
+- Refine action button visibility and avatar ring styles
+
 ## [1.0.7] - 2026-04-01
 
 ### Fixed
