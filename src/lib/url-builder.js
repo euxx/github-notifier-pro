@@ -139,6 +139,16 @@ function buildDependabotUrl(fullName) {
 }
 
 /**
+ * Build GitHub notifications URL filtered to a single repository
+ * @param {string|null|undefined} fullName - Repository full name (owner/repo)
+ * @returns {string|null} Notifications URL or null if fullName is falsy
+ */
+export function buildRepoNotificationsUrl(fullName) {
+  if (!fullName) return null;
+  return `${GITHUB_SITE_BASE}/notifications?query=${encodeURIComponent(`repo:${fullName}`)}`;
+}
+
+/**
  * Build GitHub profile URL from a username/login
  * @param {string|null|undefined} login - GitHub username
  * @returns {string|null} Profile URL or null if login is falsy

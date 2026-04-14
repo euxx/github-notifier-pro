@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildNotificationUrl, buildProfileUrl } from "../src/lib/url-builder.js";
+import {
+  buildNotificationUrl,
+  buildProfileUrl,
+  buildRepoNotificationsUrl,
+} from "../src/lib/url-builder.js";
 
 const GITHUB_BASE = "https://github.com";
 
@@ -196,5 +200,19 @@ describe("buildProfileUrl", () => {
     expect(buildProfileUrl(null)).toBeNull();
     expect(buildProfileUrl(undefined)).toBeNull();
     expect(buildProfileUrl("")).toBeNull();
+  });
+});
+
+describe("buildRepoNotificationsUrl", () => {
+  it("should build a repo-scoped notifications URL", () => {
+    expect(buildRepoNotificationsUrl("owner/repo")).toBe(
+      "https://github.com/notifications?query=repo%3Aowner%2Frepo",
+    );
+  });
+
+  it("should return null for falsy repo names", () => {
+    expect(buildRepoNotificationsUrl(null)).toBeNull();
+    expect(buildRepoNotificationsUrl(undefined)).toBeNull();
+    expect(buildRepoNotificationsUrl("")).toBeNull();
   });
 });

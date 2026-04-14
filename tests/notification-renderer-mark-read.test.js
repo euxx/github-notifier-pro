@@ -52,6 +52,7 @@ beforeAll(() => {
 // ── Mocks must be hoisted before any imports that use them ──────────────────
 
 vi.mock("../src/lib/constants.js", () => ({
+  GITHUB_SITE_BASE: "https://github.com",
   ANIMATION_DURATION: { FADE_OUT: 0, ERROR_BACKGROUND_FADE: 0 },
   NOTIFICATION_TYPES: { RELEASE: "Release" },
   MESSAGE_TYPES: {

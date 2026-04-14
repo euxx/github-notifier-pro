@@ -10,7 +10,7 @@ import {
 } from "../lib/constants.js";
 import { formatReason, getNotificationStatus } from "../lib/format-utils.js";
 import { getIconSVGElement } from "../lib/icons.js";
-import { buildProfileUrl } from "../lib/url-builder.js";
+import { buildProfileUrl, buildRepoNotificationsUrl } from "../lib/url-builder.js";
 
 /**
  * Build icon class with state information
@@ -633,28 +633,45 @@ export function renderNotifications(notifications, shouldResort = true) {
   // Render each repository group
   for (const repoFullName of sortedRepos) {
     const group = groupedByRepo[repoFullName];
+    const repoNotificationsUrl = buildRepoNotificationsUrl(repoFullName);
+    const repoHomeUrl = group.repo.html_url || `https://github.com/${repoFullName}`;
 
-    const repoHeader = document.createElement("a");
+    const repoHeader = document.createElement("div");
     repoHeader.className = "repo-group-header";
-    repoHeader.href = group.repo.html_url;
-    repoHeader.target = "_blank";
-    repoHeader.rel = "noopener noreferrer";
     repoHeader.dataset.repo = repoFullName; // For identifying repository
 
     // Create repo info section
     const repoInfoDiv = document.createElement("div");
     repoInfoDiv.className = "repo-info";
 
+    const repoHomeLink = document.createElement("a");
+    repoHomeLink.className = "repo-home-link";
+    repoHomeLink.href = repoHomeUrl;
+    repoHomeLink.target = "_blank";
+    repoHomeLink.rel = "noopener noreferrer";
+    repoHomeLink.title = `Open ${repoFullName} repository`;
+    repoHomeLink.setAttribute("aria-label", `Open ${repoFullName} repository`);
+
     const repoIconSvg = getIconSVGElement("repo");
     repoIconSvg.setAttribute("width", "14");
     repoIconSvg.setAttribute("height", "14");
     repoIconSvg.classList.add("repo-icon");
-    repoInfoDiv.appendChild(repoIconSvg);
+    repoHomeLink.appendChild(repoIconSvg);
+    repoInfoDiv.appendChild(repoHomeLink);
+
+    const repoNotificationsLink = document.createElement("a");
+    repoNotificationsLink.className = "repo-notifications-link";
+    repoNotificationsLink.href = repoNotificationsUrl;
+    repoNotificationsLink.target = "_blank";
+    repoNotificationsLink.rel = "noopener noreferrer";
+    repoNotificationsLink.title = `Open ${repoFullName} notifications`;
+    repoNotificationsLink.setAttribute("aria-label", `Open notifications for ${repoFullName}`);
 
     const repoNameSpan = document.createElement("span");
     repoNameSpan.className = "repo-name";
     repoNameSpan.textContent = repoFullName;
-    repoInfoDiv.appendChild(repoNameSpan);
+    repoNotificationsLink.appendChild(repoNameSpan);
+    repoInfoDiv.appendChild(repoNotificationsLink);
 
     // Create repo actions section
     const repoActionsDiv = document.createElement("div");
@@ -679,8 +696,8 @@ export function renderNotifications(notifications, shouldResort = true) {
 
     // Add event listener for mark as read button
     markReadBtn.addEventListener("click", (e) => {
-      e.preventDefault(); // Prevent <a> default navigation
-      e.stopPropagation(); // Stop event bubbling
+      e.preventDefault();
+      e.stopPropagation();
       config.onMarkRepoAsRead(repoFullName);
     });
 
