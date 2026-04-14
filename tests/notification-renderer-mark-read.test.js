@@ -125,7 +125,6 @@ describe("mark single notification as read — repo header count", () => {
       emptyState,
       markAllBtn,
       sendMessage,
-      getShowHoverCards: () => false,
       onUserAction: vi.fn(),
       onMarkRepoAsRead: vi.fn(),
     });

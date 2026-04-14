@@ -120,7 +120,6 @@ describe("notification main open target", () => {
       emptyState,
       markAllBtn,
       sendMessage,
-      getShowHoverCards: () => false,
       onUserAction: vi.fn(),
       onMarkRepoAsRead: vi.fn(),
     });

@@ -66,7 +66,6 @@ vi.mock("../src/lib/constants.js", () => ({
 }));
 
 vi.mock("../src/lib/format-utils.js", () => ({
-  formatReason: vi.fn((reason) => reason),
   getNotificationStatus: vi.fn(() => "Status"),
   getReasonPriority: vi.fn(() => null),
 }));
@@ -79,8 +78,6 @@ vi.mock("../src/lib/icons.js", () => ({
   }),
 }));
 
-const { formatReason } = await import("../src/lib/format-utils.js");
-
 const {
   formatTimeAgo,
   initRenderer,
@@ -89,7 +86,6 @@ const {
   buildIconClass,
   formatCommentCount,
   truncateReleaseBody,
-  createHoverCard,
 } = await import("../src/popup/notification-renderer.js");
 
 describe("notification-renderer", () => {
@@ -186,7 +182,6 @@ describe("notification-renderer", () => {
         notificationsList: {},
         emptyState: {},
         markAllBtn: {},
-        getShowHoverCards: () => false,
         sendMessage: vi.fn(),
         onUserAction: vi.fn(),
       };
@@ -280,156 +275,6 @@ describe("notification-renderer helper functions", () => {
 
       // All hashes should be unique
       expect(new Set(hashes).size).toBe(hashes.length);
-    });
-  });
-
-  describe("createHoverCard HTML generation", () => {
-    // Test the logic of hover card content generation
-    function getHoverCardParts(notif) {
-      const hasAuthor = notif.author?.login;
-      const hasComments = notif.comment_count > 0;
-      const hasDescription = notif.body?.trim();
-
-      return { hasAuthor, hasComments, hasDescription };
-    }
-
-    it("should detect author presence", () => {
-      const notifWithAuthor = { author: { login: "testuser" } };
-      const notifWithoutAuthor = {};
-
-      expect(getHoverCardParts(notifWithAuthor).hasAuthor).toBe("testuser");
-      expect(getHoverCardParts(notifWithoutAuthor).hasAuthor).toBeFalsy();
-    });
-
-    it("should detect comments presence", () => {
-      const notifWithComments = { comment_count: 5 };
-      const notifWithZeroComments = { comment_count: 0 };
-      const notifWithoutComments = {};
-
-      expect(getHoverCardParts(notifWithComments).hasComments).toBe(true);
-      expect(getHoverCardParts(notifWithZeroComments).hasComments).toBe(false);
-      expect(getHoverCardParts(notifWithoutComments).hasComments).toBe(false);
-    });
-
-    it("should detect description presence", () => {
-      const notifWithBody = { body: "Description text" };
-      const notifWithEmptyBody = { body: "   " };
-      const notifWithoutBody = {};
-
-      expect(getHoverCardParts(notifWithBody).hasDescription).toBeTruthy();
-      expect(getHoverCardParts(notifWithEmptyBody).hasDescription).toBeFalsy();
-      expect(getHoverCardParts(notifWithoutBody).hasDescription).toBeFalsy();
-    });
-
-    it("should use textContent for safety (no innerHTML injection)", () => {
-      // Verifies that createHoverCard returns a DOM element and uses textContent
-      // instead of innerHTML, which inherently prevents XSS attacks
-      const maliciousReason = "<img src=x onerror=alert(1)>";
-      vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
-
-      const card = createHoverCard({
-        reason: "unknown_reason",
-        updated_at: new Date().toISOString(),
-      });
-
-      // Should return a DOM element-like object
-      expect(card).toBeDefined();
-      expect(card.className).toBe("notification-hover-card");
-
-      // The malicious string should be present as text content, not executed
-      const reasonElement = card.querySelector(".hover-card-reason");
-      expect(reasonElement).toBeDefined();
-      expect(reasonElement.textContent).toBe(maliciousReason);
-    });
-
-    it("should safely render malicious content using DOM APIs (integration)", () => {
-      // Uses real formatReason to validate that using textContent
-      // automatically prevents XSS without needing explicit escaping
-      const maliciousReason = '<script>alert("xss")</script>';
-
-      vi.mocked(formatReason).mockReturnValueOnce(maliciousReason);
-
-      const card = createHoverCard({
-        reason: "unknown_reason",
-        updated_at: new Date().toISOString(),
-      });
-
-      // The card should be a safe DOM element
-      expect(card).toBeDefined();
-      expect(card.className).toBe("notification-hover-card");
-
-      // Script tag should appear as text, not as executable code
-      const reasonElement = card.querySelector(".hover-card-reason");
-      expect(reasonElement).toBeDefined();
-      expect(reasonElement.textContent).toBe(maliciousReason);
-
-      // Verify that textContent was used (not innerHTML)
-      // Since textContent treats everything as text, the script tags are inert
-      expect(reasonElement.textContent).toContain("<script>");
-      expect(reasonElement.textContent).toContain("</script>");
-    });
-
-    it("renders author name when author is present", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-        author: { login: "octocat", avatar_url: "https://example.com/avatar.png" },
-      });
-
-      const authorName = card.querySelector(".hover-card-author-name");
-      expect(authorName).not.toBeNull();
-      expect(authorName.textContent).toBe("octocat");
-    });
-
-    it("omits author section when author is absent", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-      });
-
-      expect(card.querySelector(".hover-card-header")).toBeNull();
-      expect(card.querySelector(".hover-card-author-name")).toBeNull();
-    });
-
-    it("renders description when body is present", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-        body: "This is the issue description.",
-      });
-
-      const desc = card.querySelector(".hover-card-description");
-      expect(desc).not.toBeNull();
-      expect(desc.textContent).toBe("This is the issue description.");
-    });
-
-    it("omits description when body is absent", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-      });
-
-      expect(card.querySelector(".hover-card-description")).toBeNull();
-    });
-
-    it("shows comment count in meta when comment_count > 0", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-        comment_count: 5,
-      });
-
-      expect(card.querySelector(".hover-card-meta").textContent).toContain("5 comments");
-    });
-
-    it("omits comment count from meta when comment_count is 0", () => {
-      const card = createHoverCard({
-        reason: "mention",
-        updated_at: new Date().toISOString(),
-        comment_count: 0,
-      });
-
-      expect(card.querySelector(".hover-card-meta").textContent).not.toContain("comment");
     });
   });
 

@@ -8,7 +8,7 @@ import {
   MESSAGE_TYPES,
   TIME_CONVERSION,
 } from "../lib/constants.js";
-import { formatReason, getNotificationStatus, getReasonPriority } from "../lib/format-utils.js";
+import { getNotificationStatus, getReasonPriority } from "../lib/format-utils.js";
 import { getIconSVGElement } from "../lib/icons.js";
 import { buildProfileUrl, buildRepoNotificationsUrl } from "../lib/url-builder.js";
 
@@ -64,7 +64,6 @@ let config = {
   notificationsList: null,
   emptyState: null,
   markAllBtn: null,
-  getShowHoverCards: () => true,
   sendMessage: async () => {},
   onUserAction: () => {},
   onMarkRepoAsRead: () => {},
@@ -131,128 +130,6 @@ export function formatTimeAgo(dateString) {
 }
 
 /**
- * Create hover card element for a notification
- * @param {Object} notif - Notification object
- * @returns {HTMLElement} Hover card element
- */
-export function createHoverCard(notif) {
-  const hasAuthor = notif.author?.login;
-  const hasComments = notif.comment_count > 0;
-  const hasDescription = notif.body?.trim();
-  const authorProfileUrl = hasAuthor ? buildProfileUrl(notif.author.login) : null;
-
-  const card = document.createElement("div");
-  card.className = "notification-hover-card";
-
-  // Header with author info
-  if (hasAuthor) {
-    const header = document.createElement("div");
-    header.className = "hover-card-header";
-
-    const profileLink = document.createElement("a");
-    profileLink.className = "hover-card-profile-link";
-    profileLink.href = authorProfileUrl;
-    profileLink.target = "_blank";
-    profileLink.rel = "noopener noreferrer";
-
-    const avatar = document.createElement("img");
-    avatar.src = notif.author.avatar_url;
-    avatar.alt = notif.author.login;
-    avatar.className = "hover-card-avatar";
-
-    const authorDiv = document.createElement("div");
-    authorDiv.className = "hover-card-author";
-
-    const authorName = document.createElement("div");
-    authorName.className = "hover-card-author-name";
-    authorName.textContent = notif.author.login;
-
-    authorDiv.appendChild(authorName);
-    profileLink.appendChild(avatar);
-    profileLink.appendChild(authorDiv);
-    header.appendChild(profileLink);
-    card.appendChild(header);
-  }
-
-  // Body with metadata
-  const body = document.createElement("div");
-  body.className = "hover-card-body";
-
-  const meta = document.createElement("div");
-  meta.className = "hover-card-meta";
-
-  const reasonSpan = document.createElement("span");
-  reasonSpan.className = "hover-card-reason";
-  reasonSpan.textContent = formatReason(notif.reason);
-  meta.appendChild(reasonSpan);
-
-  meta.appendChild(document.createTextNode(" · "));
-
-  const fullTime = new Date(notif.updated_at).toLocaleString();
-  const timeSpan = document.createElement("span");
-  timeSpan.title = fullTime;
-  timeSpan.textContent = formatTimeAgo(notif.updated_at);
-  meta.appendChild(timeSpan);
-
-  if (hasComments) {
-    meta.appendChild(document.createTextNode(" · "));
-    const commentsText = document.createTextNode(formatCommentCount(notif.comment_count));
-    meta.appendChild(commentsText);
-  }
-
-  body.appendChild(meta);
-  card.appendChild(body);
-
-  // Description
-  if (hasDescription) {
-    const description = document.createElement("div");
-    description.className = "hover-card-description";
-    description.textContent = notif.body.trim();
-    card.appendChild(description);
-  }
-
-  return card;
-}
-
-/**
- * Position hover card smartly based on available space
- * @param {HTMLElement} listItem - The notification list item element
- */
-function positionHoverCard(listItem) {
-  const card = listItem.querySelector(".notification-hover-card");
-  if (!card) return;
-
-  const rect = listItem.getBoundingClientRect();
-
-  // Measure card height without showing it
-  card.style.visibility = "hidden";
-  card.style.opacity = "1";
-  card.classList.add("visible");
-  const cardHeight = card.offsetHeight;
-  card.style.visibility = "";
-  card.style.opacity = "";
-  card.classList.remove("visible");
-
-  // Determine position based on available space
-  const margin = 0;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const spaceAbove = rect.top;
-
-  const topPosition =
-    spaceBelow >= cardHeight + margin
-      ? rect.bottom + margin
-      : spaceAbove >= cardHeight + margin
-        ? rect.top - cardHeight - margin
-        : rect.bottom + margin;
-
-  card.style.top = `${topPosition}px`;
-  card.style.right = "10px";
-  card.style.left = "auto";
-
-  card.classList.add("visible");
-}
-
-/**
  * Create a single notification item element
  * @param {Object} notif - Notification object
  * @param {HTMLElement} repoHeader - Repository header element
@@ -260,15 +137,7 @@ function positionHoverCard(listItem) {
  * @returns {HTMLElement} Notification list item element
  */
 function createNotificationItem(notif, repoHeader, repoFullName) {
-  const {
-    notificationsList,
-    emptyState,
-    markAllBtn,
-    getShowHoverCards,
-    sendMessage,
-    onUserAction,
-  } = config;
-  const showHoverCards = getShowHoverCards();
+  const { notificationsList, emptyState, markAllBtn, sendMessage, onUserAction } = config;
 
   const li = document.createElement("li");
   li.className = "notification-item";
@@ -340,9 +209,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   titleDiv.className = "notification-title";
   const fullTitle = releaseBody ? `${notif.title}\n\n${releaseBody}` : notif.title;
   titleDiv.dataset.title = fullTitle;
-  if (!showHoverCards) {
-    titleDiv.title = fullTitle;
-  }
+  titleDiv.title = fullTitle;
 
   if (notif.number !== undefined) {
     const numberSpan = document.createElement("span");
@@ -425,57 +292,10 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
   actionsDiv.appendChild(markReadBtn);
 
-  // Create hover card
-  const hoverCard = createHoverCard(notif);
-
   // Assemble the notification item
   li.appendChild(iconDiv);
   li.appendChild(contentDiv);
   li.appendChild(actionsDiv);
-  li.appendChild(hoverCard);
-
-  // Add hover event listeners
-  li.addEventListener("mouseenter", () => {
-    if (getShowHoverCards()) {
-      positionHoverCard(li);
-    }
-  });
-
-  li.addEventListener("mouseleave", (e) => {
-    if (getShowHoverCards()) {
-      const card = li.querySelector(".notification-hover-card");
-      if (card) {
-        const cardRect = card.getBoundingClientRect();
-        const isOverCard =
-          e.clientX >= cardRect.left &&
-          e.clientX <= cardRect.right &&
-          e.clientY >= cardRect.top &&
-          e.clientY <= cardRect.bottom;
-        if (!isOverCard) {
-          card.classList.remove("visible");
-        }
-      }
-    }
-  });
-
-  // Hover card mouse events
-  hoverCard.addEventListener("mouseenter", () => {
-    if (getShowHoverCards()) {
-      hoverCard.classList.add("visible");
-    }
-  });
-  hoverCard.addEventListener("mouseleave", () => {
-    if (getShowHoverCards()) {
-      hoverCard.classList.remove("visible");
-    }
-  });
-  hoverCard.addEventListener("click", (e) => {
-    const interactiveTarget = e.target.closest('a, button, [role="button"], [data-clickable]');
-    if (!interactiveTarget) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
-  });
 
   // Click to open notification
   li.addEventListener("click", async (e) => {
@@ -580,9 +400,6 @@ export function renderNotifications(notifications, shouldResort = true) {
 
   cachedNotifications = notifications;
   cachedNotificationsHash = notificationsHash;
-
-  // Clear old hover cards
-  document.querySelectorAll(".notification-hover-card").forEach((card) => card.remove());
 
   notificationsList.replaceChildren();
 

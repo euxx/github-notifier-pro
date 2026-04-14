@@ -20,7 +20,6 @@ import { classifyError } from "../lib/format-utils.js";
 import {
   initRenderer,
   renderNotifications,
-  getCachedNotifications,
   clearNotificationCache,
 } from "./notification-renderer.js";
 
@@ -192,9 +191,6 @@ const popupWidthInput = document.getElementById("popup-width-input");
 const widthDecreaseBtn = document.getElementById("width-decrease");
 const widthIncreaseBtn = document.getElementById("width-increase");
 
-// Hover cards toggle
-const hoverCardsToggle = document.getElementById("hover-cards-toggle");
-
 // Desktop notification settings
 const desktopNotificationsToggle = document.getElementById("desktop-notifications-toggle");
 const desktopNotificationsHint = document.getElementById("desktop-notifications-hint");
@@ -298,9 +294,6 @@ async function requestNotificationPermission() {
     return "denied";
   }
 }
-
-// Store hover cards setting
-let showHoverCards = true;
 
 /**
  * Update countdown timer
@@ -425,10 +418,6 @@ async function showSettings() {
   const width = await storage.getPopupWidth();
   popupWidthInput.value = width;
   updateWidthButtons(width);
-
-  // Load hover cards setting
-  const showCards = await storage.getShowHoverCards();
-  hoverCardsToggle.checked = showCards;
 
   // Load desktop notification settings
   const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
@@ -926,15 +915,11 @@ async function preloadTheme() {
  * Initialize popup
  */
 async function init() {
-  // Load hover cards setting
-  showHoverCards = await storage.getShowHoverCards();
-
   // Initialize the notification renderer
   initRenderer({
     notificationsList,
     emptyState,
     markAllBtn,
-    getShowHoverCards: () => showHoverCards,
     sendMessage,
     onUserAction: (duration) => {
       lastAnimationDuration = duration;
@@ -998,24 +983,6 @@ popupWidthInput.addEventListener("change", handleWidthChange);
 popupWidthInput.addEventListener("blur", handleWidthChange);
 widthDecreaseBtn.addEventListener("click", decreaseWidth);
 widthIncreaseBtn.addEventListener("click", increaseWidth);
-hoverCardsToggle.addEventListener("change", async () => {
-  showHoverCards = hoverCardsToggle.checked;
-  await storage.setShowHoverCards(showHoverCards);
-
-  // Hide any currently visible hover cards when disabling
-  if (!showHoverCards) {
-    document.querySelectorAll(".notification-hover-card.visible").forEach((card) => {
-      card.classList.remove("visible");
-    });
-  }
-
-  // Re-render to update title attributes based on new setting
-  const notifications = getCachedNotifications();
-  if (notifications) {
-    clearNotificationCache();
-    renderNotifications(notifications);
-  }
-});
 
 // Desktop notification settings
 desktopNotificationsToggle.addEventListener("change", async () => {

@@ -30,8 +30,6 @@ vi.mock("../src/lib/storage.js", () => ({
   getAuthMethod: vi.fn().mockResolvedValue(null),
   getPopupWidth: vi.fn().mockResolvedValue(600),
   setPopupWidth: vi.fn().mockResolvedValue(undefined),
-  getShowHoverCards: vi.fn().mockResolvedValue(true),
-  setShowHoverCards: vi.fn().mockResolvedValue(undefined),
   getEnableDesktopNotifications: vi.fn().mockResolvedValue(false),
   setEnableDesktopNotifications: vi.fn().mockResolvedValue(undefined),
   getMaxDesktopNotifications: vi.fn().mockResolvedValue(5),
@@ -103,7 +101,6 @@ document.body.innerHTML = `
   <input id="popup-width-input" type="number" value="600" />
   <button id="width-decrease"></button>
   <button id="width-increase"></button>
-  <input id="hover-cards-toggle" type="checkbox" />
   <input id="desktop-notifications-toggle" type="checkbox" />
   <button id="settings-logout-btn"></button>
   <button id="refresh-btn"></button>

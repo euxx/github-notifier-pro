@@ -115,7 +115,6 @@ describe("notification repo header links", () => {
       emptyState,
       markAllBtn,
       sendMessage,
-      getShowHoverCards: () => false,
       onUserAction: vi.fn(),
       onMarkRepoAsRead,
     });
