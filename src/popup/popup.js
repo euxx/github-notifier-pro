@@ -239,6 +239,11 @@ function scheduleScrollbarCompensation() {
   });
 }
 
+function setSettingsLayoutState(isOpen) {
+  document.body.classList.toggle("settings-open", isOpen);
+  mainView?.classList.toggle("settings-active", isOpen);
+}
+
 if (notificationsContainer && typeof ResizeObserver !== "undefined") {
   const resizeObserver = new ResizeObserver(() => {
     scheduleScrollbarCompensation();
@@ -448,6 +453,7 @@ async function showSettings() {
   document.querySelector(".footer").hidden = true;
 
   // Show settings view
+  setSettingsLayoutState(true);
   notificationsContainer.hidden = true;
   settingsView.hidden = false;
 }
@@ -456,6 +462,8 @@ async function showSettings() {
  * Hide settings view
  */
 function hideSettings() {
+  setSettingsLayoutState(false);
+
   // Show header and footer
   document.querySelector(".header").hidden = false;
   document.querySelector(".footer").hidden = false;
@@ -540,6 +548,10 @@ async function sendMessage(action, data = {}) {
  * Show a specific view
  */
 async function showView(view) {
+  if (view !== "main") {
+    setSettingsLayoutState(false);
+  }
+
   loginView.hidden = view !== "login";
   mainView.hidden = view !== "main";
 
