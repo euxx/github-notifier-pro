@@ -186,4 +186,40 @@ describe("mark single notification as read — repo header count", () => {
     // Notification should still be present
     expect(notificationsList.querySelector('.notification-item[data-id="1"]')).not.toBeNull();
   });
+
+  it("moves focus to the next notification open target after marking one as read", async () => {
+    renderNotifications([makeNotif(1), makeNotif(2)]);
+
+    sendMessage.mockResolvedValueOnce({ success: true });
+    const btn = notificationsList.querySelector('.notification-item[data-id="1"] .btn-mark-read');
+    btn.focus();
+    btn.click();
+
+    await vi.waitFor(() => {
+      expect(notificationsList.querySelector('.notification-item[data-id="1"]')).toBeNull();
+    });
+
+    const nextOpenTarget = notificationsList.querySelector(
+      '.notification-item[data-id="2"] .notification-open-target',
+    );
+    expect(document.activeElement).toBe(nextOpenTarget);
+  });
+
+  it("falls back to the previous notification open target when the last item is removed", async () => {
+    renderNotifications([makeNotif(1), makeNotif(2)]);
+
+    sendMessage.mockResolvedValueOnce({ success: true });
+    const btn = notificationsList.querySelector('.notification-item[data-id="2"] .btn-mark-read');
+    btn.focus();
+    btn.click();
+
+    await vi.waitFor(() => {
+      expect(notificationsList.querySelector('.notification-item[data-id="2"]')).toBeNull();
+    });
+
+    const previousOpenTarget = notificationsList.querySelector(
+      '.notification-item[data-id="1"] .notification-open-target',
+    );
+    expect(document.activeElement).toBe(previousOpenTarget);
+  });
 });

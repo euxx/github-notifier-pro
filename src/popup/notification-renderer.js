@@ -275,6 +275,30 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   li.dataset.id = notif.id;
   li.dataset.repo = repoFullName;
 
+  function getNotificationOpenTarget(item) {
+    return item?.querySelector(".notification-open-target") || null;
+  }
+
+  function getFocusTargetAfterRemoval() {
+    let sibling = li.nextElementSibling;
+    while (sibling) {
+      if (sibling.matches(".notification-item")) {
+        return getNotificationOpenTarget(sibling);
+      }
+      sibling = sibling.nextElementSibling;
+    }
+
+    sibling = li.previousElementSibling;
+    while (sibling) {
+      if (sibling.matches(".notification-item")) {
+        return getNotificationOpenTarget(sibling);
+      }
+      sibling = sibling.previousElementSibling;
+    }
+
+    return null;
+  }
+
   async function openNotification() {
     await sendMessage(MESSAGE_TYPES.OPEN_NOTIFICATION, { notificationId: notif.id });
     window.close();
@@ -478,6 +502,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     void li.offsetHeight;
     li.classList.add("fade-out");
 
+    const nextFocusTarget = getFocusTargetAfterRemoval();
+
     // Restore the notification item to its original state on failure
     function restoreItem() {
       li.classList.remove("marking-read", "fade-out");
@@ -520,6 +546,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
           emptyState.hidden = false;
           markAllBtn.disabled = true;
         }
+
+        nextFocusTarget?.focus({ preventScroll: true });
       } else {
         // Failure: restore item
         restoreItem();
