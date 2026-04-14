@@ -30,6 +30,9 @@
   --icon-default-color: #7d8590; /* Default icon color */
   --icon-release: var(--icon-default-color); /* uses --icon-default-color */
   --icon-discussion: var(--icon-default-color); /* uses --icon-default-color */
+
+  /* Priority dot: shown for high-priority notification reasons */
+  --priority-dot: #9ca3af;
 }
 
 /* Dark Theme - GitHub Notifications Style */
@@ -55,6 +58,9 @@ body.dark-theme {
   --icon-default-color: #848d97; /* Default icon color */
   --icon-release: var(--icon-default-color); /* uses --icon-default-color */
   --icon-discussion: var(--icon-default-color); /* uses --icon-default-color */
+
+  /* Priority dot: shown for high-priority notification reasons */
+  --priority-dot: #768390;
 }
 
 body.dark-theme .setting-select {

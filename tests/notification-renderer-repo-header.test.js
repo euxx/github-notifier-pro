@@ -59,6 +59,7 @@ vi.mock("../src/lib/constants.js", () => ({
 vi.mock("../src/lib/format-utils.js", () => ({
   formatReason: vi.fn((reason) => reason),
   getNotificationStatus: vi.fn(() => "Status"),
+  getReasonPriority: vi.fn(() => null),
 }));
 
 vi.mock("../src/lib/icons.js", () => ({

@@ -8,7 +8,7 @@ import {
   MESSAGE_TYPES,
   TIME_CONVERSION,
 } from "../lib/constants.js";
-import { formatReason, getNotificationStatus } from "../lib/format-utils.js";
+import { formatReason, getNotificationStatus, getReasonPriority } from "../lib/format-utils.js";
 import { getIconSVGElement } from "../lib/icons.js";
 import { buildProfileUrl, buildRepoNotificationsUrl } from "../lib/url-builder.js";
 
@@ -274,6 +274,9 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   li.className = "notification-item";
   li.dataset.id = notif.id;
   li.dataset.repo = repoFullName;
+  if (getReasonPriority(notif.reason)) {
+    li.dataset.priority = "high";
+  }
 
   function getNotificationOpenTarget(item) {
     return item?.querySelector(".notification-open-target") || null;

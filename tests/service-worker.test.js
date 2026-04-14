@@ -144,6 +144,7 @@ vi.mock("../src/lib/constants.js", () => ({
 // Mock format-utils
 vi.mock("../src/lib/format-utils.js", () => ({
   formatReason: vi.fn((reason) => reason || "Unknown"),
+  getReasonPriority: vi.fn(() => null),
   classifyError: vi.fn((error) => {
     const msg = error?.message || "";
     if (msg.includes("Rate limited")) return "rate-limited";

@@ -4,6 +4,7 @@ import {
   formatType,
   formatState,
   getNotificationStatus,
+  getReasonPriority,
   classifyError,
 } from "../src/lib/format-utils.js";
 
@@ -111,6 +112,34 @@ describe("getNotificationStatus", () => {
   it("should return type only when no state/conclusion", () => {
     const notif = { type: "Release" };
     expect(getNotificationStatus(notif)).toBe("Release");
+  });
+});
+
+describe("getReasonPriority", () => {
+  it.each([
+    "review_requested",
+    "approval_requested",
+    "assign",
+    "mention",
+    "mentioned",
+    "team_mention",
+    "security_alert",
+  ])('should return "high" for "%s"', (reason) => {
+    expect(getReasonPriority(reason)).toBe("high");
+  });
+
+  it.each([
+    "ci_activity",
+    "subscribed",
+    "author",
+    "comment",
+    "state_change",
+    "manual",
+    "participating",
+    "invitation",
+    "unknown_reason",
+  ])("should return null for non-high reason: %s", (reason) => {
+    expect(getReasonPriority(reason)).toBeNull();
   });
 });
 

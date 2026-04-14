@@ -32,6 +32,26 @@ export function formatReason(reason) {
   return reasons[reason] || reason || "Unknown";
 }
 
+// Reasons that require action from the user (review, mention, assignment, security)
+const HIGH_PRIORITY_REASONS = new Set([
+  "review_requested",
+  "approval_requested",
+  "assign",
+  "mention",
+  "mentioned",
+  "team_mention",
+  "security_alert",
+]);
+
+/**
+ * Returns "high" if the notification reason requires user action, otherwise null.
+ * @param {string} reason - Notification reason from GitHub API
+ * @returns {"high"|null}
+ */
+export function getReasonPriority(reason) {
+  return HIGH_PRIORITY_REASONS.has(reason) ? "high" : null;
+}
+
 /**
  * Format notification type to human-readable text
  */
