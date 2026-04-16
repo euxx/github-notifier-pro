@@ -866,12 +866,31 @@ body.dark-theme .pat-input.input-error {
   flex-shrink: 0;
 }
 
-/* Comments indicator */
+/* Comments indicator — always rendered as a clickable button */
 .notification-comments {
   align-items: center;
   gap: 3px;
   width: 40px; /* Fixed width for alignment (fits "99+") */
   flex-shrink: 0;
+}
+
+button.notification-comments--link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border-radius: var(--radius-sm);
+}
+
+button.notification-comments--link:hover {
+  color: var(--accent-color);
+}
+
+button.notification-comments--link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--action-focus);
 }
 
 .notification-comments svg {

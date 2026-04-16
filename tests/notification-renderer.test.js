@@ -240,7 +240,8 @@ describe("notification-renderer helper functions", () => {
       ];
       const hash = createNotificationsHash(notifications);
       expect(hash).toBe(
-        "1:2024-01-01T00:00:00Z:::::user1|2:2024-01-02T00:00:00Z:::::|3:2024-01-03T00:00:00Z:::::user3",
+        "1:2024-01-01T00:00:00Z:::::user1|2:2024-01-02T00:00:00Z:::::|" +
+          "3:2024-01-03T00:00:00Z:::::user3",
       );
     });
 

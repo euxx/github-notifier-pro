@@ -49,6 +49,12 @@ const mockStorage = {
     remove: vi.fn(),
     clear: vi.fn(),
   },
+  session: {
+    get: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    clear: vi.fn(),
+  },
   onChanged: {
     addListener: vi.fn(),
   },
@@ -94,6 +100,7 @@ const mockGithub = {
   fetchUsername: vi.fn(),
   getNotifications: vi.fn(),
   getNotificationDetails: vi.fn(),
+  getLatestCommentUrl: vi.fn(),
   markAsRead: vi.fn(),
   markAllAsRead: vi.fn(),
   markRepoAsRead: vi.fn(),
@@ -117,6 +124,7 @@ vi.mock("../src/lib/constants.js", () => ({
     GET_STATE: "getState",
     GET_RATE_LIMIT: "getRateLimit",
     OPEN_NOTIFICATION: "openNotification",
+    OPEN_LATEST_COMMENT: "openLatestComment",
     MARK_AS_READ: "markAsRead",
     MARK_ALL_AS_READ: "markAllAsRead",
     MARK_REPO_AS_READ: "markRepoAsRead",
@@ -182,12 +190,21 @@ const {
   getIconForType,
   updateNotificationDetails,
   copyCachedDetails,
+  prefetchLatestCommentUrls,
+  latestCommentUrlCache,
+  persistCommentCache,
+  restoreCommentCache,
   showDesktopNotificationsForNew,
   NOTIFICATION_ID_PREFIX,
   AGGREGATED_NOTIFICATION_ID,
   NOTIFICATION_DELAY_MS,
   GITHUB_NOTIFICATIONS_URL,
 } = await import("../src/background/service-worker.js");
+
+// Mutable reference that always points to the latestCommentUrlCache of the most recently
+// imported service-worker module. Updated in beforeEach after vi.resetModules().
+let currentCommentUrlCache = latestCommentUrlCache;
+let currentPrefetchFn = prefetchLatestCommentUrls;
 
 // Get a handle on the url-builder mock to allow per-test overrides
 const { buildNotificationUrl: mockBuildNotificationUrl } =
@@ -214,10 +231,18 @@ describe("service-worker", () => {
     mockStorageFunctions.setAuthMethod.mockResolvedValue(undefined);
     mockStorageFunctions.clear.mockResolvedValue(undefined);
 
+    // Setup default session storage responses (used by persistCommentCache / restoreCommentCache)
+    mockStorage.session.get.mockResolvedValue({});
+    mockStorage.session.set.mockResolvedValue(undefined);
+
     // Import service-worker to trigger initialization
     // Use dynamic import with cache busting
     vi.resetModules();
-    await import("../src/background/service-worker.js");
+    const freshModule = await import("../src/background/service-worker.js");
+
+    // Update the mutable reference so cache-related tests always use the fresh Map
+    currentCommentUrlCache = freshModule.latestCommentUrlCache;
+    currentPrefetchFn = freshModule.prefetchLatestCommentUrls;
   });
 
   afterEach(() => {
@@ -436,6 +461,276 @@ describe("service-worker", () => {
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({ error: expect.any(String) }),
       );
+    });
+  });
+
+  describe("handleMessage - OPEN_LATEST_COMMENT", () => {
+    beforeEach(() => {
+      // Clear the cache before each test
+      currentCommentUrlCache.clear();
+    });
+
+    it("should open tab with comment URL from getLatestCommentUrl (no cache)", async () => {
+      const notification = {
+        id: "200",
+        title: "Test Issue",
+        type: "Issue",
+        number: 5,
+        updated_at: "2024-01-01T00:00:00Z",
+        html_url: "https://github.com/owner/repo/issues/5",
+        repository: { full_name: "owner/repo" },
+      };
+      mockStorageFunctions.getNotifications.mockResolvedValue([notification]);
+      mockGithub.getLatestCommentUrl.mockResolvedValue(
+        "https://github.com/owner/repo/issues/5#issuecomment-67890",
+      );
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.isAuthenticated = true;
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: "openLatestComment", notificationId: "200" }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockTabs.create).toHaveBeenCalledWith({
+        url: "https://github.com/owner/repo/issues/5#issuecomment-67890",
+      });
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it("should use prefetched cache when cache entry matches updated_at", async () => {
+      const notification = {
+        id: "202",
+        title: "Test Issue",
+        type: "Issue",
+        number: 7,
+        updated_at: "2024-06-01T00:00:00Z",
+        html_url: "https://github.com/owner/repo/issues/7",
+        repository: { full_name: "owner/repo" },
+      };
+      // Pre-populate cache with a valid entry
+      currentCommentUrlCache.set("202", {
+        url: "https://github.com/owner/repo/issues/7#issuecomment-cached",
+        updated_at: "2024-06-01T00:00:00Z",
+      });
+      mockStorageFunctions.getNotifications.mockResolvedValue([notification]);
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.isAuthenticated = true;
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: "openLatestComment", notificationId: "202" }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockTabs.create).toHaveBeenCalledWith({
+        url: "https://github.com/owner/repo/issues/7#issuecomment-cached",
+      });
+      // getLatestCommentUrl should NOT have been called when cache hits
+      expect(mockGithub.getLatestCommentUrl).not.toHaveBeenCalled();
+    });
+
+    it("should ignore stale cache entry and call API when updated_at mismatch", async () => {
+      const notification = {
+        id: "203",
+        title: "Test Issue",
+        type: "Issue",
+        number: 8,
+        updated_at: "2024-07-01T00:00:00Z", // newer than cached
+        html_url: "https://github.com/owner/repo/issues/8",
+        repository: { full_name: "owner/repo" },
+      };
+      // Pre-populate cache with a stale entry (different updated_at)
+      currentCommentUrlCache.set("203", {
+        url: "https://github.com/owner/repo/issues/8#issuecomment-old",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
+      mockStorageFunctions.getNotifications.mockResolvedValue([notification]);
+      mockGithub.getLatestCommentUrl.mockResolvedValue(
+        "https://github.com/owner/repo/issues/8#issuecomment-new",
+      );
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.isAuthenticated = true;
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: "openLatestComment", notificationId: "203" }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Must use fresh URL, not the stale cached one
+      expect(mockTabs.create).toHaveBeenCalledWith({
+        url: "https://github.com/owner/repo/issues/8#issuecomment-new",
+      });
+      expect(mockGithub.getLatestCommentUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it("should fall back to notification URL when getLatestCommentUrl returns null", async () => {
+      const notification = {
+        id: "201",
+        title: "Test PR",
+        type: "PullRequest",
+        number: 10,
+        updated_at: "2024-01-01T00:00:00Z",
+        html_url: "https://github.com/owner/repo/pull/10",
+        repository: { full_name: "owner/repo" },
+      };
+      mockStorageFunctions.getNotifications.mockResolvedValue([notification]);
+      mockGithub.getLatestCommentUrl.mockResolvedValue(null);
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.isAuthenticated = true;
+
+      const sendResponse = vi.fn();
+
+      messageHandler({ action: "openLatestComment", notificationId: "201" }, {}, sendResponse);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockTabs.create).toHaveBeenCalledWith({
+        url: "https://github.com/owner/repo/pull/10",
+      });
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it("should throw error for non-existent notification", async () => {
+      mockStorageFunctions.getNotifications.mockResolvedValue([]);
+
+      const sendResponse = vi.fn();
+
+      messageHandler(
+        { action: "openLatestComment", notificationId: "nonexistent" },
+        {},
+        sendResponse,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith({ error: "Notification not found" });
+    });
+  });
+
+  describe("prefetchLatestCommentUrls", () => {
+    beforeEach(() => {
+      currentCommentUrlCache.clear();
+    });
+
+    it("populates cache for Issue notifications with comments", async () => {
+      const notifications = [
+        {
+          id: "n1",
+          type: "Issue",
+          comment_count: 3,
+          updated_at: "2024-01-01T00:00:00Z",
+          repository: { full_name: "owner/repo" },
+          number: 1,
+        },
+      ];
+      mockGithub.getLatestCommentUrl.mockResolvedValue(
+        "https://github.com/owner/repo/issues/1#issuecomment-1",
+      );
+
+      await currentPrefetchFn(notifications);
+
+      expect(currentCommentUrlCache.get("n1")).toEqual({
+        url: "https://github.com/owner/repo/issues/1#issuecomment-1",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
+    });
+
+    it("does not prefetch for notifications without comments", async () => {
+      const notifications = [
+        {
+          id: "n2",
+          type: "Issue",
+          comment_count: 0,
+          updated_at: "2024-01-01T00:00:00Z",
+          repository: { full_name: "owner/repo" },
+          number: 2,
+        },
+      ];
+
+      await currentPrefetchFn(notifications);
+
+      expect(mockGithub.getLatestCommentUrl).not.toHaveBeenCalled();
+      expect(currentCommentUrlCache.has("n2")).toBe(false);
+    });
+
+    it("does not prefetch for unsupported notification types", async () => {
+      const notifications = [
+        {
+          id: "n3",
+          type: "Release",
+          comment_count: 5,
+          updated_at: "2024-01-01T00:00:00Z",
+          repository: { full_name: "owner/repo" },
+          number: 3,
+        },
+      ];
+
+      await currentPrefetchFn(notifications);
+
+      expect(mockGithub.getLatestCommentUrl).not.toHaveBeenCalled();
+    });
+
+    it("skips already-cached entries with matching updated_at", async () => {
+      currentCommentUrlCache.set("n4", {
+        url: "https://github.com/owner/repo/issues/4#issuecomment-cached",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
+      const notifications = [
+        {
+          id: "n4",
+          type: "Issue",
+          comment_count: 2,
+          updated_at: "2024-01-01T00:00:00Z",
+          repository: { full_name: "owner/repo" },
+          number: 4,
+        },
+      ];
+
+      await currentPrefetchFn(notifications);
+
+      // Should not make an API call since cache is fresh
+      expect(mockGithub.getLatestCommentUrl).not.toHaveBeenCalled();
+    });
+
+    it("re-fetches and updates cache when updated_at changed", async () => {
+      currentCommentUrlCache.set("n5", {
+        url: "https://github.com/owner/repo/issues/5#issuecomment-old",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
+      const notifications = [
+        {
+          id: "n5",
+          type: "Issue",
+          comment_count: 3,
+          updated_at: "2024-06-01T00:00:00Z", // newer
+          repository: { full_name: "owner/repo" },
+          number: 5,
+        },
+      ];
+      mockGithub.getLatestCommentUrl.mockResolvedValue(
+        "https://github.com/owner/repo/issues/5#issuecomment-new",
+      );
+
+      await currentPrefetchFn(notifications);
+
+      expect(currentCommentUrlCache.get("n5")).toEqual({
+        url: "https://github.com/owner/repo/issues/5#issuecomment-new",
+        updated_at: "2024-06-01T00:00:00Z",
+      });
+    });
+
+    it("prunes cache entries for notifications no longer in the list", async () => {
+      currentCommentUrlCache.set("removed-notif", {
+        url: "https://github.com/owner/repo/issues/99#issuecomment-1",
+        updated_at: "2024-01-01T00:00:00Z",
+      });
+      // Pass empty list (notification was removed)
+      await currentPrefetchFn([]);
+
+      expect(currentCommentUrlCache.has("removed-notif")).toBe(false);
     });
   });
 
@@ -1068,6 +1363,40 @@ describe("service-worker helper functions", () => {
       expect(baseData.html_url).toBe("https://github.com/issue/42");
     });
 
+    it("should sum comments and review_comments for PullRequest notifications", () => {
+      const baseData = {};
+      const details = {
+        state: "open",
+        comments: 3,
+        review_comments: 7,
+        number: 10,
+      };
+
+      updateNotificationDetails(baseData, details, "PullRequest");
+
+      // comment_count must include both issue-style and review comments
+      expect(baseData.comment_count).toBe(10);
+    });
+
+    it("should not add review_comments for Issue notifications", () => {
+      const baseData = {};
+      const details = { state: "open", comments: 4, review_comments: 2, number: 5 };
+
+      updateNotificationDetails(baseData, details, "Issue");
+
+      // Issues don't have review comments; only comments field counts
+      expect(baseData.comment_count).toBe(4);
+    });
+
+    it("should treat missing review_comments as 0 for PullRequest", () => {
+      const baseData = {};
+      const details = { state: "open", comments: 2, number: 8 }; // no review_comments field
+
+      updateNotificationDetails(baseData, details, "PullRequest");
+
+      expect(baseData.comment_count).toBe(2);
+    });
+
     it("should copy empty-string body (not skip it as falsy)", () => {
       const baseData = { body: "old body" };
       const details = { body: "" };
@@ -1691,6 +2020,111 @@ describe("service-worker helper functions", () => {
       );
 
       consoleSpy.mockRestore();
+    });
+  });
+});
+
+describe("comment URL cache session storage persistence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    latestCommentUrlCache.clear();
+  });
+
+  describe("persistCommentCache()", () => {
+    it("writes the current cache contents to session storage", () => {
+      latestCommentUrlCache.set("1", { url: "https://github.com/a/b#1", updated_at: "2024-01-01" });
+      latestCommentUrlCache.set("2", { url: "https://github.com/a/b#2", updated_at: "2024-01-02" });
+      mockStorage.session.set.mockResolvedValue(undefined);
+
+      persistCommentCache();
+
+      expect(mockStorage.session.set).toHaveBeenCalledWith({
+        latestCommentUrlCache: {
+          1: { url: "https://github.com/a/b#1", updated_at: "2024-01-01" },
+          2: { url: "https://github.com/a/b#2", updated_at: "2024-01-02" },
+        },
+      });
+    });
+
+    it("writes an empty object when cache is empty", () => {
+      mockStorage.session.set.mockResolvedValue(undefined);
+
+      persistCommentCache();
+
+      expect(mockStorage.session.set).toHaveBeenCalledWith({ latestCommentUrlCache: {} });
+    });
+
+    it("silently swallows session storage write errors", async () => {
+      mockStorage.session.set.mockRejectedValue(new Error("quota exceeded"));
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      // Should not throw even when session.set rejects
+      await expect(persistCommentCache()).resolves.toBeUndefined();
+
+      warnSpy.mockRestore();
+    });
+
+    it("is a no-op when session storage is unavailable", async () => {
+      // Simulate Firefox: session is null
+      const origSession = mockStorage.session;
+      mockStorage.session = null;
+
+      await expect(persistCommentCache()).resolves.toBeUndefined();
+      expect(origSession.set).not.toHaveBeenCalled();
+
+      mockStorage.session = origSession;
+    });
+  });
+
+  describe("restoreCommentCache()", () => {
+    it("populates cache from session storage on startup", async () => {
+      mockStorage.session.get.mockResolvedValue({
+        latestCommentUrlCache: {
+          42: { url: "https://github.com/x/y#42", updated_at: "2024-03-01" },
+        },
+      });
+
+      await restoreCommentCache();
+
+      expect(latestCommentUrlCache.get("42")).toEqual({
+        url: "https://github.com/x/y#42",
+        updated_at: "2024-03-01",
+      });
+    });
+
+    it("does nothing when session storage has no cached data", async () => {
+      mockStorage.session.get.mockResolvedValue({});
+
+      await restoreCommentCache();
+
+      expect(latestCommentUrlCache.size).toBe(0);
+    });
+
+    it("does nothing when cached value is not an object", async () => {
+      mockStorage.session.get.mockResolvedValue({ latestCommentUrlCache: "corrupt" });
+
+      await restoreCommentCache();
+
+      expect(latestCommentUrlCache.size).toBe(0);
+    });
+
+    it("silently swallows session storage read errors", async () => {
+      mockStorage.session.get.mockRejectedValue(new Error("storage error"));
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await expect(restoreCommentCache()).resolves.toBeUndefined();
+
+      warnSpy.mockRestore();
+    });
+
+    it("is a no-op when session storage is unavailable", async () => {
+      const origSession = mockStorage.session;
+      mockStorage.session = null;
+
+      await expect(restoreCommentCache()).resolves.toBeUndefined();
+      expect(latestCommentUrlCache.size).toBe(0);
+
+      mockStorage.session = origSession;
     });
   });
 });

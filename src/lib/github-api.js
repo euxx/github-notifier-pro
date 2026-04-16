@@ -759,6 +759,142 @@ class GitHubAPI {
   }
 
   /**
+   * Fetch the latest comment URL for a notification by querying the GitHub comments API.
+   *
+   * Supports Issue and PullRequest notifications:
+   * - Issue comments (shared by both Issues and PRs): ordered by ascending ID only, no
+   *   direction parameter. We use the Link header to jump directly to the last page.
+   * - PR review comments: supports sort+direction, fetched with direction=desc.
+   * For PRs we query both endpoints in parallel and return whichever has the more recent
+   * updated_at timestamp. Returns null for unsupported types or when no comments are found.
+   *
+   * @param {Object} notification - Notification object with type, number, and repository fields
+   * @returns {Promise<string|null>} The HTML URL of the latest comment, or null
+   */
+  async getLatestCommentUrl(notification) {
+    const { type, number, repository } = notification;
+    const fullName = repository?.full_name;
+
+    if (!fullName || !number) {
+      return null;
+    }
+
+    if (type !== NOTIFICATION_TYPES.ISSUE && type !== NOTIFICATION_TYPES.PULL_REQUEST) {
+      return null;
+    }
+
+    try {
+      if (type === NOTIFICATION_TYPES.ISSUE) {
+        const comment = await this._fetchLastIssueComment(fullName, number);
+        return comment?.html_url ?? null;
+      }
+
+      // PullRequest: issue-style comments and PR review inline comments may both exist;
+      // fetch them in parallel. Use allSettled so a failure in one endpoint does not
+      // discard a valid result from the other.
+      const [issueResult, reviewResult] = await Promise.allSettled([
+        this._fetchLastIssueComment(fullName, number),
+        this._fetchLastReviewComment(fullName, number),
+      ]);
+
+      const issueComment = issueResult.status === "fulfilled" ? issueResult.value : null;
+      const reviewComment = reviewResult.status === "fulfilled" ? reviewResult.value : null;
+
+      if (!issueComment && !reviewComment) return null;
+      if (!issueComment) return reviewComment.html_url;
+      if (!reviewComment) return issueComment.html_url;
+
+      // Both exist — pick the one with the later updated_at timestamp
+      return issueComment.updated_at >= reviewComment.updated_at
+        ? issueComment.html_url
+        : reviewComment.html_url;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch the last issue-style comment on an issue or PR.
+   * Issue comments are always in ascending ID order so we use the Link header
+   * to jump to the last page rather than relying on an unsupported direction param.
+   *
+   * @param {string} fullName - Repository full name (owner/repo)
+   * @param {number} number - Issue or PR number
+   * @returns {Promise<{html_url: string, updated_at: string}|null>}
+   */
+  async _fetchLastIssueComment(fullName, number) {
+    // Request the first page to discover total page count via Link header
+    const firstPageUrl = `${GITHUB_API_BASE}/repos/${fullName}/issues/${number}/comments?per_page=1`;
+
+    const firstResp = await fetchWithTimeout(
+      firstPageUrl,
+      { headers: this.headers },
+      API_TIMEOUTS.NOTIFICATION_DETAILS,
+    );
+
+    if (!firstResp.ok) return null;
+    this.updateRateLimit(firstResp);
+
+    const linkHeader = firstResp.headers.get("Link");
+    if (!linkHeader) {
+      // Only one page — read the body directly
+      const comments = await firstResp.json();
+      if (!Array.isArray(comments) || comments.length === 0) return null;
+      return { html_url: comments[0].html_url, updated_at: comments[0].updated_at };
+    }
+
+    // Parse the last page number from Link: <url>; rel="last"
+    const lastMatch = linkHeader.match(/<[^>]+[?&]page=(\d+)[^>]*>;\s*rel="last"/);
+    if (!lastMatch) {
+      // No last page link means we're already on the last page
+      const comments = await firstResp.json();
+      if (!Array.isArray(comments) || comments.length === 0) return null;
+      return { html_url: comments[0].html_url, updated_at: comments[0].updated_at };
+    }
+
+    const lastPage = parseInt(lastMatch[1], 10);
+    const lastPageUrl = `${GITHUB_API_BASE}/repos/${fullName}/issues/${number}/comments?per_page=1&page=${lastPage}`;
+
+    const lastResp = await fetchWithTimeout(
+      lastPageUrl,
+      { headers: this.headers },
+      API_TIMEOUTS.NOTIFICATION_DETAILS,
+    );
+
+    if (!lastResp.ok) return null;
+    this.updateRateLimit(lastResp);
+
+    const comments = await lastResp.json();
+    if (!Array.isArray(comments) || comments.length === 0) return null;
+    return { html_url: comments[0].html_url, updated_at: comments[0].updated_at };
+  }
+
+  /**
+   * Fetch the most recently created PR review comment.
+   * The review comments endpoint supports sort+direction so we use direction=desc.
+   *
+   * @param {string} fullName - Repository full name (owner/repo)
+   * @param {number} number - PR number
+   * @returns {Promise<{html_url: string, updated_at: string}|null>}
+   */
+  async _fetchLastReviewComment(fullName, number) {
+    const url = `${GITHUB_API_BASE}/repos/${fullName}/pulls/${number}/comments?sort=created&direction=desc&per_page=1`;
+
+    const response = await fetchWithTimeout(
+      url,
+      { headers: this.headers },
+      API_TIMEOUTS.NOTIFICATION_DETAILS,
+    );
+
+    if (!response.ok) return null;
+    this.updateRateLimit(response);
+
+    const comments = await response.json();
+    if (!Array.isArray(comments) || comments.length === 0) return null;
+    return { html_url: comments[0].html_url, updated_at: comments[0].updated_at };
+  }
+
+  /**
    * Mark a single notification as read
    */
   async markAsRead(threadId) {

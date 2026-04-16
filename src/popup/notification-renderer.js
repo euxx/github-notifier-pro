@@ -236,19 +236,34 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   const metaDiv = document.createElement("div");
   metaDiv.className = "notification-meta";
 
-  // Comment count
+  // Comment count — always rendered as a clickable button so users can jump to the
+  // latest comment. Clicking sends OPEN_LATEST_COMMENT to the service worker, which
+  // fetches the comment URL from the GitHub API at click time.
   if (notif.comment_count !== undefined && notif.comment_count > 0) {
-    const commentsSpan = document.createElement("span");
-    commentsSpan.className = "notification-comments";
-    if (notif.comment_count >= 100) {
-      commentsSpan.title = `${notif.comment_count} comments`;
-    }
-    commentsSpan.appendChild(getIconSVGElement("comment_bubble"));
-    commentsSpan.appendChild(document.createTextNode(" "));
-    commentsSpan.appendChild(
-      document.createTextNode(notif.comment_count >= 100 ? "99+" : String(notif.comment_count)),
-    );
-    metaDiv.appendChild(commentsSpan);
+    const countLabel = notif.comment_count >= 100 ? "99+" : String(notif.comment_count);
+
+    const commentsEl = document.createElement("button");
+    commentsEl.type = "button";
+    commentsEl.className = "notification-comments notification-comments--link";
+    // When the badge shows "99+", reveal the exact count in the tooltip since it is
+    // otherwise hidden.  Below 100 the badge already displays the precise number.
+    commentsEl.title =
+      notif.comment_count >= 100
+        ? `Go to latest comment (${notif.comment_count} comments)`
+        : "Go to latest comment";
+    commentsEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // Fire-and-forget: the service worker handles the API call and opens the tab.
+      // Closing the popup immediately avoids blocking the user when there is a cache
+      // miss and the live API query takes up to 15 s.
+      sendMessage(MESSAGE_TYPES.OPEN_LATEST_COMMENT, { notificationId: notif.id }).catch(() => {});
+      window.close();
+    });
+
+    commentsEl.appendChild(getIconSVGElement("comment_bubble"));
+    commentsEl.appendChild(document.createTextNode(" "));
+    commentsEl.appendChild(document.createTextNode(countLabel));
+    metaDiv.appendChild(commentsEl);
   }
 
   // Author avatar

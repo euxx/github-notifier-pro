@@ -30,6 +30,24 @@ export const storage = {
       return api.storage.local.clear();
     },
   },
+  // session storage survives service worker recycling but is cleared when the
+  // browser session ends (browser close).  Not available in Firefox.
+  session: api.storage.session
+    ? {
+        get(keys) {
+          return api.storage.session.get(keys);
+        },
+        set(items) {
+          return api.storage.session.set(items);
+        },
+        remove(keys) {
+          return api.storage.session.remove(keys);
+        },
+        clear() {
+          return api.storage.session.clear();
+        },
+      }
+    : null,
   onChanged: api.storage.onChanged,
 };
 

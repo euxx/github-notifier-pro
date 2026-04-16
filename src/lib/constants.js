@@ -78,6 +78,7 @@ export const MESSAGE_TYPES = {
   GET_STATE: "getState",
   GET_RATE_LIMIT: "getRateLimit",
   OPEN_NOTIFICATION: "openNotification",
+  OPEN_LATEST_COMMENT: "openLatestComment",
   MARK_AS_READ: "markAsRead",
   MARK_ALL_AS_READ: "markAllAsRead",
   MARK_REPO_AS_READ: "markRepoAsRead",

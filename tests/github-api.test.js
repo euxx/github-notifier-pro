@@ -647,6 +647,260 @@ describe("GitHubAPI", () => {
     });
   });
 
+  describe("getLatestCommentUrl", () => {
+    const issueNotif = {
+      type: "Issue",
+      number: 42,
+      repository: { full_name: "owner/repo" },
+    };
+    const prNotif = {
+      type: "PullRequest",
+      number: 10,
+      repository: { full_name: "owner/repo" },
+    };
+
+    it("returns html_url for Issue when there is only one page (no Link header)", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            html_url: "https://github.com/owner/repo/issues/42#issuecomment-1",
+            updated_at: "2024-01-01T00:00:00Z",
+          },
+        ],
+        headers: { get: () => null }, // no Link header
+      });
+
+      const result = await github.getLatestCommentUrl(issueNotif);
+
+      expect(result).toBe("https://github.com/owner/repo/issues/42#issuecomment-1");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/issues/42/comments?per_page=1"),
+        expect.any(Object),
+      );
+    });
+
+    it("uses Link header to fetch the last page for Issue notifications", async () => {
+      github.token = "test-token";
+      // First call returns Link header pointing to page 3
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [{ html_url: "ignored", updated_at: "2024-01-01T00:00:00Z" }],
+          headers: {
+            get: (name) =>
+              name === "Link"
+                ? '<https://api.github.com/repos/owner/repo/issues/42/comments?per_page=1&page=3>; rel="last"'
+                : null,
+          },
+        })
+        // Second call (last page) returns the actual latest comment
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/issues/42#issuecomment-99",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        });
+
+      const result = await github.getLatestCommentUrl(issueNotif);
+
+      expect(result).toBe("https://github.com/owner/repo/issues/42#issuecomment-99");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining("page=3"),
+        expect.any(Object),
+      );
+    });
+
+    it("returns html_url from the latest review comment for PullRequest notifications", async () => {
+      github.token = "test-token";
+      // Issue comments (first call) — empty
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [],
+          headers: { get: () => null },
+        })
+        // Review comments (second call) — has one
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#discussion-diff-1",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        });
+
+      const result = await github.getLatestCommentUrl(prNotif);
+
+      expect(result).toBe("https://github.com/owner/repo/pull/10#discussion-diff-1");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // Review comment endpoint must use direction=desc
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/pulls/10/comments?sort=created&direction=desc"),
+        expect.any(Object),
+      );
+    });
+
+    it("returns more recently updated comment URL for PR when review comment is newer", async () => {
+      github.token = "test-token";
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#issuecomment-5",
+              updated_at: "2024-01-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#discussion-diff-1",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        });
+
+      const result = await github.getLatestCommentUrl(prNotif);
+
+      // Review comment is newer, so it should be returned
+      expect(result).toBe("https://github.com/owner/repo/pull/10#discussion-diff-1");
+    });
+
+    it("returns more recently updated comment URL for PR when issue comment is newer", async () => {
+      github.token = "test-token";
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#issuecomment-5",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#discussion-diff-1",
+              updated_at: "2024-01-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        });
+
+      const result = await github.getLatestCommentUrl(prNotif);
+
+      // Issue comment is newer, so it should be returned
+      expect(result).toBe("https://github.com/owner/repo/pull/10#issuecomment-5");
+    });
+
+    it("returns null when API returns empty array for Issue", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+        headers: { get: () => null },
+      });
+
+      const result = await github.getLatestCommentUrl(issueNotif);
+      expect(result).toBeNull();
+    });
+
+    it("returns null for unsupported notification types", async () => {
+      const discussionNotif = {
+        type: "Discussion",
+        number: 1,
+        repository: { full_name: "owner/repo" },
+      };
+      const result = await github.getLatestCommentUrl(discussionNotif);
+      expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("returns null when API call fails", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+      const result = await github.getLatestCommentUrl(issueNotif);
+      expect(result).toBeNull();
+    });
+
+    it("returns issue comment URL for PR when review comment fetch rejects", async () => {
+      github.token = "test-token";
+      // Issue comments call succeeds
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#issuecomment-5",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        })
+        // Review comments call rejects (network error)
+        .mockRejectedValueOnce(new Error("Network error"));
+
+      const result = await github.getLatestCommentUrl(prNotif);
+
+      // Should still return the issue comment URL, not null
+      expect(result).toBe("https://github.com/owner/repo/pull/10#issuecomment-5");
+    });
+
+    it("returns review comment URL for PR when issue comment fetch rejects", async () => {
+      github.token = "test-token";
+      // Issue comments call rejects
+      mockFetch
+        .mockRejectedValueOnce(new Error("Network error"))
+        // Review comments call succeeds
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              html_url: "https://github.com/owner/repo/pull/10#discussion-diff-1",
+              updated_at: "2024-06-01T00:00:00Z",
+            },
+          ],
+          headers: { get: () => null },
+        });
+
+      const result = await github.getLatestCommentUrl(prNotif);
+
+      // Should still return the review comment URL, not null
+      expect(result).toBe("https://github.com/owner/repo/pull/10#discussion-diff-1");
+    });
+
+    it("returns null when number or full_name is missing", async () => {
+      expect(
+        await github.getLatestCommentUrl({
+          type: "Issue",
+          repository: { full_name: "owner/repo" },
+        }),
+      ).toBeNull();
+      expect(
+        await github.getLatestCommentUrl({ type: "Issue", number: 1, repository: {} }),
+      ).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
   describe("singleton export", () => {
     it("should export same instance as default and named", () => {
       expect(github).toBe(githubDefault);

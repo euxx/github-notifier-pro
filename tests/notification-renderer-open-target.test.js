@@ -52,6 +52,7 @@ vi.mock("../src/lib/constants.js", () => ({
   MESSAGE_TYPES: {
     MARK_AS_READ: "markAsRead",
     OPEN_NOTIFICATION: "openNotification",
+    OPEN_LATEST_COMMENT: "openLatestComment",
   },
   TIME_CONVERSION: { MS_PER_MINUTE: 60000 },
 }));
@@ -184,5 +185,94 @@ describe("notification main open target", () => {
 
     expect(sendMessage).toHaveBeenCalledWith("markAsRead", { notificationId: "1" });
     expect(sendMessage).not.toHaveBeenCalledWith("openNotification", { notificationId: "1" });
+  });
+});
+
+describe("notification comment icon", () => {
+  let notificationsList;
+  let emptyState;
+  let markAllBtn;
+  let closeSpy;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearNotificationCache();
+
+    document.body.innerHTML = `
+      <ul id="notifications-list"></ul>
+      <div id="empty-state" hidden></div>
+      <button id="mark-all-btn"></button>
+    `;
+
+    notificationsList = document.getElementById("notifications-list");
+    emptyState = document.getElementById("empty-state");
+    markAllBtn = document.getElementById("mark-all-btn");
+    closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+
+    initRenderer({
+      notificationsList,
+      emptyState,
+      markAllBtn,
+      sendMessage,
+      onUserAction: vi.fn(),
+      onMarkRepoAsRead: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    closeSpy.mockRestore();
+  });
+
+  function makeNotifWithComment(id) {
+    return {
+      ...makeNotif(id),
+      comment_count: 3,
+    };
+  }
+
+  it("renders comment icon as a button when comment_count > 0", () => {
+    renderNotifications([makeNotifWithComment("1")]);
+
+    const commentBtn = notificationsList.querySelector(
+      '.notification-item[data-id="1"] button.notification-comments--link',
+    );
+    expect(commentBtn).not.toBeNull();
+    expect(commentBtn.tagName).toBe("BUTTON");
+  });
+
+  it("sends OPEN_LATEST_COMMENT when the comment button is clicked", async () => {
+    renderNotifications([makeNotifWithComment("2")]);
+    sendMessage.mockResolvedValueOnce({ success: true });
+
+    const commentBtn = notificationsList.querySelector(
+      '.notification-item[data-id="2"] button.notification-comments--link',
+    );
+    commentBtn.click();
+
+    expect(sendMessage).toHaveBeenCalledWith("openLatestComment", { notificationId: "2" });
+    await vi.waitFor(() => {
+      expect(closeSpy).toHaveBeenCalled();
+    });
+  });
+
+  it("does not trigger notification open when comment button is clicked", async () => {
+    renderNotifications([makeNotifWithComment("3")]);
+    sendMessage.mockResolvedValueOnce({ success: true });
+
+    const commentBtn = notificationsList.querySelector(
+      '.notification-item[data-id="3"] button.notification-comments--link',
+    );
+    commentBtn.click();
+
+    expect(sendMessage).not.toHaveBeenCalledWith("openNotification", expect.anything());
+  });
+
+  it("does not render a comment button when comment_count is 0 or absent", () => {
+    renderNotifications([{ ...makeNotif("4"), comment_count: 0 }]);
+
+    const commentBtn = notificationsList.querySelector(
+      '.notification-item[data-id="4"] button.notification-comments--link',
+    );
+    expect(commentBtn).toBeNull();
   });
 });

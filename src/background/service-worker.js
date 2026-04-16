@@ -4,7 +4,14 @@
 
 import github from "../lib/github-api.js";
 import * as storage from "../lib/storage.js";
-import { action, alarms, runtime, tabs, notifications } from "../lib/chrome-api.js";
+import {
+  action,
+  alarms,
+  runtime,
+  tabs,
+  notifications,
+  storage as browserStorage,
+} from "../lib/chrome-api.js";
 import {
   ALARM_NAME,
   MIN_POLL_INTERVAL_SECONDS,
@@ -84,6 +91,57 @@ const CACHED_DETAIL_FIELDS = [
 let hasMoreNotifications = false;
 
 /**
+ * In-memory cache for prefetched latest comment URLs.
+ * Key: notification ID, Value: { url: string, updated_at: string }
+ * Entries are invalidated when a notification's updated_at changes on the next fetch.
+ * @exported for testing
+ */
+export const latestCommentUrlCache = new Map();
+
+/**
+ * Session storage key for persisting latestCommentUrlCache across MV3 worker restarts.
+ * chrome.storage.session survives service worker recycling but is cleared on browser close.
+ * Not available in Firefox (where service workers are not recycled anyway).
+ */
+const SESSION_KEY_COMMENT_CACHE = "latestCommentUrlCache";
+
+/**
+ * Persist the current latestCommentUrlCache to session storage (best-effort).
+ * Silently ignores environments where session storage is unavailable (Firefox).
+ * @exported for testing
+ */
+export async function persistCommentCache() {
+  if (!browserStorage.session) return;
+  const serialized = Object.fromEntries(latestCommentUrlCache);
+  await browserStorage.session.set({ [SESSION_KEY_COMMENT_CACHE]: serialized }).catch((err) => {
+    console.warn("Failed to persist comment URL cache to session storage:", err);
+  });
+}
+
+/**
+ * Restore latestCommentUrlCache from session storage on worker startup.
+ * A no-op when session storage is unavailable or empty.
+ * @exported for testing
+ */
+export async function restoreCommentCache() {
+  if (!browserStorage.session) return;
+  try {
+    const result = await browserStorage.session.get(SESSION_KEY_COMMENT_CACHE);
+    const cached = result[SESSION_KEY_COMMENT_CACHE];
+    if (cached && typeof cached === "object") {
+      for (const [id, value] of Object.entries(cached)) {
+        latestCommentUrlCache.set(id, value);
+      }
+      console.log(
+        `Restored ${latestCommentUrlCache.size} comment URL cache entries from session storage`,
+      );
+    }
+  } catch (err) {
+    console.warn("Failed to restore comment URL cache from session storage:", err);
+  }
+}
+
+/**
  * Guard against concurrent initialize() calls.
  * The module top-level call, onStartup, and onInstalled can all fire
  * close together when the service worker first loads.
@@ -119,6 +177,10 @@ async function doInitialize() {
 
     // Populate author cache from existing notifications
     await initializeAuthorCache();
+
+    // Restore comment URL cache from session storage (survives MV3 worker recycling).
+    // This is a no-op on Firefox or when session storage has no saved data.
+    await restoreCommentCache();
 
     await startPolling();
     await checkNotifications();
@@ -198,7 +260,12 @@ export function updateNotificationDetails(baseData, details, notifType) {
   }
 
   // Only copy fields when present — avoids overwriting cached data with undefined if the API response omits them
-  if (details.comments !== undefined) baseData.comment_count = details.comments;
+  // For PRs, sum issue-style comments and review comments so the button appears for code reviews too
+  if (details.comments !== undefined) {
+    const reviewComments =
+      notifType === NOTIFICATION_TYPES.PULL_REQUEST ? (details.review_comments ?? 0) : 0;
+    baseData.comment_count = details.comments + reviewComments;
+  }
   if (details.number !== undefined) baseData.number = details.number;
   if (details.created_at) baseData.created_at = details.created_at;
   if (details.body !== undefined) baseData.body = details.body;
@@ -312,6 +379,52 @@ async function mergeAndSaveIfCurrent(fetchVersion, notifications, label) {
  * - Only the most recent fetch can overwrite storage
  * - Older detail fetches are discarded if a newer fetch has completed
  */
+/**
+ * Prefetch the latest comment URL for each notification that has comments.
+ * Results are stored in latestCommentUrlCache keyed by notification ID.
+ * Stale entries (where updated_at no longer matches) are pruned first.
+ *
+ * @param {Array} notifications - Processed notification objects
+ * @exported for testing
+ */
+export async function prefetchLatestCommentUrls(notifications) {
+  // Prune cache entries whose updated_at no longer matches the current notification
+  for (const [id, cached] of latestCommentUrlCache) {
+    const notif = notifications.find((n) => n.id === id);
+    if (!notif || notif.updated_at !== cached.updated_at) {
+      latestCommentUrlCache.delete(id);
+    }
+  }
+
+  for (const notif of notifications) {
+    // Only prefetch Issue and PullRequest notifications with comments
+    if (
+      (notif.type !== NOTIFICATION_TYPES.ISSUE && notif.type !== NOTIFICATION_TYPES.PULL_REQUEST) ||
+      !notif.comment_count
+    ) {
+      continue;
+    }
+
+    // Skip if already cached for this updated_at
+    const cached = latestCommentUrlCache.get(notif.id);
+    if (cached && cached.updated_at === notif.updated_at) {
+      continue;
+    }
+
+    try {
+      const url = await github.getLatestCommentUrl(notif);
+      if (url) {
+        latestCommentUrlCache.set(notif.id, { url, updated_at: notif.updated_at });
+      }
+    } catch (error) {
+      console.error(`Failed to prefetch comment URL for notification ${notif.id}:`, error);
+    }
+  }
+
+  // Persist updated cache to session storage so it survives MV3 worker recycling
+  await persistCommentCache();
+}
+
 async function checkNotifications() {
   if (!github.isAuthenticated) {
     return;
@@ -449,6 +562,7 @@ async function checkNotifications() {
 
       // Priority loading: First visible notifications
       let priorityResults = []; // Define in outer scope for background logging
+      let prioritySaved = false; // Track whether the priority save actually committed
       if (priorityNotifications.length > 0) {
         priorityResults = await fetchWithConcurrencyLimit(
           priorityNotifications.map(({ notification: n, index }) =>
@@ -465,12 +579,12 @@ async function checkNotifications() {
         );
 
         // Merge with current storage and save (guarded by version check)
-        const saved = await mergeAndSaveIfCurrent(
+        prioritySaved = await mergeAndSaveIfCurrent(
           currentFetchVersion,
           detailedNotifications,
           "priority save",
         );
-        if (saved) {
+        if (prioritySaved) {
           console.log(
             `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
           );
@@ -519,6 +633,13 @@ async function checkNotifications() {
               console.log(
                 `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
               );
+
+              // Prefetch latest comment URLs so popup clicks are instant.
+              // Only run when save committed — a superseded fetch must not re-populate
+              // the cache with stale data or issue unnecessary API requests.
+              prefetchLatestCommentUrls(detailedNotifications).catch((error) => {
+                console.error("Error prefetching latest comment URLs:", error);
+              });
             }
           })
           .catch((error) => {
@@ -527,6 +648,16 @@ async function checkNotifications() {
               error,
             );
           });
+      }
+
+      // When there are no background notifications, prefetch after priority save.
+      // Skipped when notificationsNeedingDetails is empty (nothing changed) to avoid
+      // unnecessary API calls on repeated 304-equivalent fetches.
+      // Only runs when the save actually committed — do not prefetch for superseded fetches.
+      if (backgroundNotifications.length === 0 && prioritySaved) {
+        prefetchLatestCommentUrls(detailedNotifications).catch((error) => {
+          console.error("Error prefetching latest comment URLs:", error);
+        });
       }
 
       // Show desktop notifications for new items (using safe-filtered list)
@@ -637,6 +768,8 @@ async function handleMessage(message) {
     case MESSAGE_TYPES.OPEN_NOTIFICATION:
       return await openNotification(message.notificationId);
 
+    case MESSAGE_TYPES.OPEN_LATEST_COMMENT:
+      return await openLatestComment(message.notificationId);
     case MESSAGE_TYPES.MARK_AS_READ:
       return await markAsRead(message.notificationId);
 
@@ -705,6 +838,8 @@ async function handleLogin(authMethod = "oauth", token = null) {
 async function handleLogout() {
   github.logout();
   hasMoreNotifications = false;
+  latestCommentUrlCache.clear();
+  await persistCommentCache();
   await stopPolling();
   await storage.clearAuthData();
   await updateBadge(null);
@@ -753,6 +888,37 @@ async function openNotification(notificationId) {
   return { success: true, url };
 }
 
+async function openLatestComment(notificationId) {
+  const notifications = await storage.getNotifications();
+  const notification = notifications.find((n) => n.id === notificationId);
+
+  if (!notification) {
+    throw new Error("Notification not found");
+  }
+
+  // Use prefetched URL if available and still valid for this notification's updated_at
+  const cached = latestCommentUrlCache.get(notificationId);
+  let latestCommentUrl =
+    cached && cached.updated_at === notification.updated_at ? cached.url : null;
+
+  // Fall back to a live API query when the cache has no valid entry
+  if (!latestCommentUrl) {
+    latestCommentUrl = await github.getLatestCommentUrl(notification);
+  }
+
+  const url = latestCommentUrl ?? buildNotificationUrl(notification);
+
+  // Open tab immediately
+  await tabs.create({ url });
+
+  // Mark as read in background (don't block the opening)
+  markAsRead(notificationId).catch((error) => {
+    console.error("Failed to mark as read:", error);
+  });
+
+  return { success: true, url };
+}
+
 async function markAsRead(notificationId) {
   try {
     await github.markAsRead(notificationId);
@@ -766,6 +932,10 @@ async function markAsRead(notificationId) {
 
     await storage.setNotifications(updated);
     await updateBadge(updated.length, hasMoreNotifications);
+
+    // Remove the stale cache entry for this notification
+    latestCommentUrlCache.delete(notificationId);
+    await persistCommentCache();
 
     return { success: true };
   } catch (error) {
@@ -781,10 +951,12 @@ async function markAllAsRead() {
     // Invalidate in-progress detail fetches so they don't restore notifications after the clear.
     notificationFetchVersion++;
 
-    // Clear local storage
+    // Clear local storage and the comment URL cache
     hasMoreNotifications = false;
     await storage.setNotifications([]);
     await updateBadge(0);
+    latestCommentUrlCache.clear();
+    await persistCommentCache();
 
     return { success: true };
   } catch (error) {
@@ -806,6 +978,13 @@ async function markRepoAsRead(owner, repo) {
 
     await storage.setNotifications(updated);
     await updateBadge(updated.length, hasMoreNotifications);
+
+    // Remove cache entries for the cleared repo's notifications
+    const removedIds = notifications
+      .filter((n) => n.repository.full_name === `${owner}/${repo}`)
+      .map((n) => n.id);
+    for (const id of removedIds) latestCommentUrlCache.delete(id);
+    await persistCommentCache();
 
     return { success: true, notifications: updated };
   } catch (error) {
@@ -990,6 +1169,10 @@ notifications.onClicked.addListener(async (notificationId) => {
 
       // Mark as read
       await github.markAsRead(githubNotifId);
+
+      // Remove stale comment URL cache entry for this notification
+      latestCommentUrlCache.delete(githubNotifId);
+      await persistCommentCache();
 
       // Update badge
       await updateBadge(updatedNotifications.length, hasMoreNotifications);
