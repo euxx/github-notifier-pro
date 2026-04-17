@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.1] - 2026-04-17
+
+### Improved
+
+- Refine popup hover and keyboard focus feedback across links, buttons, repository headers, and notification actions
+- Merge the settings avatar and username into a single accessible profile link while keeping avatar and text hover feedback independent
+
 ## [1.2.0] - 2026-04-16
 
 ### Added
