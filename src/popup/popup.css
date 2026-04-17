@@ -411,13 +411,6 @@ body.dark-theme .pat-input.input-error {
     box-shadow 0.15s;
 }
 
-.profile-link:hover .username,
-.profile-link:hover .setting-account-name,
-.profile-link:focus-visible .username,
-.profile-link:focus-visible .setting-account-name {
-  color: var(--text-highlight);
-}
-
 .profile-link:focus-visible {
   outline: 3px solid var(--action-focus);
   outline-offset: 2px;
@@ -440,13 +433,20 @@ body.dark-theme .pat-input.input-error {
     transform 0.15s ease;
 }
 
-.user-profile-link:hover .user-avatar,
+.user-profile-link .user-avatar:hover,
 .user-profile-link:focus-visible .user-avatar {
   box-shadow:
     0 0 0 1px var(--avatar-ring-highlight-color),
     0 0 0 4px var(--avatar-ring-glow);
   filter: brightness(1.04);
   transform: scale(1.02);
+}
+
+.user-profile-link .username:hover,
+.user-profile-link:focus-visible .username,
+.settings-profile-link .setting-account-name:hover,
+.settings-profile-link:focus-visible .setting-account-name {
+  color: var(--text-highlight);
 }
 
 .user-info .username {
@@ -1216,10 +1216,10 @@ body.dark-theme .settings-view {
   padding: 12px 6px 12px 0;
 }
 
-.settings-avatar-link {
-  flex-shrink: 0;
-  margin-right: 4px;
-  border-radius: 50%;
+.settings-profile-link {
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .settings-avatar {
@@ -1234,8 +1234,8 @@ body.dark-theme .settings-view {
     transform 0.15s ease;
 }
 
-.settings-avatar-link:hover .settings-avatar,
-.settings-avatar-link:focus-visible .settings-avatar {
+.settings-profile-link .settings-avatar:hover,
+.settings-profile-link:focus-visible .settings-avatar {
   box-shadow:
     0 0 0 1px var(--avatar-ring-highlight-color),
     0 0 0 4px var(--avatar-ring-glow);
@@ -1247,11 +1247,7 @@ body.dark-theme .settings-view {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-username-link {
+  gap: 4px;
   min-width: 0;
 }
 

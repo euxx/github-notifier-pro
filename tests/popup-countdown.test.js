@@ -119,8 +119,7 @@ document.body.innerHTML = `
   <div id="notifications-container"></div>
   <span id="settings-username"></span>
   <img id="settings-avatar" />
-  <a id="settings-avatar-link"></a>
-  <a id="settings-username-link"></a>
+  <a id="settings-profile-link"></a>
   <span id="settings-auth-method"></span>
 `;
 

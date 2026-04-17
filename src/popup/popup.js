@@ -61,7 +61,7 @@ function updateProfileLinks(username, userInfo) {
   const displayName = username || userInfo?.login || "User";
   const ariaLabel = displayName !== "User" ? `Open ${displayName} profile` : "Open GitHub profile";
 
-  [userProfileLink, settingsAvatarLink, settingsUsernameLink].forEach((link) => {
+  [userProfileLink, settingsProfileLink].forEach((link) => {
     if (!link) return;
     if (url) {
       link.href = url;
@@ -180,8 +180,7 @@ const themeRadios = document.querySelectorAll('input[name="theme"]');
 const settingsLogoutBtn = document.getElementById("settings-logout-btn");
 const settingsUsernameEl = document.getElementById("settings-username");
 const settingsAvatarEl = document.getElementById("settings-avatar");
-const settingsAvatarLink = document.getElementById("settings-avatar-link");
-const settingsUsernameLink = document.getElementById("settings-username-link");
+const settingsProfileLink = document.getElementById("settings-profile-link");
 const settingsAuthMethodEl = document.getElementById("settings-auth-method");
 const notificationsContainer = document.getElementById("notifications-container");
 const refreshCountdownEl = document.getElementById("refresh-countdown");
@@ -409,14 +408,8 @@ async function showSettings() {
     settingsAvatarEl.src = userInfo.avatar_url;
     settingsAvatarEl.alt = userInfo.login || "User";
     settingsAvatarEl.hidden = false;
-    if (settingsAvatarLink) {
-      settingsAvatarLink.hidden = false;
-    }
   } else if (settingsAvatarEl) {
     settingsAvatarEl.hidden = true;
-    if (settingsAvatarLink) {
-      settingsAvatarLink.hidden = true;
-    }
   }
 
   // Load popup width setting
