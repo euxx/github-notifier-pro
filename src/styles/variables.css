@@ -9,6 +9,7 @@
 
   /* UI Colors */
   --text-primary: #1f2937;
+  --text-highlight: #111827;
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
   --border-color: #e5e7eb;
@@ -16,6 +17,8 @@
   --bg-secondary: #f9fafb;
   --bg-primary: #ffffff;
   --avatar-ring-color: rgba(31, 41, 55, 0.12);
+  --avatar-ring-highlight-color: rgba(31, 41, 55, 0.28);
+  --avatar-ring-glow: rgba(31, 41, 55, 0.08);
 
   /* Radius */
   --radius-sm: 6px;
@@ -40,6 +43,7 @@ body.dark-theme {
   --primary-color: #d1d5db;
 
   --text-primary: #adbac7;
+  --text-highlight: #d1d5db;
   --text-secondary: #768390;
   --text-tertiary: #636e7b;
   --border-color: #444c56;
@@ -47,6 +51,8 @@ body.dark-theme {
   --bg-secondary: #22272e;
   --bg-primary: #22272e;
   --avatar-ring-color: rgba(255, 255, 255, 0.14);
+  --avatar-ring-highlight-color: rgba(255, 255, 255, 0.3);
+  --avatar-ring-glow: rgba(255, 255, 255, 0.1);
 
   /* Icon Colors - GitHub Style (softer) */
   --icon-issue-open: #2ea043; /* Darker green for open issues */
