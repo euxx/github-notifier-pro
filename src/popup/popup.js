@@ -185,6 +185,23 @@ const settingsAuthMethodEl = document.getElementById("settings-auth-method");
 const notificationsContainer = document.getElementById("notifications-container");
 const refreshCountdownEl = document.getElementById("refresh-countdown");
 
+// Filter view elements
+const filterIconBtn = document.getElementById("filter-icon-btn");
+const filterView = document.getElementById("filter-view");
+const filterBackBtn = document.getElementById("filter-back-btn");
+const filterRulesList = document.getElementById("filter-rules-list");
+const filterAddRuleBtn = document.getElementById("filter-add-rule-btn");
+const filterCreator = document.getElementById("filter-creator");
+const filterCreatorToggle = document.getElementById("filter-creator-toggle");
+const filterCreatorLabel = document.getElementById("filter-creator-label");
+const filterNewRepoChips = document.getElementById("filter-new-repo-chips");
+const filterNewRepoInput = document.getElementById("filter-new-repo-input");
+const filterNewRepoAdd = document.getElementById("filter-new-repo-add");
+const filterNewKwChips = document.getElementById("filter-new-kw-chips");
+const filterNewKwInput = document.getElementById("filter-new-kw-input");
+const filterNewKwAdd = document.getElementById("filter-new-kw-add");
+const filterErrorEl = document.getElementById("filter-error");
+
 // Popup size controls
 const popupWidthInput = document.getElementById("popup-width-input");
 const widthDecreaseBtn = document.getElementById("width-decrease");
@@ -376,6 +393,17 @@ function stopCountdown() {
 }
 
 /**
+ * Toggle between the main notification list and an overlay view (settings, filter, etc.).
+ * @param {boolean} show - true to show overlay, false to restore main view
+ */
+function toggleOverlayView(show) {
+  document.querySelector(".header").hidden = show;
+  document.querySelector(".footer").hidden = show;
+  setSettingsLayoutState(show);
+  notificationsContainer.hidden = show;
+}
+
+/**
  * Show settings view
  */
 async function showSettings() {
@@ -441,13 +469,7 @@ async function showSettings() {
       desktopNotificationsHint.hidden = false;
     }
   }
-  // Hide header and footer
-  document.querySelector(".header").hidden = true;
-  document.querySelector(".footer").hidden = true;
-
-  // Show settings view
-  setSettingsLayoutState(true);
-  notificationsContainer.hidden = true;
+  toggleOverlayView(true);
   settingsView.hidden = false;
 }
 
@@ -455,14 +477,8 @@ async function showSettings() {
  * Hide settings view
  */
 function hideSettings() {
-  setSettingsLayoutState(false);
-
-  // Show header and footer
-  document.querySelector(".header").hidden = false;
-  document.querySelector(".footer").hidden = false;
-
+  toggleOverlayView(false);
   settingsView.hidden = true;
-  notificationsContainer.hidden = false;
 }
 
 /**
@@ -864,6 +880,313 @@ function removeOverlayFadeOut(elements) {
 }
 
 /**
+ * Create a removable chip element.
+ * @param {string} value - Display text
+ * @param {string} variant - "repo" | "kw" — controls the chip color
+ * @param {Function} [onRemove] - Called with `value` when × is clicked. Omit for read-only.
+ * @returns {HTMLElement}
+ */
+function createChip(value, variant, onRemove) {
+  const chip = document.createElement("span");
+  chip.className = `filter-chip filter-chip-${variant}`;
+  chip.textContent = value;
+
+  if (onRemove) {
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "filter-chip-remove";
+    removeBtn.title = `Remove "${value}"`;
+    removeBtn.setAttribute("aria-label", `Remove ${value}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => onRemove(value));
+    chip.appendChild(removeBtn);
+  }
+
+  return chip;
+}
+
+/**
+ * Render the list of existing filter rules as compact read-only rows.
+ * Each row shows repo + keyword chips and a "Remove" button.
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ */
+function renderRuleRows(rules) {
+  if (!filterRulesList) return;
+  filterRulesList.replaceChildren();
+
+  if (rules.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    // Reuse the filter funnel icon from the header (createContextualFragment avoids innerHTML)
+    const svgMarkup =
+      '<svg viewBox="0 0 16 16" width="24" height="24"><path fill="currentColor" d="M.75 3h14.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1 0-1.5ZM3 7.75A.75.75 0 0 1 3.75 7h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 7.75Zm3 4a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>';
+    empty.appendChild(document.createRange().createContextualFragment(svgMarkup));
+    const text = document.createElement("p");
+    text.textContent = "No rules yet";
+    empty.appendChild(text);
+    filterRulesList.appendChild(empty);
+    return;
+  }
+
+  rules.forEach((rule, idx) => {
+    const row = document.createElement("div");
+    row.className = "filter-rule-row";
+
+    // Chips area: repos + separator + keywords
+    const chips = document.createElement("div");
+    chips.className = "filter-rule-chips";
+
+    rule.repos.forEach((repo) => chips.appendChild(createChip(repo, "repo")));
+
+    if (rule.repos.length > 0 && rule.keywords.length > 0) {
+      const sep = document.createElement("span");
+      sep.className = "filter-rule-sep";
+      sep.textContent = "+";
+      chips.appendChild(sep);
+    }
+
+    rule.keywords.forEach((kw) => chips.appendChild(createChip(kw, "kw")));
+
+    // Edit button
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn btn-secondary btn-compact";
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", () => editRule(idx));
+
+    // Remove button
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn btn-secondary btn-compact filter-rule-remove-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", async () => {
+      const updated = [...currentFilterRules];
+      updated.splice(idx, 1);
+      if (!(await saveFilterRules(updated))) return;
+      currentFilterRules = updated;
+      // Adjust editingRuleIndex if the creator form is open
+      if (editingRuleIndex >= 0) {
+        if (idx === editingRuleIndex) {
+          hideCreator();
+        } else if (idx < editingRuleIndex) {
+          editingRuleIndex--;
+        }
+      }
+      renderRuleRows(currentFilterRules);
+      updateFilterIndicator(currentFilterRules);
+    });
+
+    row.appendChild(chips);
+    row.appendChild(editBtn);
+    row.appendChild(removeBtn);
+    filterRulesList.appendChild(row);
+  });
+}
+
+/**
+ * Re-render the chip list inside the new-rule creator for repos or keywords.
+ * @param {"repo"|"kw"} field
+ */
+function renderNewRuleChips(field) {
+  const key = field === "repo" ? "repos" : "keywords";
+  const container = field === "repo" ? filterNewRepoChips : filterNewKwChips;
+  if (!container) return;
+  container.replaceChildren(
+    ...newRule[key].map((v) =>
+      createChip(v, field, (removed) => {
+        newRule[key] = newRule[key].filter((r) => r !== removed);
+        renderNewRuleChips(field);
+      }),
+    ),
+  );
+  // Disable Save when no keywords are present
+  if (filterAddRuleBtn) filterAddRuleBtn.disabled = newRule.keywords.length === 0;
+}
+
+/**
+ * Persist the filter rules array via the service worker.
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ */
+async function saveFilterRules(rules) {
+  try {
+    const result = await sendMessage(MESSAGE_TYPES.SET_NOTIFICATION_FILTER, { filter: rules });
+    if (result?.error) {
+      throw new Error(result.error);
+    }
+    if (filterErrorEl) filterErrorEl.hidden = true;
+    return true;
+  } catch (err) {
+    console.error("Failed to save notification filter:", err);
+    if (filterErrorEl) {
+      filterErrorEl.textContent = "Failed to save filter. Please try again.";
+      filterErrorEl.hidden = false;
+    }
+    return false;
+  }
+}
+
+/**
+ * Show a dot indicator on the filter button when any rule has content.
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ */
+function updateFilterIndicator(rules) {
+  if (!filterIconBtn) return;
+  const isActive = rules.some((r) => r.repos.length > 0 || r.keywords.length > 0);
+  filterIconBtn.classList.toggle("filter-active", isActive);
+}
+
+/** In-memory copy of the current saved rules. */
+let currentFilterRules = [];
+
+/** In-memory state for the new-rule creator form. */
+const newRule = { repos: [], keywords: [] };
+
+/** Index of the rule currently being edited, or -1 when creating a new rule. */
+let editingRuleIndex = -1;
+
+/**
+ * Show filter view.
+ */
+async function showFilter() {
+  let loadError = false;
+  try {
+    const result = await sendMessage(MESSAGE_TYPES.GET_NOTIFICATION_FILTER);
+    currentFilterRules = Array.isArray(result?.filter) ? result.filter : [];
+  } catch (err) {
+    console.error("Failed to load notification filter:", err);
+    currentFilterRules = [];
+    loadError = true;
+  }
+
+  toggleOverlayView(true);
+  filterView.hidden = false;
+
+  if (filterErrorEl) {
+    if (loadError) {
+      filterErrorEl.textContent = "Failed to load filter rules.";
+      filterErrorEl.hidden = false;
+    } else {
+      filterErrorEl.hidden = true;
+    }
+  }
+
+  // Render after the view is visible so layout is computed correctly
+  renderRuleRows(currentFilterRules);
+  // Start with creator collapsed
+  hideCreator();
+}
+
+/**
+ * Hide filter view and re-render notifications from storage
+ * to reflect any filter changes made while the view was open.
+ */
+async function hideFilter() {
+  toggleOverlayView(false);
+  filterView.hidden = true;
+  // Re-render from storage so filter changes are visible immediately
+  try {
+    const notifications = await storage.getNotifications();
+    renderNotifications(notifications, false);
+  } catch (err) {
+    console.error("Failed to reload notifications after closing filter:", err);
+    renderNotifications([], false);
+  }
+}
+
+/**
+ * Expand the new-rule creator form for a new rule.
+ */
+function showCreator() {
+  editingRuleIndex = -1;
+  newRule.repos = [];
+  newRule.keywords = [];
+  openCreatorForm("New Rule");
+}
+
+/**
+ * Expand the creator form pre-filled with an existing rule for editing.
+ * @param {number} index - Index of the rule in currentFilterRules
+ */
+function editRule(index) {
+  const rule = currentFilterRules[index];
+  if (!rule) return;
+  editingRuleIndex = index;
+  newRule.repos = [...rule.repos];
+  newRule.keywords = [...rule.keywords];
+  openCreatorForm("Edit Rule");
+}
+
+/**
+ * Open the creator form with the given label, resetting inputs.
+ * @param {string} label - "New Rule" or "Edit Rule"
+ */
+function openCreatorForm(label) {
+  renderNewRuleChips("repo");
+  renderNewRuleChips("kw"); // also sets filterAddRuleBtn.disabled
+  if (filterNewRepoInput) {
+    filterNewRepoInput.value = "";
+    filterNewRepoInput.focus();
+  }
+  if (filterNewKwInput) filterNewKwInput.value = "";
+  if (filterCreatorLabel) filterCreatorLabel.textContent = label;
+  if (filterCreator) filterCreator.hidden = false;
+  if (filterCreatorToggle) filterCreatorToggle.textContent = "Cancel";
+  if (filterAddRuleBtn) filterAddRuleBtn.hidden = false;
+}
+
+/**
+ * Collapse and reset the creator form.
+ */
+function hideCreator() {
+  editingRuleIndex = -1;
+  newRule.repos = [];
+  newRule.keywords = [];
+  if (filterCreator) filterCreator.hidden = true;
+  if (filterCreatorToggle) filterCreatorToggle.textContent = "+ New Rule";
+  if (filterAddRuleBtn) filterAddRuleBtn.hidden = true;
+}
+
+/**
+ * Add a value to the new-rule creator's repo or keyword list.
+ * @param {"repo"|"kw"} field
+ */
+function addToNewRule(field) {
+  const input = field === "repo" ? filterNewRepoInput : filterNewKwInput;
+  const value = input?.value.trim();
+  if (!value) return;
+  const list = field === "repo" ? newRule.repos : newRule.keywords;
+  if (!list.some((v) => v.toLowerCase() === value.toLowerCase())) {
+    list.push(value);
+    renderNewRuleChips(field);
+  }
+  if (input) {
+    input.value = "";
+    input.focus();
+  }
+}
+
+/**
+ * Commit the new rule from the creator form to the saved list.
+ */
+async function submitNewRule() {
+  // At least one keyword is required — repos-only rules would never match anything
+  if (newRule.keywords.length === 0) return;
+  const updatedRule = { repos: [...newRule.repos], keywords: [...newRule.keywords] };
+  let updated;
+  if (editingRuleIndex >= 0) {
+    // Replace existing rule in place
+    updated = currentFilterRules.map((r, i) => (i === editingRuleIndex ? updatedRule : r));
+  } else {
+    updated = [...currentFilterRules, updatedRule];
+  }
+  if (!(await saveFilterRules(updated))) return;
+  currentFilterRules = updated;
+  renderRuleRows(currentFilterRules);
+  updateFilterIndicator(currentFilterRules);
+  hideCreator();
+}
+
+/**
  * Mark all notifications in a repository as read
  * @param {string} repoFullName - Repository full name (owner/repo)
  */
@@ -957,6 +1280,14 @@ async function init() {
     updateProfileLinks(username, userInfo);
     // Start countdown timer for next refresh
     startCountdown();
+
+    // Show filter indicator if rules are already configured (non-critical, ignore errors)
+    try {
+      const filterResult = await sendMessage(MESSAGE_TYPES.GET_NOTIFICATION_FILTER);
+      updateFilterIndicator(Array.isArray(filterResult?.filter) ? filterResult.filter : []);
+    } catch {
+      // Non-critical: indicator defaults to inactive
+    }
   } else {
     await showView("login"); // This will set 400px width
   }
@@ -988,6 +1319,27 @@ popupWidthInput.addEventListener("change", handleWidthChange);
 popupWidthInput.addEventListener("blur", handleWidthChange);
 widthDecreaseBtn.addEventListener("click", decreaseWidth);
 widthIncreaseBtn.addEventListener("click", increaseWidth);
+
+// Filter page
+filterIconBtn?.addEventListener("click", showFilter);
+filterBackBtn?.addEventListener("click", hideFilter);
+// Toggle button: "+ New Rule" when collapsed, "Cancel" when expanded
+filterCreatorToggle?.addEventListener("click", () => {
+  if (filterCreator?.hidden !== false) {
+    showCreator();
+  } else {
+    hideCreator();
+  }
+});
+filterAddRuleBtn?.addEventListener("click", submitNewRule);
+filterNewRepoAdd?.addEventListener("click", () => addToNewRule("repo"));
+filterNewKwAdd?.addEventListener("click", () => addToNewRule("kw"));
+filterNewRepoInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addToNewRule("repo");
+});
+filterNewKwInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addToNewRule("kw");
+});
 
 // Desktop notification settings
 desktopNotificationsToggle.addEventListener("change", async () => {

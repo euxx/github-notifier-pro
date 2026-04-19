@@ -36,6 +36,9 @@
 
   /* Priority dot: shown for high-priority notification reasons */
   --priority-dot: #9ca3af;
+
+  /* Fonts */
+  --font-mono: "SF Mono", Monaco, "Cascadia Code", ui-monospace, monospace;
 }
 
 /* Dark Theme - GitHub Notifications Style */

@@ -84,6 +84,8 @@ const mockStorageFunctions = {
   setAuthMethod: vi.fn(),
   getEnableDesktopNotifications: vi.fn(),
   getMaxDesktopNotifications: vi.fn(),
+  getNotificationFilter: vi.fn(),
+  setNotificationFilter: vi.fn(),
   clear: vi.fn(),
   clearAuthData: vi.fn(),
 };
@@ -129,6 +131,8 @@ vi.mock("../src/lib/constants.js", () => ({
     MARK_ALL_AS_READ: "markAllAsRead",
     MARK_REPO_AS_READ: "markRepoAsRead",
     REFRESH: "refresh",
+    GET_NOTIFICATION_FILTER: "getNotificationFilter",
+    SET_NOTIFICATION_FILTER: "setNotificationFilter",
   },
   NOTIFICATION_TYPES: {
     ISSUE: "Issue",
@@ -195,6 +199,7 @@ const {
   persistCommentCache,
   restoreCommentCache,
   showDesktopNotificationsForNew,
+  matchesNotificationFilter,
   NOTIFICATION_ID_PREFIX,
   AGGREGATED_NOTIFICATION_ID,
   NOTIFICATION_DELAY_MS,
@@ -225,10 +230,12 @@ describe("service-worker", () => {
     mockStorageFunctions.getUsername.mockResolvedValue(null);
     mockStorageFunctions.getNotifications.mockResolvedValue([]);
     mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(false);
+    mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
     mockStorageFunctions.setToken.mockResolvedValue(undefined);
     mockStorageFunctions.setUsername.mockResolvedValue(undefined);
     mockStorageFunctions.setNotifications.mockResolvedValue(undefined);
     mockStorageFunctions.setAuthMethod.mockResolvedValue(undefined);
+    mockStorageFunctions.setNotificationFilter.mockResolvedValue(undefined);
     mockStorageFunctions.clear.mockResolvedValue(undefined);
 
     // Setup default session storage responses (used by persistCommentCache / restoreCommentCache)
@@ -2125,6 +2132,312 @@ describe("comment URL cache session storage persistence", () => {
       expect(latestCommentUrlCache.size).toBe(0);
 
       mockStorage.session = origSession;
+    });
+  });
+
+  describe("handleMessage - GET_NOTIFICATION_FILTER", () => {
+    it("should return stored filter rules", async () => {
+      const rules = [{ repos: ["owner/repo"], keywords: ["beta"] }];
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(rules);
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: "getNotificationFilter" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith({ filter: rules });
+    });
+
+    it("should return empty array when no filter is configured", async () => {
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
+
+      const sendResponse = vi.fn();
+      messageHandler({ action: "getNotificationFilter" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith({ filter: [] });
+    });
+  });
+
+  describe("handleMessage - SET_NOTIFICATION_FILTER", () => {
+    it("should save valid filter rules", async () => {
+      const rules = [{ repos: ["owner/repo"], keywords: ["beta"] }];
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(rules);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+
+    it("should accept rule with empty repos (global scope)", async () => {
+      const rules = [{ repos: [], keywords: ["nightly"] }];
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(rules);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+
+    it("should reject non-array filter", async () => {
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: "bad" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.stringContaining("filter must be an array") }),
+      );
+      expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
+    });
+
+    it("should reject rule missing repos array", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ keywords: ["beta"] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("repos and keywords arrays"),
+        }),
+      );
+    });
+
+    it("should reject rule missing keywords array", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ repos: ["owner/repo"] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("repos and keywords arrays"),
+        }),
+      );
+    });
+
+    it("should reject rule with empty keywords", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ repos: [], keywords: [] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("at least one keyword"),
+        }),
+      );
+    });
+
+    it("should reject rule with only whitespace/empty-string keywords", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ repos: [], keywords: ["", " ", "  "] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("at least one keyword"),
+        }),
+      );
+    });
+
+    it("should trim whitespace from repos and keywords", async () => {
+      const rules = [{ repos: [" owner/repo "], keywords: [" beta "] }];
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith([
+        { repos: ["owner/repo"], keywords: ["beta"] },
+      ]);
+    });
+
+    it("should reject rule with non-string repo elements", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ repos: [123], keywords: ["beta"] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("arrays of strings"),
+        }),
+      );
+      expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
+    });
+
+    it("should reject rule with non-string keyword elements", async () => {
+      const sendResponse = vi.fn();
+      messageHandler(
+        { action: "setNotificationFilter", filter: [{ repos: [], keywords: [null] }] },
+        {},
+        sendResponse,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("arrays of strings"),
+        }),
+      );
+      expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
+    });
+
+    it("should apply filter to stored notifications when rules match", async () => {
+      const storedNotifs = [
+        { id: "1", title: "v1.0.0-beta", repository: { full_name: "owner/repo" } },
+        { id: "2", title: "Fix bug", repository: { full_name: "owner/repo" } },
+        { id: "3", title: "v2.0.0-beta.1", repository: { full_name: "owner/repo" } },
+      ];
+      mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
+
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
+        { id: "2", title: "Fix bug", repository: { full_name: "owner/repo" } },
+      ]);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+
+    it("should not call setNotifications with a filtered subset when no stored notifications match", async () => {
+      const storedNotifs = [{ id: "1", title: "Fix bug", repository: { full_name: "owner/repo" } }];
+      mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
+
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // The immediate re-filter path must NOT write a filtered subset: "Fix bug" doesn't
+      // match "beta", so the if (filtered.length !== current.length) guard prevents the
+      // write. (Background checkNotifications may call setNotifications independently.)
+      const calledWithSubset = mockStorageFunctions.setNotifications.mock.calls.some(
+        (call) => Array.isArray(call[0]) && call[0].length < storedNotifs.length,
+      );
+      expect(calledWithSubset).toBe(false);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+
+    it("should skip immediate re-filter and not write empty storage when filter is empty", async () => {
+      const sendResponse = vi.fn();
+      messageHandler({ action: "setNotificationFilter", filter: [] }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith([]);
+      // filter.length === 0: the immediate re-filter block is skipped so storage is
+      // never overwritten with an empty array by this path.
+      const calledWithEmpty = mockStorageFunctions.setNotifications.mock.calls.some(
+        (call) => Array.isArray(call[0]) && call[0].length === 0,
+      );
+      expect(calledWithEmpty).toBe(false);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    });
+  });
+
+  describe("matchesNotificationFilter", () => {
+    const makeNotif = (title, repoFullName = "owner/repo") => ({
+      title,
+      repository: { full_name: repoFullName },
+    });
+
+    it("returns false for empty rules array", () => {
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-beta"), [])).toBe(false);
+    });
+
+    it("returns false when rule has empty repos and empty keywords", () => {
+      const rules = [{ repos: [], keywords: [] }];
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-beta"), rules)).toBe(false);
+    });
+
+    it("matches keyword in title (case-insensitive)", () => {
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-BETA"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-Beta.1"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v1.0.0"), rules)).toBe(false);
+    });
+
+    it("scopes to specific repos when repos is non-empty", () => {
+      const rules = [{ repos: ["owner/repo-a"], keywords: ["rc"] }];
+      expect(matchesNotificationFilter(makeNotif("v2.0.0-rc.1", "owner/repo-a"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v2.0.0-rc.1", "owner/repo-b"), rules)).toBe(
+        false,
+      );
+    });
+
+    it("matches repos case-insensitively", () => {
+      const rules = [{ repos: ["Owner/Repo-A"], keywords: ["rc"] }];
+      expect(matchesNotificationFilter(makeNotif("v2.0.0-rc.1", "owner/repo-a"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v2.0.0-rc.1", "OWNER/REPO-A"), rules)).toBe(true);
+    });
+
+    it("does not match when rule has repos but no keywords", () => {
+      const rules = [{ repos: ["owner/repo"], keywords: [] }];
+      expect(matchesNotificationFilter(makeNotif("anything", "owner/repo"), rules)).toBe(false);
+    });
+
+    it("matches if any rule in the array matches (OR semantics)", () => {
+      const rules = [
+        { repos: ["owner/repo-a"], keywords: ["alpha"] },
+        { repos: [], keywords: ["nightly"] },
+      ];
+      expect(matchesNotificationFilter(makeNotif("v1-alpha", "owner/repo-a"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("nightly-build", "owner/repo-b"), rules)).toBe(
+        true,
+      );
+      expect(matchesNotificationFilter(makeNotif("v1.0.0", "owner/repo-a"), rules)).toBe(false);
+    });
+
+    it("matches any keyword in the list (OR within keywords)", () => {
+      const rules = [{ repos: [], keywords: ["alpha", "beta", "rc"] }];
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-alpha"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-beta"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v1.0.0-rc.1"), rules)).toBe(true);
+      expect(matchesNotificationFilter(makeNotif("v1.0.0"), rules)).toBe(false);
+    });
+
+    it("returns false when notif has no title", () => {
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      expect(
+        matchesNotificationFilter({ title: null, repository: { full_name: "owner/repo" } }, rules),
+      ).toBe(false);
+      expect(matchesNotificationFilter({ repository: { full_name: "owner/repo" } }, rules)).toBe(
+        false,
+      );
+    });
+
+    it("returns false when notif has no repository", () => {
+      const rules = [{ repos: ["owner/repo"], keywords: ["beta"] }];
+      expect(matchesNotificationFilter({ title: "v1.0.0-beta" }, rules)).toBe(false);
+      expect(matchesNotificationFilter({ title: "v1.0.0-beta", repository: null }, rules)).toBe(
+        false,
+      );
+    });
+
+    it("matches all repos (no repo filter) even when repository is undefined", () => {
+      // repos: [] means global scope — but if title is present and no repo filter, should still match keyword
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      // No repository field at all — keyword check should still proceed since repos is empty
+      // But matchesRule only checks repoName when repos.length > 0, so this should match
+      expect(matchesNotificationFilter({ title: "v1.0.0-beta" }, rules)).toBe(true);
     });
   });
 });

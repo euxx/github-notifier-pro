@@ -336,6 +336,52 @@ function createDetailFetchTask(notification, index, detailedNotifications, force
 }
 
 /**
+ * Check whether a single notification matches one notification filter rule.
+ * @param {Object} notif - Notification object
+ * @param {{ repos: string[], keywords: string[] }} rule - One filter rule
+ * @returns {boolean}
+ */
+function matchesRule(notif, rule) {
+  const { repos, keywords } = rule;
+
+  // Rule is effectively empty — skip it
+  if (repos.length === 0 && keywords.length === 0) return false;
+
+  // Repo scope check: empty = all repos; non-empty = only listed repos (case-insensitive)
+  const repoName = notif.repository?.full_name?.toLowerCase();
+  if (repos.length > 0 && (!repoName || !repos.some((r) => r.toLowerCase() === repoName)))
+    return false;
+
+  // Keyword check: hide notifications whose title contains any keyword
+  const title = notif.title;
+  if (!title) return false;
+  const titleLower = title.toLowerCase();
+  return keywords.some((kw) => titleLower.includes(kw.toLowerCase()));
+}
+
+/**
+ * Check whether a notification matches any rule in the notification filter list.
+ * Returns true if the notification should be hidden.
+ * @param {Object} notif - Notification object
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules - Filter rules array
+ * @returns {boolean}
+ * @exported for testing
+ */
+export function matchesNotificationFilter(notif, rules) {
+  return rules.some((rule) => matchesRule(notif, rule));
+}
+
+/**
+ * Remove notifications that match any notification filter rule.
+ * @param {Array} notifications
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ * @returns {Array}
+ */
+function applyNotificationFilter(notifications, rules) {
+  return notifications.filter((n) => !matchesNotificationFilter(n, rules));
+}
+
+/**
  * Filter notifications to only those that still exist in storage
  * Prevents overwriting user deletions during concurrent operations
  * @param {Array} detailedNotifications - Notifications to filter
@@ -350,12 +396,19 @@ function filterToCurrentlyStored(detailedNotifications, currentStoredNotificatio
 /**
  * Merge notifications with current storage and save, guarded by fetch version.
  * Aborts if a newer fetch has started (before or during the async storage read).
+ * Callers are responsible for updating the badge after a successful save.
  * @param {number} fetchVersion - Version of the fetch that produced these notifications
  * @param {Array} notifications - Notifications to save
  * @param {string} label - Log label for debugging
- * @returns {Promise<boolean>} true if saved, false if superseded
+ * @param {Array|null} [notificationFilter=null] - Optional filter rules to apply before saving
+ * @returns {Promise<number|false>} Number of saved notifications, or false if superseded
  */
-async function mergeAndSaveIfCurrent(fetchVersion, notifications, label) {
+async function mergeAndSaveIfCurrent(
+  fetchVersion,
+  notifications,
+  label,
+  notificationFilter = null,
+) {
   if (fetchVersion < notificationFetchVersion) {
     console.log(`Fetch #${fetchVersion} superseded before ${label}, skipping`);
     return false;
@@ -366,9 +419,12 @@ async function mergeAndSaveIfCurrent(fetchVersion, notifications, label) {
     console.log(`Fetch #${fetchVersion} superseded during ${label} storage read, skipping`);
     return false;
   }
-  const safe = filterToCurrentlyStored(notifications, currentStored);
+  let safe = filterToCurrentlyStored(notifications, currentStored);
+  if (notificationFilter) {
+    safe = applyNotificationFilter(safe, notificationFilter);
+  }
   await storage.setNotifications(safe);
-  return true;
+  return safe.length;
 }
 
 /**
@@ -433,6 +489,9 @@ async function checkNotifications() {
   // Increment version for this fetch to prevent race conditions
   const currentFetchVersion = ++notificationFetchVersion;
   console.log(`Starting notification fetch #${currentFetchVersion}`);
+
+  // Load notification filter config once per fetch cycle
+  const notificationFilter = await storage.getNotificationFilter();
 
   // Track previous poll interval to detect changes
   const previousPollInterval = github.pollInterval;
@@ -525,8 +584,10 @@ async function checkNotifications() {
         return;
       }
       const currentStoredIds = new Set(currentStored.map((n) => n.id));
-      const safeBasic = basicProcessed.filter(
-        (n) => !existingIds.has(n.id) || currentStoredIds.has(n.id),
+      // Apply race-condition guard, then notification filter (keyword-based).
+      const safeBasic = applyNotificationFilter(
+        basicProcessed.filter((n) => !existingIds.has(n.id) || currentStoredIds.has(n.id)),
+        notificationFilter,
       );
 
       // Save basic data immediately - popup can display now.
@@ -579,12 +640,15 @@ async function checkNotifications() {
         );
 
         // Merge with current storage and save (guarded by version check)
-        prioritySaved = await mergeAndSaveIfCurrent(
+        const priorityCount = await mergeAndSaveIfCurrent(
           currentFetchVersion,
           detailedNotifications,
           "priority save",
+          notificationFilter,
         );
+        prioritySaved = priorityCount !== false;
         if (prioritySaved) {
+          await updateBadge(priorityCount, hasMoreNotifications);
           console.log(
             `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
           );
@@ -624,12 +688,14 @@ async function checkNotifications() {
             );
 
             // Merge with current storage and save (guarded by version check)
-            const saved = await mergeAndSaveIfCurrent(
+            const savedCount = await mergeAndSaveIfCurrent(
               currentFetchVersion,
               detailedNotifications,
               "background save",
+              notificationFilter,
             );
-            if (saved) {
+            if (savedCount !== false) {
+              await updateBadge(savedCount, hasMoreNotifications);
               console.log(
                 `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
               );
@@ -795,6 +861,51 @@ async function handleMessage(message) {
         });
       }
       return { success: true };
+
+    case MESSAGE_TYPES.GET_NOTIFICATION_FILTER:
+      return { filter: await storage.getNotificationFilter() };
+
+    case MESSAGE_TYPES.SET_NOTIFICATION_FILTER: {
+      const filter = message.filter;
+      if (!Array.isArray(filter)) {
+        throw new Error("filter must be an array");
+      }
+      for (const rule of filter) {
+        if (!Array.isArray(rule?.repos) || !Array.isArray(rule?.keywords)) {
+          throw new Error("Each rule must have repos and keywords arrays");
+        }
+        if (
+          rule.repos.some((r) => typeof r !== "string") ||
+          rule.keywords.some((kw) => typeof kw !== "string")
+        ) {
+          throw new Error("Rule repos and keywords must be arrays of strings");
+        }
+        // Normalize: trim whitespace and drop empty strings
+        rule.repos = rule.repos.map((r) => r.trim()).filter(Boolean);
+        rule.keywords = rule.keywords.map((kw) => kw.trim()).filter(Boolean);
+        if (rule.keywords.length === 0) {
+          throw new Error("Each rule must have at least one keyword");
+        }
+      }
+      await storage.setNotificationFilter(filter);
+      // Apply new filter to currently stored notifications immediately.
+      // When filter is empty (all rules removed), skip: nothing to hide, and the
+      // re-fetch below will restore previously-hidden notifications.
+      if (filter.length > 0) {
+        const current = await storage.getNotifications();
+        const filtered = applyNotificationFilter(current, filter);
+        if (filtered.length !== current.length) {
+          await storage.setNotifications(filtered);
+          await updateBadge(filtered.length, hasMoreNotifications);
+        }
+      }
+      // Re-fetch to restore notifications that may have been hidden by old rules
+      github.lastModified = null;
+      checkNotifications().catch((err) => {
+        console.error("Background re-fetch after filter change failed:", err);
+      });
+      return { success: true };
+    }
 
     default:
       throw new Error(`Unknown action: ${message.action}`);

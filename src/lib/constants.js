@@ -83,6 +83,8 @@ export const MESSAGE_TYPES = {
   MARK_ALL_AS_READ: "markAllAsRead",
   MARK_REPO_AS_READ: "markRepoAsRead",
   REFRESH: "refresh",
+  GET_NOTIFICATION_FILTER: "getNotificationFilter",
+  SET_NOTIFICATION_FILTER: "setNotificationFilter",
 };
 
 // GitHub Notification Types

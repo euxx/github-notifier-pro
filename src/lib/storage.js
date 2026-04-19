@@ -21,6 +21,8 @@ const STORAGE_KEYS = {
   // Desktop notification settings
   ENABLE_DESKTOP_NOTIFICATIONS: "enableDesktopNotifications", // boolean
   MAX_DESKTOP_NOTIFICATIONS: "maxDesktopNotifications", // number (default 5)
+  // Notification filter: array of { repos: string[], keywords: string[] } rules
+  NOTIFICATION_FILTER: "notificationFilter",
 };
 
 /**
@@ -162,6 +164,18 @@ export async function getMaxDesktopNotifications() {
 
 export async function setMaxDesktopNotifications(max) {
   return set(STORAGE_KEYS.MAX_DESKTOP_NOTIFICATIONS, max);
+}
+
+// Notification filter: array of rules, each with repos and keywords.
+// A notification is hidden if it matches ANY rule.
+// repos: [] means apply to all repos; non-empty means only those repos.
+// keywords: title substrings that, when matched, hide the notification (case-insensitive).
+export async function getNotificationFilter() {
+  return get(STORAGE_KEYS.NOTIFICATION_FILTER, []);
+}
+
+export async function setNotificationFilter(filter) {
+  return set(STORAGE_KEYS.NOTIFICATION_FILTER, filter);
 }
 
 export { STORAGE_KEYS };
