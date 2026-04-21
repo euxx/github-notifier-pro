@@ -86,6 +86,8 @@ const mockStorageFunctions = {
   getMaxDesktopNotifications: vi.fn(),
   getNotificationFilter: vi.fn(),
   setNotificationFilter: vi.fn(),
+  getNotificationFilterStats: vi.fn(),
+  setNotificationFilterStats: vi.fn(),
   clear: vi.fn(),
   clearAuthData: vi.fn(),
 };
@@ -200,6 +202,7 @@ const {
   restoreCommentCache,
   showDesktopNotificationsForNew,
   matchesNotificationFilter,
+  applyNotificationFilterWithStats,
   NOTIFICATION_ID_PREFIX,
   AGGREGATED_NOTIFICATION_ID,
   NOTIFICATION_DELAY_MS,
@@ -236,6 +239,8 @@ describe("service-worker", () => {
     mockStorageFunctions.setNotifications.mockResolvedValue(undefined);
     mockStorageFunctions.setAuthMethod.mockResolvedValue(undefined);
     mockStorageFunctions.setNotificationFilter.mockResolvedValue(undefined);
+    mockStorageFunctions.getNotificationFilterStats.mockResolvedValue([]);
+    mockStorageFunctions.setNotificationFilterStats.mockResolvedValue(undefined);
     mockStorageFunctions.clear.mockResolvedValue(undefined);
 
     // Setup default session storage responses (used by persistCommentCache / restoreCommentCache)
@@ -2438,6 +2443,91 @@ describe("comment URL cache session storage persistence", () => {
       // No repository field at all — keyword check should still proceed since repos is empty
       // But matchesRule only checks repoName when repos.length > 0, so this should match
       expect(matchesNotificationFilter({ title: "v1.0.0-beta" }, rules)).toBe(true);
+    });
+  });
+
+  describe("applyNotificationFilterWithStats", () => {
+    const makeNotif = (title, repoFullName = "owner/repo") => ({
+      title,
+      repository: { full_name: repoFullName },
+    });
+
+    it("returns all notifications and empty stats when rules are empty", () => {
+      const notifs = [makeNotif("fix bug"), makeNotif("v1.0.0-beta")];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, []);
+      expect(notifications).toEqual(notifs);
+      expect(stats).toEqual([]);
+    });
+
+    it("filters matching notifications and counts per repo and per keyword", () => {
+      const rules = [{ repos: [], keywords: ["beta"] }];
+      const notifs = [
+        makeNotif("v1.0.0-beta", "org/repo-a"),
+        makeNotif("v1.0.0-beta", "org/repo-b"),
+        makeNotif("fix bug", "org/repo-a"),
+      ];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(1);
+      expect(notifications[0].title).toBe("fix bug");
+      expect(stats[0].repos).toEqual({ "org/repo-a": 1, "org/repo-b": 1 });
+      expect(stats[0].keywords).toEqual({ beta: 2 });
+    });
+
+    it("normalizes repo keys to lowercase for case-insensitive lookup", () => {
+      const rules = [{ repos: ["openai/openai-python"], keywords: ["alpha"] }];
+      // API returns full_name with different casing than the user-saved rule
+      const notifs = [{ title: "v1-alpha", repository: { full_name: "OpenAI/openai-python" } }];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(0);
+      // Key stored in lowercase; lookup with lowercase user-saved repo should work
+      expect(stats[0].repos).toEqual({ "openai/openai-python": 1 });
+    });
+
+    it("counts multiple filtered notifications from the same repo", () => {
+      const rules = [{ repos: ["owner/repo"], keywords: ["alpha"] }];
+      const notifs = [makeNotif("v1-alpha"), makeNotif("v2-alpha"), makeNotif("v3-stable")];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(1);
+      expect(stats[0].repos).toEqual({ "owner/repo": 2 });
+      expect(stats[0].keywords).toEqual({ alpha: 2 });
+    });
+
+    it("counts each matching keyword independently when multiple keywords match", () => {
+      const rules = [{ repos: [], keywords: ["alpha", "beta"] }];
+      const notifs = [
+        makeNotif("v1-alpha-beta"), // matches both keywords
+        makeNotif("v2-alpha"), // matches only "alpha"
+      ];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(0);
+      expect(stats[0].keywords).toEqual({ alpha: 2, beta: 1 });
+    });
+
+    it("tracks stats per rule independently (first matching rule wins)", () => {
+      const rules = [
+        { repos: ["owner/repo-a"], keywords: ["alpha"] },
+        { repos: [], keywords: ["beta"] },
+      ];
+      const notifs = [
+        makeNotif("v1-alpha", "owner/repo-a"),
+        makeNotif("v1-beta", "owner/repo-b"),
+        makeNotif("stable", "owner/repo-a"),
+      ];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(1);
+      expect(stats[0].repos).toEqual({ "owner/repo-a": 1 });
+      expect(stats[0].keywords).toEqual({ alpha: 1 });
+      expect(stats[1].repos).toEqual({ "owner/repo-b": 1 });
+      expect(stats[1].keywords).toEqual({ beta: 1 });
+    });
+
+    it("returns empty repos and keywords when no notifications were filtered", () => {
+      const rules = [{ repos: ["owner/repo"], keywords: ["alpha"] }];
+      const notifs = [makeNotif("stable release")];
+      const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
+      expect(notifications).toHaveLength(1);
+      expect(stats[0].repos).toEqual({});
+      expect(stats[0].keywords).toEqual({});
     });
   });
 });

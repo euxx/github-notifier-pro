@@ -15,7 +15,11 @@ import {
   TIMING_THRESHOLDS,
 } from "../lib/constants.js";
 import { applyTheme } from "../lib/theme.js";
-import { buildProfileUrl } from "../lib/url-builder.js";
+import {
+  buildProfileUrl,
+  buildRepoNotificationsUrl,
+  buildKeywordNotificationsUrl,
+} from "../lib/url-builder.js";
 import { classifyError } from "../lib/format-utils.js";
 import {
   initRenderer,
@@ -908,9 +912,12 @@ function createChip(value, variant, onRemove) {
 /**
  * Render the list of existing filter rules as compact read-only rows.
  * Each row shows repo + keyword chips and a "Remove" button.
+ * Repo chips are rendered as links to the repo's GitHub notifications page,
+ * with the filtered count shown to the right when stats are available.
  * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ * @param {Array<Object>} [stats=[]] - Per-rule per-repo filtered counts from last refresh
  */
-function renderRuleRows(rules) {
+function renderRuleRows(rules, stats = []) {
   if (!filterRulesList) return;
   filterRulesList.replaceChildren();
 
@@ -936,7 +943,35 @@ function renderRuleRows(rules) {
     const chips = document.createElement("div");
     chips.className = "filter-rule-chips";
 
-    rule.repos.forEach((repo) => chips.appendChild(createChip(repo, "repo")));
+    const ruleStats = stats[idx] || {};
+    const repoStats = ruleStats.repos || {};
+    const kwStats = ruleStats.keywords || {};
+
+    rule.repos.forEach((repo) => {
+      // Wrap chip + count in a group so they never wrap separately
+      const group = document.createElement("span");
+      group.className = "filter-chip-group";
+
+      const link = document.createElement("a");
+      link.className = "filter-chip filter-chip-repo filter-chip-link";
+      link.href = buildRepoNotificationsUrl(repo);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.title = `Open ${repo} notifications`;
+      link.textContent = repo;
+      group.appendChild(link);
+
+      // Filtered count badge (only shown when count > 0)
+      const count = repoStats[repo.toLowerCase()] || 0;
+      if (count > 0) {
+        const countEl = document.createElement("span");
+        countEl.className = "filter-chip-count";
+        countEl.textContent = count;
+        countEl.title = `${count} notification${count === 1 ? "" : "s"} filtered from last refresh`;
+        group.appendChild(countEl);
+      }
+      chips.appendChild(group);
+    });
 
     if (rule.repos.length > 0 && rule.keywords.length > 0) {
       const sep = document.createElement("span");
@@ -945,7 +980,31 @@ function renderRuleRows(rules) {
       chips.appendChild(sep);
     }
 
-    rule.keywords.forEach((kw) => chips.appendChild(createChip(kw, "kw")));
+    rule.keywords.forEach((kw) => {
+      // Wrap chip + count in a group so they never wrap separately
+      const group = document.createElement("span");
+      group.className = "filter-chip-group";
+
+      const link = document.createElement("a");
+      link.className = "filter-chip filter-chip-kw filter-chip-link";
+      link.href = buildKeywordNotificationsUrl(kw);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.title = `Search notifications for "${kw}"`;
+      link.textContent = kw;
+      group.appendChild(link);
+
+      // Filtered count badge per keyword (only shown when count > 0)
+      const kwCount = kwStats[kw] || 0;
+      if (kwCount > 0) {
+        const countEl = document.createElement("span");
+        countEl.className = "filter-chip-count";
+        countEl.textContent = kwCount;
+        countEl.title = `${kwCount} notification${kwCount === 1 ? "" : "s"} matched "${kw}" from last refresh`;
+        group.appendChild(countEl);
+      }
+      chips.appendChild(group);
+    });
 
     // Edit button
     const editBtn = document.createElement("button");
@@ -972,7 +1031,8 @@ function renderRuleRows(rules) {
           editingRuleIndex--;
         }
       }
-      renderRuleRows(currentFilterRules);
+      currentFilterStats = [];
+      renderRuleRows(currentFilterRules, currentFilterStats);
       updateFilterIndicator(currentFilterRules);
     });
 
@@ -1037,6 +1097,7 @@ function updateFilterIndicator(rules) {
 
 /** In-memory copy of the current saved rules. */
 let currentFilterRules = [];
+let currentFilterStats = [];
 
 /** In-memory state for the new-rule creator form. */
 const newRule = { repos: [], keywords: [] };
@@ -1058,6 +1119,12 @@ async function showFilter() {
     loadError = true;
   }
 
+  try {
+    currentFilterStats = await storage.getNotificationFilterStats();
+  } catch {
+    currentFilterStats = [];
+  }
+
   toggleOverlayView(true);
   filterView.hidden = false;
 
@@ -1071,7 +1138,7 @@ async function showFilter() {
   }
 
   // Render after the view is visible so layout is computed correctly
-  renderRuleRows(currentFilterRules);
+  renderRuleRows(currentFilterRules, currentFilterStats);
   // Start with creator collapsed
   hideCreator();
 }
@@ -1181,7 +1248,8 @@ async function submitNewRule() {
   }
   if (!(await saveFilterRules(updated))) return;
   currentFilterRules = updated;
-  renderRuleRows(currentFilterRules);
+  currentFilterStats = [];
+  renderRuleRows(currentFilterRules, currentFilterStats);
   updateFilterIndicator(currentFilterRules);
   hideCreator();
 }
@@ -1411,6 +1479,12 @@ browserStorage.onChanged.addListener((changes, areaName) => {
     const newNotifications = changes.notifications.newValue || [];
     // Don't resort - keep existing order to prevent jumping
     renderNotifications(newNotifications, false);
+  }
+
+  // Update filter stats display when background refresh writes new stats
+  if (areaName === "local" && changes.notificationFilterStats && filterView && !filterView.hidden) {
+    currentFilterStats = changes.notificationFilterStats.newValue || [];
+    renderRuleRows(currentFilterRules, currentFilterStats);
   }
 });
 

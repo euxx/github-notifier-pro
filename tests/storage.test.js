@@ -136,6 +136,7 @@ describe("Storage", () => {
         "authMethod",
         "notifications",
         "lastCheck",
+        "notificationFilterStats",
       ]);
     });
 

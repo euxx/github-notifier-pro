@@ -3,6 +3,7 @@ import {
   buildNotificationUrl,
   buildProfileUrl,
   buildRepoNotificationsUrl,
+  buildKeywordNotificationsUrl,
 } from "../src/lib/url-builder.js";
 
 const GITHUB_BASE = "https://github.com";
@@ -214,5 +215,25 @@ describe("buildRepoNotificationsUrl", () => {
     expect(buildRepoNotificationsUrl(null)).toBeNull();
     expect(buildRepoNotificationsUrl(undefined)).toBeNull();
     expect(buildRepoNotificationsUrl("")).toBeNull();
+  });
+});
+
+describe("buildKeywordNotificationsUrl", () => {
+  it("should build a keyword-scoped notifications search URL", () => {
+    expect(buildKeywordNotificationsUrl("beta")).toBe(
+      "https://github.com/notifications?query=beta",
+    );
+  });
+
+  it("should percent-encode special characters in the keyword", () => {
+    expect(buildKeywordNotificationsUrl("v1.0-beta rc")).toBe(
+      "https://github.com/notifications?query=v1.0-beta%20rc",
+    );
+  });
+
+  it("should return null for falsy keywords", () => {
+    expect(buildKeywordNotificationsUrl(null)).toBeNull();
+    expect(buildKeywordNotificationsUrl(undefined)).toBeNull();
+    expect(buildKeywordNotificationsUrl("")).toBeNull();
   });
 });

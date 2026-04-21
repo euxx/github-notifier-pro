@@ -382,6 +382,43 @@ function applyNotificationFilter(notifications, rules) {
 }
 
 /**
+ * Remove notifications that match any filter rule and collect per-rule per-repo
+ * and per-keyword counts.
+ * @param {Array} notifications
+ * @param {Array<{ repos: string[], keywords: string[] }>} rules
+ * @returns {{ notifications: Array, stats: Array<Object> }}
+ *   stats[i].repos maps lowercase(repoFullName) → number of notifications filtered by rules[i]
+ *   stats[i].keywords maps keyword → number of notifications that matched it in rules[i]
+ * @exported for testing
+ */
+export function applyNotificationFilterWithStats(notifications, rules) {
+  const stats = rules.map(() => ({ repos: {}, keywords: {} }));
+  const kept = notifications.filter((n) => {
+    for (let i = 0; i < rules.length; i++) {
+      if (matchesRule(n, rules[i])) {
+        const repo = n.repository?.full_name;
+        if (repo) {
+          // Normalize to lowercase to match the case-insensitive repo matching in matchesRule
+          const repoKey = repo.toLowerCase();
+          stats[i].repos[repoKey] = (stats[i].repos[repoKey] || 0) + 1;
+        }
+        // Count each keyword that contributed to filtering this notification.
+        // n.title is guaranteed non-null here: matchesRule() returns false when title is falsy.
+        const titleLower = n.title.toLowerCase();
+        for (const kw of rules[i].keywords) {
+          if (titleLower.includes(kw.toLowerCase())) {
+            stats[i].keywords[kw] = (stats[i].keywords[kw] || 0) + 1;
+          }
+        }
+        return false;
+      }
+    }
+    return true;
+  });
+  return { notifications: kept, stats };
+}
+
+/**
  * Filter notifications to only those that still exist in storage
  * Prevents overwriting user deletions during concurrent operations
  * @param {Array} detailedNotifications - Notifications to filter
@@ -585,8 +622,11 @@ async function checkNotifications() {
       }
       const currentStoredIds = new Set(currentStored.map((n) => n.id));
       // Apply race-condition guard, then notification filter (keyword-based).
-      const safeBasic = applyNotificationFilter(
-        basicProcessed.filter((n) => !existingIds.has(n.id) || currentStoredIds.has(n.id)),
+      const preFilter = basicProcessed.filter(
+        (n) => !existingIds.has(n.id) || currentStoredIds.has(n.id),
+      );
+      const { notifications: safeBasic, stats: filterStats } = applyNotificationFilterWithStats(
+        preFilter,
         notificationFilter,
       );
 
@@ -595,6 +635,7 @@ async function checkNotifications() {
       // reflects fetches that actually commit to storage.
       hasMoreNotifications = hasMore;
       await storage.setNotifications(safeBasic);
+      await storage.setNotificationFilterStats(filterStats);
       await updateBadge(safeBasic.length, hasMore);
 
       // Second pass: Fetch details asynchronously for new/updated notifications
@@ -888,7 +929,10 @@ async function handleMessage(message) {
         }
       }
       await storage.setNotificationFilter(filter);
-      // Apply new filter to currently stored notifications immediately.
+      // Clear stale stats — they are indexed parallel to the old rules array and
+      // would be semantically wrong after any rule change. Fresh stats will be
+      // written on the next full checkNotifications() pass.
+      await storage.setNotificationFilterStats([]);
       // When filter is empty (all rules removed), skip: nothing to hide, and the
       // re-fetch below will restore previously-hidden notifications.
       if (filter.length > 0) {

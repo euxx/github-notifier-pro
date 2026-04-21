@@ -149,6 +149,16 @@ export function buildRepoNotificationsUrl(fullName) {
 }
 
 /**
+ * Build a GitHub notifications search URL for a keyword query.
+ * @param {string|null|undefined} keyword - Search keyword
+ * @returns {string|null} Notifications search URL or null if keyword is falsy
+ */
+export function buildKeywordNotificationsUrl(keyword) {
+  if (!keyword) return null;
+  return `${GITHUB_SITE_BASE}/notifications?query=${encodeURIComponent(keyword)}`;
+}
+
+/**
  * Build GitHub profile URL from a username/login
  * @param {string|null|undefined} login - GitHub username
  * @returns {string|null} Profile URL or null if login is falsy

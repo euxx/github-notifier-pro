@@ -1864,6 +1864,65 @@ body.dark-theme .login-error-msg {
   border: 1px solid color-mix(in srgb, #8b949e 25%, var(--border-color));
 }
 
+/* Repo chip rendered as a link */
+a.filter-chip-repo.filter-chip-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+
+a.filter-chip-repo.filter-chip-link:hover {
+  background: color-mix(in srgb, #8b949e 22%, var(--bg-secondary));
+  border-color: color-mix(in srgb, #8b949e 45%, var(--border-color));
+}
+
+a.filter-chip-repo.filter-chip-link:focus-visible {
+  outline: 3px solid var(--action-focus);
+  outline-offset: 2px;
+}
+
+/* Keyword chip rendered as a link */
+a.filter-chip-kw.filter-chip-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+
+a.filter-chip-kw.filter-chip-link:hover {
+  background: color-mix(in srgb, #8b949e 28%, var(--bg-secondary));
+  border-color: color-mix(in srgb, #8b949e 55%, var(--border-color));
+}
+
+a.filter-chip-kw.filter-chip-link:focus-visible {
+  outline: 3px solid var(--action-focus);
+  outline-offset: 2px;
+}
+
+/* Wrapper that keeps a chip and its count badge together during flex-wrap */
+.filter-chip-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Filtered count badge shown to the right of a repo chip */
+.filter-chip-count {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-muted);
+  background: color-mix(in srgb, #8b949e 15%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, #8b949e 25%, var(--border-color));
+  border-radius: 100px;
+  padding: 1px 5px;
+  user-select: none;
+}
+
 /* Keyword chip — darker gray, slightly emphasized */
 .filter-chip-kw {
   background: color-mix(in srgb, #8b949e 18%, var(--bg-secondary));

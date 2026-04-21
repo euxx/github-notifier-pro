@@ -23,6 +23,10 @@ const STORAGE_KEYS = {
   MAX_DESKTOP_NOTIFICATIONS: "maxDesktopNotifications", // number (default 5)
   // Notification filter: array of { repos: string[], keywords: string[] } rules
   NOTIFICATION_FILTER: "notificationFilter",
+  // Per-rule filter stats from the last full refresh.
+  // Array parallel to NOTIFICATION_FILTER:
+  //   [{ repos: { "owner/repo" (lowercase): count }, keywords: { keyword: count } }, ...]
+  NOTIFICATION_FILTER_STATS: "notificationFilterStats",
 };
 
 /**
@@ -79,6 +83,7 @@ export async function clearAuthData() {
     STORAGE_KEYS.AUTH_METHOD,
     STORAGE_KEYS.NOTIFICATIONS,
     STORAGE_KEYS.LAST_CHECK,
+    STORAGE_KEYS.NOTIFICATION_FILTER_STATS,
   ]);
 }
 
@@ -176,6 +181,18 @@ export async function getNotificationFilter() {
 
 export async function setNotificationFilter(filter) {
   return set(STORAGE_KEYS.NOTIFICATION_FILTER, filter);
+}
+
+// Filter stats: array parallel to filter rules. Each element contains:
+//   - repos: { [repoFullNameLowercase]: count } — notifications filtered per repo
+//   - keywords: { [keyword]: count }  — notifications matched per keyword
+// Both counts reflect the most recent full checkNotifications() pass.
+export async function getNotificationFilterStats() {
+  return get(STORAGE_KEYS.NOTIFICATION_FILTER_STATS, []);
+}
+
+export async function setNotificationFilterStats(stats) {
+  return set(STORAGE_KEYS.NOTIFICATION_FILTER_STATS, stats);
 }
 
 export { STORAGE_KEYS };
