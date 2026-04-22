@@ -84,6 +84,11 @@ body.transitions-enabled * {
   min-height: 0;
 }
 
+#main-view.settings-active.filter-active {
+  position: relative;
+  min-height: var(--filter-overlay-height, 300px);
+}
+
 body.dark-theme #main-view {
   --list-divider: rgba(255, 255, 255, 0.1);
   --row-divider: rgba(255, 255, 255, 0.07);
@@ -1767,13 +1772,18 @@ body.dark-theme .login-error-msg {
 
 /* Override: filter page should fill the full popup height (unlike settings-view which is flex: 0 0 auto) */
 #filter-view {
-  flex: 1;
-  min-height: 300px;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  min-height: 0;
+  background: var(--bg-primary);
+  overflow: hidden;
 }
 
 /* Main content area of the filter page — scrollable, fills remaining popup height */
 .filter-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1819,6 +1829,13 @@ body.dark-theme .login-error-msg {
   padding: 8px 20px;
   border-bottom: 0.7px solid var(--row-divider);
   transition: background 0.1s;
+}
+
+.filter-rule-row.is-editing,
+.filter-rule-row.is-editing:hover,
+.filter-rule-row.is-editing:focus-within {
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--bg-secondary));
+  box-shadow: inset 2px 0 0 var(--primary-color);
 }
 
 .filter-rule-row:hover,

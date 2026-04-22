@@ -198,6 +198,8 @@ const filterAddRuleBtn = document.getElementById("filter-add-rule-btn");
 const filterCreator = document.getElementById("filter-creator");
 const filterCreatorToggle = document.getElementById("filter-creator-toggle");
 const filterCreatorLabel = document.getElementById("filter-creator-label");
+const filterHeader = filterView?.querySelector(".settings-header");
+const filterContent = filterView?.querySelector(".filter-content");
 const filterNewRepoChips = document.getElementById("filter-new-repo-chips");
 const filterNewRepoInput = document.getElementById("filter-new-repo-input");
 const filterNewRepoAdd = document.getElementById("filter-new-repo-add");
@@ -262,6 +264,60 @@ function scheduleScrollbarCompensation() {
 function setSettingsLayoutState(isOpen) {
   document.body.classList.toggle("settings-open", isOpen);
   mainView?.classList.toggle("settings-active", isOpen);
+}
+
+function parsePixelValue(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function syncFilterOverlayHeight() {
+  if (
+    !mainView ||
+    !filterView ||
+    filterView.hidden ||
+    !mainView.classList.contains("filter-active")
+  ) {
+    return;
+  }
+
+  const bodyStyles = getComputedStyle(document.body);
+  const minHeight = parsePixelValue(bodyStyles.minHeight) ?? 300;
+  const maxHeight =
+    parsePixelValue(bodyStyles.maxHeight) ??
+    Math.max(minHeight, Math.round(mainView.getBoundingClientRect().height));
+  const headerHeight = filterHeader?.offsetHeight ?? 0;
+  const contentHeight = filterContent?.scrollHeight ?? 0;
+  const overlayHeight = Math.min(maxHeight, Math.max(minHeight, headerHeight + contentHeight));
+
+  mainView.style.setProperty("--filter-overlay-height", `${overlayHeight}px`);
+}
+
+function setFilterLayoutState(isOpen) {
+  if (!mainView) return;
+
+  if (!isOpen) {
+    mainView.style.removeProperty("--filter-overlay-height");
+  }
+
+  mainView.classList.toggle("filter-active", isOpen);
+}
+
+function scrollFilterCreatorIntoView() {
+  if (!filterContent || !filterCreator || filterCreator.hidden) return;
+
+  requestAnimationFrame(() => {
+    if (filterCreator.hidden) return;
+
+    const contentRect = filterContent.getBoundingClientRect();
+    const creatorRect = filterCreator.getBoundingClientRect();
+    const top = Math.max(creatorRect.top - contentRect.top + filterContent.scrollTop - 8, 0);
+    if (typeof filterContent.scrollTo === "function") {
+      filterContent.scrollTo({ top, behavior: "smooth" });
+    } else {
+      filterContent.scrollTop = top;
+    }
+  });
 }
 
 if (notificationsContainer && typeof ResizeObserver !== "undefined") {
@@ -932,12 +988,18 @@ function renderRuleRows(rules, stats = []) {
     text.textContent = "No rules yet";
     empty.appendChild(text);
     filterRulesList.appendChild(empty);
+    syncFilterOverlayHeight();
     return;
   }
 
   rules.forEach((rule, idx) => {
     const row = document.createElement("div");
     row.className = "filter-rule-row";
+    const isEditing = idx === editingRuleIndex;
+    if (isEditing) {
+      row.classList.add("is-editing");
+      row.setAttribute("aria-current", "true");
+    }
 
     // Chips area: repos + separator + keywords
     const chips = document.createElement("div");
@@ -1010,7 +1072,8 @@ function renderRuleRows(rules, stats = []) {
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "btn btn-secondary btn-compact";
-    editBtn.textContent = "Edit";
+    editBtn.textContent = isEditing ? "Editing" : "Edit";
+    editBtn.disabled = isEditing;
     editBtn.addEventListener("click", () => editRule(idx));
 
     // Remove button
@@ -1041,6 +1104,8 @@ function renderRuleRows(rules, stats = []) {
     row.appendChild(removeBtn);
     filterRulesList.appendChild(row);
   });
+
+  syncFilterOverlayHeight();
 }
 
 /**
@@ -1061,6 +1126,7 @@ function renderNewRuleChips(field) {
   );
   // Disable Save when no keywords are present
   if (filterAddRuleBtn) filterAddRuleBtn.disabled = newRule.keywords.length === 0;
+  syncFilterOverlayHeight();
 }
 
 /**
@@ -1073,7 +1139,10 @@ async function saveFilterRules(rules) {
     if (result?.error) {
       throw new Error(result.error);
     }
-    if (filterErrorEl) filterErrorEl.hidden = true;
+    if (filterErrorEl) {
+      filterErrorEl.hidden = true;
+    }
+    syncFilterOverlayHeight();
     return true;
   } catch (err) {
     console.error("Failed to save notification filter:", err);
@@ -1081,6 +1150,7 @@ async function saveFilterRules(rules) {
       filterErrorEl.textContent = "Failed to save filter. Please try again.";
       filterErrorEl.hidden = false;
     }
+    syncFilterOverlayHeight();
     return false;
   }
 }
@@ -1105,6 +1175,11 @@ const newRule = { repos: [], keywords: [] };
 /** Index of the rule currently being edited, or -1 when creating a new rule. */
 let editingRuleIndex = -1;
 
+function updateFilterCreatorLabel() {
+  if (!filterCreatorLabel) return;
+  filterCreatorLabel.textContent = editingRuleIndex >= 0 ? "Edit Rule" : "New Rule";
+}
+
 /**
  * Show filter view.
  */
@@ -1125,6 +1200,7 @@ async function showFilter() {
     currentFilterStats = [];
   }
 
+  setFilterLayoutState(true);
   toggleOverlayView(true);
   filterView.hidden = false;
 
@@ -1137,8 +1213,6 @@ async function showFilter() {
     }
   }
 
-  // Render after the view is visible so layout is computed correctly
-  renderRuleRows(currentFilterRules, currentFilterStats);
   // Start with creator collapsed
   hideCreator();
 }
@@ -1150,6 +1224,7 @@ async function showFilter() {
 async function hideFilter() {
   toggleOverlayView(false);
   filterView.hidden = true;
+  setFilterLayoutState(false);
   // Re-render from storage so filter changes are visible immediately
   try {
     const notifications = await storage.getNotifications();
@@ -1167,7 +1242,9 @@ function showCreator() {
   editingRuleIndex = -1;
   newRule.repos = [];
   newRule.keywords = [];
-  openCreatorForm("New Rule");
+  openCreatorForm();
+  renderRuleRows(currentFilterRules, currentFilterStats);
+  scrollFilterCreatorIntoView();
 }
 
 /**
@@ -1180,14 +1257,15 @@ function editRule(index) {
   editingRuleIndex = index;
   newRule.repos = [...rule.repos];
   newRule.keywords = [...rule.keywords];
-  openCreatorForm("Edit Rule");
+  openCreatorForm();
+  renderRuleRows(currentFilterRules, currentFilterStats);
+  scrollFilterCreatorIntoView();
 }
 
 /**
- * Open the creator form with the given label, resetting inputs.
- * @param {string} label - "New Rule" or "Edit Rule"
+ * Open the creator form, resetting inputs.
  */
-function openCreatorForm(label) {
+function openCreatorForm() {
   renderNewRuleChips("repo");
   renderNewRuleChips("kw"); // also sets filterAddRuleBtn.disabled
   if (filterNewRepoInput) {
@@ -1195,7 +1273,7 @@ function openCreatorForm(label) {
     filterNewRepoInput.focus();
   }
   if (filterNewKwInput) filterNewKwInput.value = "";
-  if (filterCreatorLabel) filterCreatorLabel.textContent = label;
+  updateFilterCreatorLabel();
   if (filterCreator) filterCreator.hidden = false;
   if (filterCreatorToggle) filterCreatorToggle.textContent = "Cancel";
   if (filterAddRuleBtn) filterAddRuleBtn.hidden = false;
@@ -1208,9 +1286,11 @@ function hideCreator() {
   editingRuleIndex = -1;
   newRule.repos = [];
   newRule.keywords = [];
+  updateFilterCreatorLabel();
   if (filterCreator) filterCreator.hidden = true;
   if (filterCreatorToggle) filterCreatorToggle.textContent = "+ New Rule";
   if (filterAddRuleBtn) filterAddRuleBtn.hidden = true;
+  renderRuleRows(currentFilterRules, currentFilterStats);
 }
 
 /**
@@ -1249,9 +1329,8 @@ async function submitNewRule() {
   if (!(await saveFilterRules(updated))) return;
   currentFilterRules = updated;
   currentFilterStats = [];
-  renderRuleRows(currentFilterRules, currentFilterStats);
-  updateFilterIndicator(currentFilterRules);
   hideCreator();
+  updateFilterIndicator(currentFilterRules);
 }
 
 /**
