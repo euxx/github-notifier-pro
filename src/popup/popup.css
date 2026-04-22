@@ -1823,10 +1823,11 @@ body.dark-theme .login-error-msg {
 
 /* One rule row: chips on the left, Remove button on the right */
 .filter-rule-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
+  gap: 6px;
+  padding: 6px 24px;
   border-bottom: 0.7px solid var(--row-divider);
   transition: background 0.1s;
 }
@@ -1840,7 +1841,7 @@ body.dark-theme .login-error-msg {
 
 .filter-rule-row:hover,
 .filter-rule-row:focus-within {
-  background: var(--bg-secondary);
+  background: var(--bg-hover);
 }
 
 /* Chips flex container inside a row */
@@ -1851,6 +1852,7 @@ body.dark-theme .login-error-msg {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  padding-right: 56px;
 }
 
 /* "+" separator between repos and keywords chips */
@@ -1858,6 +1860,81 @@ body.dark-theme .login-error-msg {
   font-size: 11px;
   color: var(--text-secondary);
   padding: 0 2px;
+}
+
+.filter-rule-actions {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  transform: translateY(-50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.filter-rule-row:hover .filter-rule-actions,
+.filter-rule-row:focus-within .filter-rule-actions,
+.filter-rule-actions:has(.filter-rule-action-btn:focus-visible) {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  background: linear-gradient(to right, transparent 0%, var(--bg-hover) 35%);
+}
+
+.filter-rule-row.is-editing:hover .filter-rule-actions,
+.filter-rule-row.is-editing:focus-within .filter-rule-actions,
+.filter-rule-row.is-editing .filter-rule-actions:has(.filter-rule-action-btn:focus-visible) {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--primary-color) 8%, var(--bg-secondary)) 35%
+  );
+}
+
+.filter-rule-action-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.filter-rule-action-btn svg {
+  flex-shrink: 0;
+}
+
+.filter-rule-action-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+}
+
+.filter-rule-action-btn:focus-visible:not(:disabled) {
+  outline: none;
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+  box-shadow: 0 0 0 3px var(--action-focus);
+}
+
+.filter-rule-action-btn:disabled {
+  color: var(--primary-color);
+  cursor: default;
+}
+
+.filter-rule-action-btn:disabled:hover {
+  background: transparent;
 }
 
 /* ── Chip variants ─────────────────────────────────────────── */

@@ -163,16 +163,21 @@ describe("popup filter rules", () => {
     });
 
     const rowsBeforeEdit = document.querySelectorAll("#filter-rules-list .filter-rule-row");
-    rowsBeforeEdit[1].querySelector("button").click();
+    rowsBeforeEdit[1].querySelector(".filter-rule-edit-btn").click();
 
     await vi.waitFor(() => {
       expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
     });
 
     const rowsAfterEdit = document.querySelectorAll("#filter-rules-list .filter-rule-row");
+    const editingButton = rowsAfterEdit[1].querySelector(".filter-rule-edit-btn");
+    const removeButton = rowsAfterEdit[1].querySelector(".filter-rule-remove-btn");
     expect(rowsAfterEdit[1].classList.contains("is-editing")).toBe(true);
-    expect(rowsAfterEdit[1].querySelector("button").textContent).toBe("Editing");
-    expect(rowsAfterEdit[1].querySelector("button").disabled).toBe(true);
+    expect(editingButton.getAttribute("aria-label")).toBe("Editing current rule");
+    expect(editingButton.querySelector("svg")).not.toBeNull();
+    expect(editingButton.disabled).toBe(true);
+    expect(removeButton.getAttribute("aria-label")).toBe("Remove rule");
+    expect(removeButton.querySelector("svg")).not.toBeNull();
   });
 
   it("clears the editing marker after canceling the form", async () => {
@@ -185,7 +190,7 @@ describe("popup filter rules", () => {
 
     document
       .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
-      .querySelector("button")
+      .querySelector(".filter-rule-edit-btn")
       .click();
     await vi.waitFor(() => {
       expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
@@ -202,9 +207,24 @@ describe("popup filter rules", () => {
     );
     expect(
       Array.from(rowsAfterCancel).every(
-        (row) => row.querySelector("button").textContent === "Edit",
+        (row) =>
+          row.querySelector(".filter-rule-edit-btn").getAttribute("aria-label") === "Edit rule",
       ),
     ).toBe(true);
+  });
+
+  it("focuses the repo input when opening a new rule form", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document.getElementById("filter-creator-toggle").click();
+
+    expect(document.getElementById("filter-creator").hidden).toBe(false);
+    expect(document.activeElement).toBe(document.getElementById("filter-new-repo-input"));
   });
 
   it("scrolls the creator form into view when editing a rule", async () => {
@@ -220,7 +240,7 @@ describe("popup filter rules", () => {
 
     document
       .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
-      .querySelector("button")
+      .querySelector(".filter-rule-edit-btn")
       .click();
 
     expect(filterContent.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
@@ -244,7 +264,7 @@ describe("popup filter rules", () => {
 
     document
       .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
-      .querySelector("button")
+      .querySelector(".filter-rule-edit-btn")
       .click();
     document.getElementById("filter-creator-toggle").click();
 

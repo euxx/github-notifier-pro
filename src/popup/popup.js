@@ -965,9 +965,28 @@ function createChip(value, variant, onRemove) {
   return chip;
 }
 
+function createFilterRuleActionButton({
+  className,
+  title,
+  ariaLabel,
+  svgMarkup,
+  disabled = false,
+  onClick,
+}) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `btn-icon filter-rule-action-btn ${className}`;
+  button.title = title;
+  button.setAttribute("aria-label", ariaLabel);
+  button.disabled = disabled;
+  button.appendChild(document.createRange().createContextualFragment(svgMarkup));
+  button.addEventListener("click", onClick);
+  return button;
+}
+
 /**
  * Render the list of existing filter rules as compact read-only rows.
- * Each row shows repo + keyword chips and a "Remove" button.
+ * Each row shows repo + keyword chips and hover-revealed edit/remove actions.
  * Repo chips are rendered as links to the repo's GitHub notifications page,
  * with the filtered count shown to the right when stats are available.
  * @param {Array<{ repos: string[], keywords: string[] }>} rules
@@ -1068,40 +1087,46 @@ function renderRuleRows(rules, stats = []) {
       chips.appendChild(group);
     });
 
-    // Edit button
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "btn btn-secondary btn-compact";
-    editBtn.textContent = isEditing ? "Editing" : "Edit";
-    editBtn.disabled = isEditing;
-    editBtn.addEventListener("click", () => editRule(idx));
+    const actions = document.createElement("div");
+    actions.className = "filter-rule-actions";
 
-    // Remove button
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "btn btn-secondary btn-compact filter-rule-remove-btn";
-    removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", async () => {
-      const updated = [...currentFilterRules];
-      updated.splice(idx, 1);
-      if (!(await saveFilterRules(updated))) return;
-      currentFilterRules = updated;
-      // Adjust editingRuleIndex if the creator form is open
-      if (editingRuleIndex >= 0) {
-        if (idx === editingRuleIndex) {
-          hideCreator();
-        } else if (idx < editingRuleIndex) {
-          editingRuleIndex--;
-        }
-      }
-      currentFilterStats = [];
-      renderRuleRows(currentFilterRules, currentFilterStats);
-      updateFilterIndicator(currentFilterRules);
+    const editBtn = createFilterRuleActionButton({
+      className: "filter-rule-edit-btn",
+      title: isEditing ? "Editing current rule" : "Edit rule",
+      ariaLabel: isEditing ? "Editing current rule" : "Edit rule",
+      disabled: isEditing,
+      svgMarkup:
+        '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11.013 1.427a1.75 1.75 0 0 1 2.474 2.474l-7.25 7.25a1.75 1.75 0 0 1-.77.444l-2.16.54a.75.75 0 0 1-.91-.91l.54-2.16a1.75 1.75 0 0 1 .444-.77l7.25-7.25Zm1.414 1.06a.25.25 0 0 0-.353 0l-1.344 1.344 1.414 1.414 1.344-1.344a.25.25 0 0 0 0-.353l-1.06-1.06Zm-1.767 3.112L9.246 4.185 3.442 9.99a.25.25 0 0 0-.064.112l-.295 1.179 1.179-.295a.25.25 0 0 0 .112-.064l6.35-6.423Z"/></svg>',
+      onClick: () => editRule(idx),
     });
 
-    row.appendChild(chips);
-    row.appendChild(editBtn);
-    row.appendChild(removeBtn);
+    const removeBtn = createFilterRuleActionButton({
+      className: "filter-rule-remove-btn",
+      title: "Remove rule",
+      ariaLabel: "Remove rule",
+      svgMarkup:
+        '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6.5 1.75A1.75 1.75 0 0 1 8.25 0h1.5A1.75 1.75 0 0 1 11.5 1.75V2h2.25a.75.75 0 0 1 0 1.5h-.638l-.622 9.066A1.75 1.75 0 0 1 10.744 14H5.256a1.75 1.75 0 0 1-1.746-1.434L2.888 3.5H2.25a.75.75 0 0 1 0-1.5H5v-.25Zm1.5-.25a.25.25 0 0 0-.25.25V2h2v-.25a.25.25 0 0 0-.25-.25H8Zm-2.108 11h4.216a.25.25 0 0 0 .249-.228L10.964 3.5H5.036l.607 8.772a.25.25 0 0 0 .249.228ZM6.75 5.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V6.5a.75.75 0 0 1 .75-.75Zm2.5 0a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V6.5a.75.75 0 0 1 .75-.75Z"/></svg>',
+      onClick: async () => {
+        const updated = [...currentFilterRules];
+        updated.splice(idx, 1);
+        if (!(await saveFilterRules(updated))) return;
+        currentFilterRules = updated;
+        // Adjust editingRuleIndex if the creator form is open
+        if (editingRuleIndex >= 0) {
+          if (idx === editingRuleIndex) {
+            hideCreator();
+          } else if (idx < editingRuleIndex) {
+            editingRuleIndex--;
+          }
+        }
+        currentFilterStats = [];
+        renderRuleRows(currentFilterRules, currentFilterStats);
+        updateFilterIndicator(currentFilterRules);
+      },
+    });
+
+    actions.append(editBtn, removeBtn);
+    row.append(chips, actions);
     filterRulesList.appendChild(row);
   });
 
@@ -1270,13 +1295,13 @@ function openCreatorForm() {
   renderNewRuleChips("kw"); // also sets filterAddRuleBtn.disabled
   if (filterNewRepoInput) {
     filterNewRepoInput.value = "";
-    filterNewRepoInput.focus();
   }
   if (filterNewKwInput) filterNewKwInput.value = "";
   updateFilterCreatorLabel();
   if (filterCreator) filterCreator.hidden = false;
   if (filterCreatorToggle) filterCreatorToggle.textContent = "Cancel";
   if (filterAddRuleBtn) filterAddRuleBtn.hidden = false;
+  filterNewRepoInput?.focus();
 }
 
 /**
