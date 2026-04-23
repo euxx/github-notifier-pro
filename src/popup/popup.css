@@ -1951,6 +1951,38 @@ body.dark-theme .login-error-msg {
   user-select: none;
 }
 
+.filter-chip-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.filter-chip-edit-trigger {
+  padding: 0;
+  border: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-chip-edit-trigger:focus-visible {
+  outline: none;
+}
+
+.filter-chip:has(.filter-chip-edit-trigger:hover) {
+  border-color: color-mix(in srgb, var(--text-primary) 24%, var(--border-color));
+}
+
+.filter-chip:has(.filter-chip-edit-trigger:focus-visible) {
+  outline: 2px solid var(--control-focus-border);
+  outline-offset: 1px;
+}
+
 /* Repo chip — medium gray */
 .filter-chip-repo {
   background: color-mix(in srgb, #8b949e 12%, var(--bg-secondary));

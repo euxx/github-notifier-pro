@@ -46,7 +46,7 @@ vi.mock("../src/popup/notification-renderer.js", () => ({
 
 const RULES = [
   { repos: ["owner/alpha"], keywords: ["bug"] },
-  { repos: ["owner/beta"], keywords: ["release"] },
+  { repos: ["owner/beta"], keywords: ["release", "urgent"] },
 ];
 
 function setupDOM() {
@@ -225,6 +225,225 @@ describe("popup filter rules", () => {
 
     expect(document.getElementById("filter-creator").hidden).toBe(false);
     expect(document.activeElement).toBe(document.getElementById("filter-new-repo-input"));
+  });
+
+  it("moves a repo chip back into the input when editing a rule", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const repoInput = document.getElementById("filter-new-repo-input");
+    document.querySelector("#filter-new-repo-chips .filter-chip-edit-trigger").click();
+
+    expect(repoInput.value).toBe("owner/beta");
+    expect(document.activeElement).toBe(repoInput);
+    expect(repoInput.selectionStart).toBe(repoInput.value.length);
+    expect(repoInput.selectionEnd).toBe(repoInput.value.length);
+    expect(document.querySelectorAll("#filter-new-repo-chips .filter-chip")).toHaveLength(0);
+    expect(document.getElementById("filter-add-rule-btn").disabled).toBe(false);
+  });
+
+  it("moves a keyword chip back into the input when editing a rule", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    document.querySelector("#filter-new-kw-chips .filter-chip-edit-trigger").click();
+
+    expect(keywordInput.value).toBe("release");
+    expect(document.activeElement).toBe(keywordInput);
+    expect(keywordInput.selectionStart).toBe(keywordInput.value.length);
+    expect(keywordInput.selectionEnd).toBe(keywordInput.value.length);
+    expect(document.querySelectorAll("#filter-new-kw-chips .filter-chip")).toHaveLength(1);
+    expect(document.getElementById("filter-add-rule-btn").disabled).toBe(false);
+  });
+
+  it("restores the previous keyword before editing another chip", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    document.querySelectorAll("#filter-new-kw-chips .filter-chip-edit-trigger")[0].click();
+    document.querySelector("#filter-new-kw-chips .filter-chip-edit-trigger").click();
+
+    const keywordChips = Array.from(document.querySelectorAll("#filter-new-kw-chips .filter-chip"));
+
+    expect(keywordInput.value).toBe("urgent");
+    expect(keywordChips).toHaveLength(1);
+    expect(keywordChips[0].textContent).toContain("release");
+  });
+
+  it("restores the original keyword when switching away from an unconfirmed edit", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    document.querySelectorAll("#filter-new-kw-chips .filter-chip-edit-trigger")[0].click();
+    keywordInput.value = "release-modified";
+    keywordInput.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector("#filter-new-kw-chips .filter-chip-edit-trigger").click();
+
+    const keywordChips = Array.from(document.querySelectorAll("#filter-new-kw-chips .filter-chip"));
+
+    expect(keywordInput.value).toBe("urgent");
+    expect(keywordChips).toHaveLength(1);
+    expect(keywordChips[0].textContent).toContain("release");
+    expect(keywordChips[0].textContent).not.toContain("release-modified");
+  });
+
+  it("does not auto-add a draft keyword when switching to edit a chip", async () => {
+    await loadPopup();
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    keywordInput.value = "draft-keyword";
+    keywordInput.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelectorAll("#filter-new-kw-chips .filter-chip-edit-trigger")[0].click();
+
+    const keywordChips = Array.from(document.querySelectorAll("#filter-new-kw-chips .filter-chip"));
+
+    expect(keywordInput.value).toBe("release");
+    expect(keywordChips).toHaveLength(1);
+    expect(keywordChips[0].textContent).toContain("urgent");
+    expect(keywordChips[0].textContent).not.toContain("draft-keyword");
+  });
+
+  it("clears a lifted keyword chip when the input is emptied before saving", async () => {
+    await loadPopup();
+
+    const { runtime } = await import("../src/lib/chrome-api.js");
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    // Lift the first keyword chip into the input, then clear the input —
+    // this is the intentional clear-to-delete UX contract.
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    document.querySelectorAll("#filter-new-kw-chips .filter-chip-edit-trigger")[0].click();
+    keywordInput.value = "";
+    keywordInput.dispatchEvent(new Event("input", { bubbles: true }));
+    document.getElementById("filter-add-rule-btn").click();
+
+    const saveCalls = runtime.sendMessage.mock.calls.filter(
+      ([message]) => message.action === "setNotificationFilter",
+    );
+    const lastSaveCall = saveCalls.at(-1)?.[0];
+
+    expect(lastSaveCall?.filter).toEqual([
+      { repos: ["owner/alpha"], keywords: ["bug"] },
+      { repos: ["owner/beta"], keywords: ["urgent"] },
+    ]);
+  });
+
+  it("saves a pending keyword edit without requiring the add button", async () => {
+    await loadPopup();
+
+    const { runtime } = await import("../src/lib/chrome-api.js");
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+    });
+
+    document
+      .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+      .querySelector(".filter-rule-edit-btn")
+      .click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById("filter-creator-label").textContent).toBe("Edit Rule");
+    });
+
+    const keywordInput = document.getElementById("filter-new-kw-input");
+    document.querySelectorAll("#filter-new-kw-chips .filter-chip-edit-trigger")[0].click();
+    keywordInput.value = "release-updated";
+    keywordInput.dispatchEvent(new Event("input", { bubbles: true }));
+    document.getElementById("filter-add-rule-btn").click();
+
+    const saveCalls = runtime.sendMessage.mock.calls.filter(
+      ([message]) => message.action === "setNotificationFilter",
+    );
+    const lastSaveCall = saveCalls.at(-1)?.[0];
+
+    expect(lastSaveCall?.filter).toEqual([
+      { repos: ["owner/alpha"], keywords: ["bug"] },
+      { repos: ["owner/beta"], keywords: ["release-updated", "urgent"] },
+    ]);
   });
 
   it("scrolls the creator form into view when editing a rule", async () => {

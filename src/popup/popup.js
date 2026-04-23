@@ -940,16 +940,30 @@ function removeOverlayFadeOut(elements) {
 }
 
 /**
- * Create a removable chip element.
+ * Create a creator chip element that can be edited or removed.
  * @param {string} value - Display text
  * @param {string} variant - "repo" | "kw" — controls the chip color
- * @param {Function} [onRemove] - Called with `value` when × is clicked. Omit for read-only.
+ * @param {{ onEdit?: Function, onRemove?: Function }} [options]
  * @returns {HTMLElement}
  */
-function createChip(value, variant, onRemove) {
+function createChip(value, variant, options = {}) {
+  const { onEdit, onRemove } = options;
   const chip = document.createElement("span");
   chip.className = `filter-chip filter-chip-${variant}`;
-  chip.textContent = value;
+
+  const label = document.createElement(onEdit ? "button" : "span");
+  label.className = "filter-chip-label";
+  label.textContent = value;
+
+  if (onEdit) {
+    label.type = "button";
+    label.classList.add("filter-chip-edit-trigger");
+    label.title = `Edit "${value}"`;
+    label.setAttribute("aria-label", `Edit ${value}`);
+    label.addEventListener("click", () => onEdit(value));
+  }
+
+  chip.appendChild(label);
 
   if (onRemove) {
     const removeBtn = document.createElement("button");
@@ -1143,15 +1157,117 @@ function renderNewRuleChips(field) {
   if (!container) return;
   container.replaceChildren(
     ...newRule[key].map((v) =>
-      createChip(v, field, (removed) => {
-        newRule[key] = newRule[key].filter((r) => r !== removed);
-        renderNewRuleChips(field);
+      createChip(v, field, {
+        onEdit: (selected) => editNewRuleChip(field, selected),
+        onRemove: (removed) => {
+          newRule[key] = newRule[key].filter((r) => r !== removed);
+          renderNewRuleChips(field);
+        },
       }),
     ),
   );
-  // Disable Save when no keywords are present
-  if (filterAddRuleBtn) filterAddRuleBtn.disabled = newRule.keywords.length === 0;
+  updateFilterCreatorSaveState();
   syncFilterOverlayHeight();
+}
+
+/**
+ * Update Save availability from committed keywords plus the current keyword input.
+ */
+function updateFilterCreatorSaveState() {
+  if (!filterAddRuleBtn) return;
+  const hasKeywords = newRule.keywords.length > 0 || Boolean(filterNewKwInput?.value.trim());
+  filterAddRuleBtn.disabled = !hasKeywords;
+}
+
+/**
+ * Resolve the key/input pair for a creator field.
+ * @param {"repo"|"kw"} field
+ */
+function getNewRuleFieldParts(field) {
+  return {
+    key: field === "repo" ? "repos" : "keywords",
+    input: field === "repo" ? filterNewRepoInput : filterNewKwInput,
+  };
+}
+
+/**
+ * Find a value in a creator field using exact text first, then case-insensitive matching.
+ * @param {string[]} list
+ * @param {string} value
+ */
+function findNewRuleValueIndex(list, value) {
+  const exactIndex = list.indexOf(value);
+  if (exactIndex >= 0) return exactIndex;
+  const normalized = value.toLowerCase();
+  return list.findIndex((entry) => entry.toLowerCase() === normalized);
+}
+
+/**
+ * Reset the creator input/pending state and optionally re-insert a value at the pending
+ * chip's original position. Shared by commit (uses input draft) and discard (uses pending
+ * value) so the splice/dedup/render flow lives in one place.
+ * @param {"repo"|"kw"} field
+ * @param {string} value - Value to insert, or "" to skip insertion (intentional clear-to-delete UX).
+ */
+function reconcileCreatorChips(field, value) {
+  const { key, input } = getNewRuleFieldParts(field);
+  const pending = pendingNewRuleChipEdits[field];
+
+  pendingNewRuleChipEdits[field] = null;
+  if (input) input.value = "";
+
+  if (value && findNewRuleValueIndex(newRule[key], value) === -1) {
+    const insertIndex = pending?.index ?? newRule[key].length;
+    newRule[key].splice(Math.min(insertIndex, newRule[key].length), 0, value);
+  }
+
+  renderNewRuleChips(field);
+}
+
+/**
+ * Commit the current input draft (and any pending chip edit) back into the list.
+ * Empty input intentionally drops a pending chip — this is the clear-to-delete UX:
+ * users can clear the lifted input to remove the chip in a single action.
+ * @param {"repo"|"kw"} field
+ */
+function commitCreatorInput(field) {
+  const { input } = getNewRuleFieldParts(field);
+  const draft = input?.value.trim() || "";
+  reconcileCreatorChips(field, draft);
+}
+
+/**
+ * Discard the current input draft and restore any pending chip back to its position.
+ * @param {"repo"|"kw"} field
+ */
+function discardPendingEdit(field) {
+  const pending = pendingNewRuleChipEdits[field];
+  reconcileCreatorChips(field, pending?.value ?? "");
+}
+
+/**
+ * Move a creator chip back into its input so the value can be edited in place.
+ * @param {"repo"|"kw"} field
+ * @param {string} value
+ */
+function editNewRuleChip(field, value) {
+  const { key, input } = getNewRuleFieldParts(field);
+  discardPendingEdit(field);
+
+  const valueIndex = findNewRuleValueIndex(newRule[key], value);
+  if (valueIndex === -1) return;
+
+  pendingNewRuleChipEdits[field] = { value, index: valueIndex };
+  newRule[key].splice(valueIndex, 1);
+  renderNewRuleChips(field);
+
+  if (input) {
+    input.value = value;
+    input.focus();
+    const cursorOffset = input.value.length;
+    input.setSelectionRange(cursorOffset, cursorOffset);
+  }
+  updateFilterCreatorSaveState();
 }
 
 /**
@@ -1196,6 +1312,9 @@ let currentFilterStats = [];
 
 /** In-memory state for the new-rule creator form. */
 const newRule = { repos: [], keywords: [] };
+
+/** Creator chips currently lifted into the input for editing. */
+const pendingNewRuleChipEdits = { repo: null, kw: null };
 
 /** Index of the rule currently being edited, or -1 when creating a new rule. */
 let editingRuleIndex = -1;
@@ -1291,12 +1410,14 @@ function editRule(index) {
  * Open the creator form, resetting inputs.
  */
 function openCreatorForm() {
-  renderNewRuleChips("repo");
-  renderNewRuleChips("kw"); // also sets filterAddRuleBtn.disabled
+  pendingNewRuleChipEdits.repo = null;
+  pendingNewRuleChipEdits.kw = null;
   if (filterNewRepoInput) {
     filterNewRepoInput.value = "";
   }
   if (filterNewKwInput) filterNewKwInput.value = "";
+  renderNewRuleChips("repo");
+  renderNewRuleChips("kw");
   updateFilterCreatorLabel();
   if (filterCreator) filterCreator.hidden = false;
   if (filterCreatorToggle) filterCreatorToggle.textContent = "Cancel";
@@ -1311,10 +1432,15 @@ function hideCreator() {
   editingRuleIndex = -1;
   newRule.repos = [];
   newRule.keywords = [];
+  pendingNewRuleChipEdits.repo = null;
+  pendingNewRuleChipEdits.kw = null;
+  if (filterNewRepoInput) filterNewRepoInput.value = "";
+  if (filterNewKwInput) filterNewKwInput.value = "";
   updateFilterCreatorLabel();
   if (filterCreator) filterCreator.hidden = true;
   if (filterCreatorToggle) filterCreatorToggle.textContent = "+ New Rule";
   if (filterAddRuleBtn) filterAddRuleBtn.hidden = true;
+  updateFilterCreatorSaveState();
   renderRuleRows(currentFilterRules, currentFilterStats);
 }
 
@@ -1323,24 +1449,17 @@ function hideCreator() {
  * @param {"repo"|"kw"} field
  */
 function addToNewRule(field) {
-  const input = field === "repo" ? filterNewRepoInput : filterNewKwInput;
-  const value = input?.value.trim();
-  if (!value) return;
-  const list = field === "repo" ? newRule.repos : newRule.keywords;
-  if (!list.some((v) => v.toLowerCase() === value.toLowerCase())) {
-    list.push(value);
-    renderNewRuleChips(field);
-  }
-  if (input) {
-    input.value = "";
-    input.focus();
-  }
+  const { input } = getNewRuleFieldParts(field);
+  commitCreatorInput(field);
+  input?.focus();
 }
 
 /**
  * Commit the new rule from the creator form to the saved list.
  */
 async function submitNewRule() {
+  commitCreatorInput("repo");
+  commitCreatorInput("kw");
   // At least one keyword is required — repos-only rules would never match anything
   if (newRule.keywords.length === 0) return;
   const updatedRule = { repos: [...newRule.repos], keywords: [...newRule.keywords] };
@@ -1509,6 +1628,7 @@ filterNewKwAdd?.addEventListener("click", () => addToNewRule("kw"));
 filterNewRepoInput?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addToNewRule("repo");
 });
+filterNewKwInput?.addEventListener("input", updateFilterCreatorSaveState);
 filterNewKwInput?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addToNewRule("kw");
 });
