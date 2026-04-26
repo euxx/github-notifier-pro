@@ -58,6 +58,12 @@ async function startDeviceFlow() {
 
         // Start countdown
         let remaining = data.expires_in;
+        const renderCountdown = () => {
+          const minutes = Math.floor(remaining / 60);
+          const seconds = remaining % 60;
+          countdownEl.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, "0")}`;
+        };
+        renderCountdown(); // Render immediately so the first second isn't blank
         countdownInterval = setInterval(() => {
           if (remaining <= 0) {
             clearInterval(countdownInterval);
@@ -66,9 +72,7 @@ async function startDeviceFlow() {
           }
 
           remaining--;
-          const minutes = Math.floor(remaining / 60);
-          const seconds = remaining % 60;
-          countdownEl.textContent = `Expires in ${minutes}:${seconds.toString().padStart(2, "0")}`;
+          renderCountdown();
         }, ANIMATION_DURATION.COUNTDOWN_INTERVAL);
       },
       onProgress: (progress) => {
