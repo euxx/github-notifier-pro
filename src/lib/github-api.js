@@ -252,7 +252,7 @@ class GitHubAPI {
 
     const data = await response.json();
     if (data.error) {
-      throw new Error(data.error_description || data.error);
+      throw new Error(data.error_description || data.error || "Failed to request device code");
     }
 
     return data;
@@ -339,7 +339,7 @@ class GitHubAPI {
         }
 
         // Other errors (expired_token, access_denied, etc.)
-        throw new Error(data.error_description || data.error);
+        throw new Error(data.error_description || data.error || "Authorization failed");
       } catch (error) {
         // Only retry on transient network/timeout errors:
         // - TypeError: network failure (fetch rejected before getting a response)
