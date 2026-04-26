@@ -2074,6 +2074,10 @@ describe("comment URL cache session storage persistence", () => {
       await expect(persistCommentCache()).resolves.toBeUndefined();
 
       warnSpy.mockRestore();
+      // Restore the default resolution so subsequent tests in this describe
+      // block (which call persistCommentCache indirectly via checkNotifications)
+      // don't keep hitting the rejected mock and polluting stderr.
+      mockStorage.session.set.mockResolvedValue(undefined);
     });
 
     it("is a no-op when session storage is unavailable", async () => {
