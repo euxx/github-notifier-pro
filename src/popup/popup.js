@@ -607,10 +607,25 @@ function updateWidthButtons(width) {
 
 /**
 
- * Send message to background script
+ * Send message to background script.
+ * Maps MV3 service worker recycling failures to a clear error so callers can
+ * surface a useful message instead of a sliently-swallowed undefined response.
  */
 async function sendMessage(action, data = {}) {
-  return runtime.sendMessage({ action, ...data });
+  let result;
+  try {
+    result = await runtime.sendMessage({ action, ...data });
+  } catch (err) {
+    const msg = err?.message || "";
+    if (msg.includes("Extension context invalidated") || msg.includes("message channel closed")) {
+      throw new Error("Background reconnecting, please retry");
+    }
+    throw err;
+  }
+  if (!result || typeof result !== "object") {
+    throw new Error("No response from background");
+  }
+  return result;
 }
 
 /**
