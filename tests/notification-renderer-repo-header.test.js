@@ -1,49 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-
-beforeAll(() => {
-  if (typeof CSS === "undefined" || !CSS.escape) {
-    // @ts-ignore
-    globalThis.CSS = {
-      escape(value) {
-        const str = String(value);
-        const length = str.length;
-        let result = "";
-        for (let i = 0; i < length; i++) {
-          const code = str.charCodeAt(i);
-          if (code === 0x0000) {
-            result += "\uFFFD";
-            continue;
-          }
-          if (
-            (code >= 0x0001 && code <= 0x001f) ||
-            code === 0x007f ||
-            (i === 0 && code >= 0x0030 && code <= 0x0039) ||
-            (i === 1 && code >= 0x0030 && code <= 0x0039 && str.charCodeAt(0) === 0x002d)
-          ) {
-            result += `\\${code.toString(16)} `;
-            continue;
-          }
-          if (
-            code >= 0x80 ||
-            code === 0x2d ||
-            code === 0x5f ||
-            (code >= 0x30 && code <= 0x39) ||
-            (code >= 0x41 && code <= 0x5a) ||
-            (code >= 0x61 && code <= 0x7a)
-          ) {
-            result += str[i];
-          } else {
-            result += `\\${str[i]}`;
-          }
-        }
-        return result;
-      },
-    };
-  }
-});
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../src/lib/constants.js", () => ({
   GITHUB_SITE_BASE: "https://github.com",

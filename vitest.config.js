@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globals: true,
+    setupFiles: ["./tests/setup/css-escape-polyfill.js"],
     // Filter out expected error logs from test output
     onConsoleLog(log, type) {
       // List of expected error patterns that are intentionally tested
