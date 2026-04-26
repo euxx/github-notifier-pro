@@ -859,6 +859,10 @@ runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleMessage(message) {
+  if (!message || typeof message !== "object") {
+    throw new Error("Invalid message");
+  }
+
   switch (message.action) {
     case MESSAGE_TYPES.LOGIN:
       return await handleLogin(message.authMethod, message.token);
