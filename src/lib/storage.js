@@ -156,15 +156,10 @@ export async function setEnableDesktopNotifications(enable) {
 export async function getMaxDesktopNotifications() {
   const value = await get(STORAGE_KEYS.MAX_DESKTOP_NOTIFICATIONS, 5); // default 5
 
-  // Validate: minimum 1, maximum 5
-  const numValue = Number(value);
-  if (isNaN(numValue) || numValue < 1) {
-    return 1; // minimum 1
-  }
-  if (numValue > 5) {
-    return 5; // maximum 5
-  }
-  return Math.floor(numValue); // ensure integer
+  // Clamp to [1, 5] integer range, falling back to the minimum on invalid input.
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(5, n);
 }
 
 export async function setMaxDesktopNotifications(max) {
