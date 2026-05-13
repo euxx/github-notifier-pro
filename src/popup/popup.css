@@ -1937,6 +1937,25 @@ body.dark-theme .login-error-msg {
   background: transparent;
 }
 
+/* ── Delete confirmation state ────────────────────────────── */
+
+.filter-rule-row.confirming-delete .filter-rule-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  background: none;
+}
+
+.filter-rule-action-btn.confirm-delete {
+  color: var(--text-secondary);
+}
+
+.filter-rule-action-btn.confirm-delete:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
+}
+
 /* ── Chip variants ─────────────────────────────────────────── */
 
 .filter-chip {

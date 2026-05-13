@@ -1022,6 +1022,89 @@ function createFilterRuleActionButton({
   return button;
 }
 
+function clearDeleteConfirmationTimer() {
+  if (confirmingDeleteTimer !== null) {
+    clearTimeout(confirmingDeleteTimer);
+    confirmingDeleteTimer = null;
+  }
+}
+
+function exitDeleteConfirmation(row, actions, editBtn) {
+  clearDeleteConfirmationTimer();
+  confirmingDeleteIndex = -1;
+  row.classList.remove("confirming-delete");
+  actions.querySelectorAll(".confirm-delete, .cancel-delete").forEach((el) => el.remove());
+  editBtn.hidden = false;
+  actions.querySelector(".filter-rule-remove-btn").hidden = false;
+}
+
+function enterDeleteConfirmation(idx, row, actions, editBtn) {
+  if (confirmingDeleteIndex >= 0 && confirmingDeleteIndex !== idx) {
+    const prevRow = filterRulesList?.querySelectorAll(".filter-rule-row")[confirmingDeleteIndex];
+    if (prevRow?.classList.contains("confirming-delete")) {
+      const prevActions = prevRow.querySelector(".filter-rule-actions");
+      const prevEditBtn = prevRow.querySelector(".filter-rule-edit-btn");
+      exitDeleteConfirmation(prevRow, prevActions, prevEditBtn);
+    }
+  }
+
+  confirmingDeleteIndex = idx;
+  row.classList.add("confirming-delete");
+  editBtn.hidden = true;
+  actions.querySelector(".filter-rule-remove-btn").hidden = true;
+
+  const confirmBtn = createFilterRuleActionButton({
+    className: "confirm-delete",
+    title: "Confirm delete",
+    ariaLabel: "Confirm delete",
+    svgMarkup:
+      '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>',
+    onClick: () => executeDeleteRule(idx),
+  });
+
+  const cancelBtn = createFilterRuleActionButton({
+    className: "cancel-delete",
+    title: "Cancel",
+    ariaLabel: "Cancel delete",
+    svgMarkup:
+      '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>',
+    onClick: () => exitDeleteConfirmation(row, actions, editBtn),
+  });
+
+  actions.append(confirmBtn, cancelBtn);
+  confirmBtn.focus();
+
+  clearDeleteConfirmationTimer();
+  confirmingDeleteTimer = setTimeout(() => {
+    confirmingDeleteTimer = null;
+    if (confirmingDeleteIndex === idx) {
+      exitDeleteConfirmation(row, actions, editBtn);
+    }
+  }, 5000);
+}
+
+async function executeDeleteRule(idx) {
+  clearDeleteConfirmationTimer();
+  confirmingDeleteIndex = -1;
+  const updated = [...currentFilterRules];
+  updated.splice(idx, 1);
+  if (!(await saveFilterRules(updated))) {
+    renderRuleRows(currentFilterRules, currentFilterStats);
+    return;
+  }
+  currentFilterRules = updated;
+  if (editingRuleIndex >= 0) {
+    if (idx === editingRuleIndex) {
+      hideCreator();
+    } else if (idx < editingRuleIndex) {
+      editingRuleIndex--;
+    }
+  }
+  currentFilterStats = [];
+  renderRuleRows(currentFilterRules, currentFilterStats);
+  updateFilterIndicator(currentFilterRules);
+}
+
 /**
  * Render the list of existing filter rules as compact read-only rows.
  * Each row shows repo + keyword chips and hover-revealed edit/remove actions.
@@ -1032,6 +1115,8 @@ function createFilterRuleActionButton({
  */
 function renderRuleRows(rules, stats = []) {
   if (!filterRulesList) return;
+  clearDeleteConfirmationTimer();
+  confirmingDeleteIndex = -1;
   filterRulesList.replaceChildren();
 
   if (rules.length === 0) {
@@ -1144,23 +1229,7 @@ function renderRuleRows(rules, stats = []) {
       ariaLabel: "Remove rule",
       svgMarkup:
         '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6.5 1.75A1.75 1.75 0 0 1 8.25 0h1.5A1.75 1.75 0 0 1 11.5 1.75V2h2.25a.75.75 0 0 1 0 1.5h-.638l-.622 9.066A1.75 1.75 0 0 1 10.744 14H5.256a1.75 1.75 0 0 1-1.746-1.434L2.888 3.5H2.25a.75.75 0 0 1 0-1.5H5v-.25Zm1.5-.25a.25.25 0 0 0-.25.25V2h2v-.25a.25.25 0 0 0-.25-.25H8Zm-2.108 11h4.216a.25.25 0 0 0 .249-.228L10.964 3.5H5.036l.607 8.772a.25.25 0 0 0 .249.228ZM6.75 5.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V6.5a.75.75 0 0 1 .75-.75Zm2.5 0a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V6.5a.75.75 0 0 1 .75-.75Z"/></svg>',
-      onClick: async () => {
-        const updated = [...currentFilterRules];
-        updated.splice(idx, 1);
-        if (!(await saveFilterRules(updated))) return;
-        currentFilterRules = updated;
-        // Adjust editingRuleIndex if the creator form is open
-        if (editingRuleIndex >= 0) {
-          if (idx === editingRuleIndex) {
-            hideCreator();
-          } else if (idx < editingRuleIndex) {
-            editingRuleIndex--;
-          }
-        }
-        currentFilterStats = [];
-        renderRuleRows(currentFilterRules, currentFilterStats);
-        updateFilterIndicator(currentFilterRules);
-      },
+      onClick: () => enterDeleteConfirmation(idx, row, actions, editBtn),
     });
 
     actions.append(editBtn, removeBtn);
@@ -1342,6 +1411,10 @@ const pendingNewRuleChipEdits = { repo: null, kw: null };
 
 /** Index of the rule currently being edited, or -1 when creating a new rule. */
 let editingRuleIndex = -1;
+
+/** Index of the rule awaiting delete confirmation, or -1 when none. */
+let confirmingDeleteIndex = -1;
+let confirmingDeleteTimer = null;
 
 function updateFilterCreatorLabel() {
   if (!filterCreatorLabel) return;

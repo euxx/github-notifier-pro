@@ -3,7 +3,7 @@
  *
  * Tests for filter rule editing context in popup.js.
  */
-import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 
 vi.mock("../src/lib/chrome-api.js", () => ({
   alarms: { getAll: vi.fn().mockResolvedValue([]) },
@@ -152,6 +152,10 @@ describe("popup filter rules", () => {
     vi.clearAllMocks();
     globalThis.requestAnimationFrame = vi.fn((callback) => callback());
     setupDOM();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows which saved rule is currently being edited", async () => {
@@ -532,5 +536,174 @@ describe("popup filter rules", () => {
 
     expect(mainView.classList.contains("filter-active")).toBe(false);
     expect(mainView.style.getPropertyValue("--filter-overlay-height")).toBe("");
+  });
+
+  describe("delete confirmation", () => {
+    it("enters confirming-delete state on first remove click", async () => {
+      await loadPopup();
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+
+      expect(row.classList.contains("confirming-delete")).toBe(true);
+      expect(row.querySelector(".confirm-delete")).not.toBeNull();
+      expect(row.querySelector(".cancel-delete")).not.toBeNull();
+      expect(row.querySelector(".filter-rule-remove-btn").hidden).toBe(true);
+      expect(row.querySelector(".filter-rule-edit-btn").hidden).toBe(true);
+    });
+
+    it("deletes the rule when confirm is clicked", async () => {
+      await loadPopup();
+
+      const { runtime } = await import("../src/lib/chrome-api.js");
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+      row.querySelector(".confirm-delete").click();
+
+      await vi.waitFor(() => {
+        const saveCalls = runtime.sendMessage.mock.calls.filter(
+          ([message]) => message.action === "setNotificationFilter",
+        );
+        expect(saveCalls).toHaveLength(1);
+        expect(saveCalls[0][0].filter).toEqual([
+          { repos: ["owner/beta"], keywords: ["release", "urgent"] },
+        ]);
+      });
+    });
+
+    it("cancels confirmation when cancel button is clicked", async () => {
+      await loadPopup();
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+      expect(row.classList.contains("confirming-delete")).toBe(true);
+
+      row.querySelector(".cancel-delete").click();
+
+      expect(row.classList.contains("confirming-delete")).toBe(false);
+      expect(row.querySelector(".confirm-delete")).toBeNull();
+      expect(row.querySelector(".cancel-delete")).toBeNull();
+      expect(row.querySelector(".filter-rule-remove-btn").hidden).toBe(false);
+      expect(row.querySelector(".filter-rule-edit-btn").hidden).toBe(false);
+    });
+
+    it("auto-cancels after timeout", async () => {
+      await loadPopup();
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      vi.useFakeTimers();
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+      expect(row.classList.contains("confirming-delete")).toBe(true);
+
+      vi.advanceTimersByTime(5000);
+
+      expect(row.classList.contains("confirming-delete")).toBe(false);
+      expect(row.querySelector(".confirm-delete")).toBeNull();
+    });
+
+    it("only allows one row in confirming-delete state at a time", async () => {
+      await loadPopup();
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      const rows = document.querySelectorAll("#filter-rules-list .filter-rule-row");
+      rows[0].querySelector(".filter-rule-remove-btn").click();
+      expect(rows[0].classList.contains("confirming-delete")).toBe(true);
+
+      rows[1].querySelector(".filter-rule-remove-btn").click();
+
+      expect(rows[0].classList.contains("confirming-delete")).toBe(false);
+      expect(rows[1].classList.contains("confirming-delete")).toBe(true);
+    });
+
+    it("recovers cleanly when save fails after confirming delete", async () => {
+      await loadPopup();
+
+      const { runtime } = await import("../src/lib/chrome-api.js");
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+
+      runtime.sendMessage.mockImplementation(({ action }) => {
+        if (action === "setNotificationFilter") {
+          return Promise.resolve({ error: "Storage quota exceeded" });
+        }
+        if (action === "getNotificationFilter") {
+          return Promise.resolve({ filter: RULES });
+        }
+        return Promise.resolve({});
+      });
+
+      row.querySelector(".confirm-delete").click();
+      await flushTasks();
+
+      const rowsAfter = document.querySelectorAll("#filter-rules-list .filter-rule-row");
+      expect(rowsAfter).toHaveLength(2);
+      expect(Array.from(rowsAfter).every((r) => !r.classList.contains("confirming-delete"))).toBe(
+        true,
+      );
+    });
+
+    it("clears confirmation state when renderRuleRows is triggered externally", async () => {
+      await loadPopup();
+
+      document.getElementById("filter-icon-btn").click();
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("#filter-rules-list .filter-rule-row")).toHaveLength(2);
+      });
+
+      vi.useFakeTimers();
+
+      const row = document.querySelectorAll("#filter-rules-list .filter-rule-row")[0];
+      row.querySelector(".filter-rule-remove-btn").click();
+      expect(row.classList.contains("confirming-delete")).toBe(true);
+
+      document
+        .querySelectorAll("#filter-rules-list .filter-rule-row")[1]
+        .querySelector(".filter-rule-edit-btn")
+        .click();
+
+      const rowsAfter = document.querySelectorAll("#filter-rules-list .filter-rule-row");
+      expect(Array.from(rowsAfter).every((r) => !r.classList.contains("confirming-delete"))).toBe(
+        true,
+      );
+
+      vi.advanceTimersByTime(5000);
+      expect(
+        Array.from(document.querySelectorAll("#filter-rules-list .filter-rule-row")).every(
+          (r) => !r.classList.contains("confirming-delete"),
+        ),
+      ).toBe(true);
+    });
   });
 });
