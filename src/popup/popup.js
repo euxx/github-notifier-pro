@@ -282,9 +282,13 @@ function syncFilterOverlayHeight() {
   }
 
   const bodyStyles = getComputedStyle(document.body);
+  // minHeight/maxHeight come from popup.css `body` rule (300px / 600px).
+  // If those values move to another selector, update the lookup target here too.
   const minHeight = parsePixelValue(bodyStyles.minHeight) ?? 300;
   const maxHeight =
     parsePixelValue(bodyStyles.maxHeight) ??
+    // Fallback only fires if body.max-height is removed; reads mainView's current
+    // height which is itself sized by --filter-overlay-height — converges in 1-2 ticks.
     Math.max(minHeight, Math.round(mainView.getBoundingClientRect().height));
   const headerHeight = filterHeader?.offsetHeight ?? 0;
   const contentHeight = filterContent?.scrollHeight ?? 0;
@@ -606,10 +610,9 @@ function updateWidthButtons(width) {
 }
 
 /**
-
  * Send message to background script.
  * Maps MV3 service worker recycling failures to a clear error so callers can
- * surface a useful message instead of a sliently-swallowed undefined response.
+ * surface a useful message instead of a silently-swallowed undefined response.
  */
 async function sendMessage(action, data = {}) {
   let result;
