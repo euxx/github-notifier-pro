@@ -271,30 +271,36 @@ function parsePixelValue(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+let syncHeightScheduled = false;
 function syncFilterOverlayHeight() {
-  if (
-    !mainView ||
-    !filterView ||
-    filterView.hidden ||
-    !mainView.classList.contains("filter-active")
-  ) {
-    return;
-  }
+  if (syncHeightScheduled) return;
+  syncHeightScheduled = true;
+  queueMicrotask(() => {
+    syncHeightScheduled = false;
+    if (
+      !mainView ||
+      !filterView ||
+      filterView.hidden ||
+      !mainView.classList.contains("filter-active")
+    ) {
+      return;
+    }
 
-  const bodyStyles = getComputedStyle(document.body);
-  // minHeight/maxHeight come from popup.css `body` rule (300px / 600px).
-  // If those values move to another selector, update the lookup target here too.
-  const minHeight = parsePixelValue(bodyStyles.minHeight) ?? 300;
-  const maxHeight =
-    parsePixelValue(bodyStyles.maxHeight) ??
-    // Fallback only fires if body.max-height is removed; reads mainView's current
-    // height which is itself sized by --filter-overlay-height — converges in 1-2 ticks.
-    Math.max(minHeight, Math.round(mainView.getBoundingClientRect().height));
-  const headerHeight = filterHeader?.offsetHeight ?? 0;
-  const contentHeight = filterContent?.scrollHeight ?? 0;
-  const overlayHeight = Math.min(maxHeight, Math.max(minHeight, headerHeight + contentHeight));
+    const bodyStyles = getComputedStyle(document.body);
+    // minHeight/maxHeight come from popup.css `body` rule (300px / 600px).
+    // If those values move to another selector, update the lookup target here too.
+    const minHeight = parsePixelValue(bodyStyles.minHeight) ?? 300;
+    const maxHeight =
+      parsePixelValue(bodyStyles.maxHeight) ??
+      // Fallback only fires if body.max-height is removed; reads mainView's current
+      // height which is itself sized by --filter-overlay-height — converges in 1-2 ticks.
+      Math.max(minHeight, Math.round(mainView.getBoundingClientRect().height));
+    const headerHeight = filterHeader?.offsetHeight ?? 0;
+    const contentHeight = filterContent?.scrollHeight ?? 0;
+    const overlayHeight = Math.min(maxHeight, Math.max(minHeight, headerHeight + contentHeight));
 
-  mainView.style.setProperty("--filter-overlay-height", `${overlayHeight}px`);
+    mainView.style.setProperty("--filter-overlay-height", `${overlayHeight}px`);
+  });
 }
 
 function setFilterLayoutState(isOpen) {
@@ -1170,7 +1176,7 @@ function renderRuleRows(rules, stats = []) {
  * @param {"repo"|"kw"} field
  */
 function renderNewRuleChips(field) {
-  const key = field === "repo" ? "repos" : "keywords";
+  const { key } = getNewRuleFieldParts(field);
   const container = field === "repo" ? filterNewRepoChips : filterNewKwChips;
   if (!container) return;
   container.replaceChildren(
