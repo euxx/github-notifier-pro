@@ -85,6 +85,12 @@ export const MESSAGE_TYPES = {
   REFRESH: "refresh",
   GET_NOTIFICATION_FILTER: "getNotificationFilter",
   SET_NOTIFICATION_FILTER: "setNotificationFilter",
+  SYNC_ENABLE: "syncEnable",
+  SYNC_DISABLE: "syncDisable",
+  SYNC_PUSH: "syncPush",
+  SYNC_PULL: "syncPull",
+  SYNC_GET_STATE: "syncGetState",
+  SYNC_RESOLVE_CONFLICT: "syncResolveConflict",
 };
 
 // GitHub Notification Types

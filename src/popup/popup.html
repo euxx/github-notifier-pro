@@ -57,14 +57,14 @@
             <span id="login-error" class="login-error-msg" hidden aria-live="polite"></span>
             <div class="pat-hint">
               <a
-                href="https://github.com/settings/tokens/new?scopes=repo,notifications&description=GitHub%20Notifier%20Pro"
+                href="https://github.com/settings/tokens/new?scopes=repo,notifications,gist&description=GitHub%20Notifier%20Pro"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 Generate a token
               </a>
-              (<code>ghp_</code> or <code>github_pat_</code>) with <code>repo</code> and
-              <code>notifications</code>
+              (<code>ghp_</code> or <code>github_pat_</code>) with <code>repo</code>,
+              <code>notifications</code>, and <code>gist</code>
               scopes
             </div>
           </div>
@@ -304,6 +304,56 @@
           </div>
           <div id="desktop-notifications-hint" class="setting-hint" hidden aria-live="polite"></div>
 
+          <div class="setting-row" id="filter-sync-row">
+            <span class="setting-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="16" height="16">
+                <path d="M8 2v4l2.5 2.5" />
+                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.3" />
+              </svg>
+            </span>
+            <span class="setting-label" id="filter-sync-label"
+              >Sync Filters via
+              <a
+                id="filter-sync-gist-link"
+                href="#"
+                target="_blank"
+                rel="noopener noreferrer"
+                hidden
+                >Gist</a
+              ><span id="filter-sync-gist-text">Gist</span
+              ><span class="filter-sync-last" id="filter-sync-last" hidden></span
+            ></span>
+            <div class="filter-sync-actions" id="filter-sync-actions" hidden>
+              <button type="button" class="btn btn-secondary btn-compact" id="filter-sync-push">
+                Push
+              </button>
+              <button type="button" class="btn btn-secondary btn-compact" id="filter-sync-pull">
+                Pull
+              </button>
+            </div>
+            <div class="filter-sync-actions" id="filter-sync-conflict" hidden>
+              <button
+                type="button"
+                class="btn btn-secondary btn-compact"
+                id="filter-sync-use-local"
+              >
+                Use Local
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary btn-compact"
+                id="filter-sync-use-remote"
+              >
+                Use Remote
+              </button>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="filter-sync-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+            <p class="filter-sync-status" id="filter-sync-status" hidden></p>
+          </div>
+
           <div class="setting-row">
             <span class="setting-icon" aria-hidden="true">
               <svg viewBox="0 0 16 16" width="16" height="16">
@@ -344,8 +394,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Filter View -->
       <div id="filter-view" class="view settings-view" hidden>
         <div class="settings-header">
           <button class="btn-icon" id="filter-back-btn" title="Back">

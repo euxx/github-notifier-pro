@@ -16,6 +16,8 @@ import {
 import { buildNotificationUrl } from "./url-builder.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "./lru-cache.js";
 
+const FILTER_GIST_FILENAME = "github-notifier-pro-filters.json";
+
 /**
  * Retry configuration for mutation requests (mark as read, etc.)
  */
@@ -240,7 +242,7 @@ class GitHubAPI {
         },
         body: JSON.stringify({
           client_id: CLIENT_ID,
-          scope: "repo notifications",
+          scope: "repo notifications gist",
         }),
       },
       API_TIMEOUTS.DEFAULT,
@@ -971,6 +973,117 @@ class GitHubAPI {
 
     this.updateRateLimit(response);
     return true;
+  }
+
+  _buildFilterEnvelope(rules) {
+    return { version: 1, updatedAt: new Date().toISOString(), rules };
+  }
+
+  async createFilterGist(filterRules) {
+    const envelope = this._buildFilterEnvelope(filterRules);
+    const response = await fetchWithTimeout(
+      `${GITHUB_API_BASE}/gists`,
+      {
+        method: "POST",
+        headers: { ...this.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: "GitHub Notifier Pro — Filter Rules (auto-synced)",
+          public: false,
+          files: {
+            [FILTER_GIST_FILENAME]: {
+              content: JSON.stringify(envelope, null, 2),
+            },
+          },
+        }),
+      },
+      API_TIMEOUTS.DEFAULT,
+    );
+    if (response.status === 404 || response.status === 403) {
+      const err = new Error("missing_gist_scope");
+      err.code = "missing_scope";
+      throw err;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to create gist: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.id;
+  }
+
+  async updateFilterGist(gistId, filterRules) {
+    const envelope = this._buildFilterEnvelope(filterRules);
+    const response = await fetchWithTimeout(
+      `${GITHUB_API_BASE}/gists/${gistId}`,
+      {
+        method: "PATCH",
+        headers: { ...this.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: {
+            [FILTER_GIST_FILENAME]: {
+              content: JSON.stringify(envelope, null, 2),
+            },
+          },
+        }),
+      },
+      API_TIMEOUTS.DEFAULT,
+    );
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`Failed to update gist: ${response.status}`);
+    }
+    return gistId;
+  }
+
+  async _fetchGistData(gistId) {
+    const response = await fetchWithTimeout(
+      `${GITHUB_API_BASE}/gists/${gistId}`,
+      { headers: this.headers },
+      API_TIMEOUTS.DEFAULT,
+    );
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`Failed to fetch gist: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getFilterGist(gistId) {
+    const data = await this._fetchGistData(gistId);
+    if (!data) return null;
+    const file = data.files[FILTER_GIST_FILENAME];
+    if (!file) return null;
+    try {
+      const parsed = JSON.parse(file.content);
+      return { rules: parsed.rules || [], updatedAt: parsed.updatedAt || null };
+    } catch {
+      // Corrupted content → treat as empty so the next push overwrites with valid local data
+      return null;
+    }
+  }
+
+  async getFilterGistMeta(gistId) {
+    const data = await this._fetchGistData(gistId);
+    if (!data) return null;
+    return { updated_at: data.updated_at, created_at: data.created_at };
+  }
+
+  async findFilterGist() {
+    let page = 1;
+    while (page <= 5) {
+      const response = await fetchWithTimeout(
+        `${GITHUB_API_BASE}/gists?per_page=30&page=${page}`,
+        { headers: this.headers },
+        API_TIMEOUTS.DEFAULT,
+      );
+      if (!response.ok) break;
+      const gists = await response.json();
+      if (gists.length === 0) break;
+      for (const g of gists) {
+        if (g.files[FILTER_GIST_FILENAME]) return g.id;
+      }
+      page++;
+    }
+    return null;
   }
 }
 

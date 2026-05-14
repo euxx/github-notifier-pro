@@ -27,6 +27,11 @@ const STORAGE_KEYS = {
   // Array parallel to NOTIFICATION_FILTER:
   //   [{ repos: { "owner/repo" (lowercase): count }, keywords: { keyword: count } }, ...]
   NOTIFICATION_FILTER_STATS: "notificationFilterStats",
+  // Gist sync
+  SYNC_ENABLED: "syncEnabled", // boolean
+  SYNC_GIST_ID: "syncGistId", // string — gist ID for filter sync
+  SYNC_LAST_PUSH: "syncLastPush", // ISO timestamp of last successful push
+  SYNC_LAST_PUSHED_FILTER: "syncLastPushedFilter", // JSON snapshot of filter at last push
 };
 
 /**
@@ -188,6 +193,39 @@ export async function getNotificationFilterStats() {
 
 export async function setNotificationFilterStats(stats) {
   return set(STORAGE_KEYS.NOTIFICATION_FILTER_STATS, stats);
+}
+
+// Gist sync settings
+export async function getSyncEnabled() {
+  return get(STORAGE_KEYS.SYNC_ENABLED, false);
+}
+
+export async function setSyncEnabled(enabled) {
+  return set(STORAGE_KEYS.SYNC_ENABLED, enabled);
+}
+
+export async function getSyncGistId() {
+  return get(STORAGE_KEYS.SYNC_GIST_ID, null);
+}
+
+export async function setSyncGistId(id) {
+  return set(STORAGE_KEYS.SYNC_GIST_ID, id);
+}
+
+export async function getSyncLastPush() {
+  return get(STORAGE_KEYS.SYNC_LAST_PUSH, null);
+}
+
+export async function setSyncLastPush(isoString) {
+  return set(STORAGE_KEYS.SYNC_LAST_PUSH, isoString);
+}
+
+export async function getSyncLastPushedFilter() {
+  return get(STORAGE_KEYS.SYNC_LAST_PUSHED_FILTER, null);
+}
+
+export async function setSyncLastPushedFilter(filter) {
+  return set(STORAGE_KEYS.SYNC_LAST_PUSHED_FILTER, filter === null ? null : JSON.stringify(filter));
 }
 
 export { STORAGE_KEYS };

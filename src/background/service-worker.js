@@ -952,12 +952,213 @@ async function handleMessage(message) {
       checkNotifications().catch((err) => {
         console.error("Background re-fetch after filter change failed:", err);
       });
+      syncPushIfEnabled();
       return { success: true };
+    }
+
+    case MESSAGE_TYPES.SYNC_GET_STATE: {
+      const enabled = await storage.getSyncEnabled();
+      const gistId = await storage.getSyncGistId();
+      let lastPush = await storage.getSyncLastPush();
+      if (!lastPush && gistId) {
+        const meta = await github.getFilterGistMeta(gistId);
+        if (meta) {
+          lastPush = meta.updated_at;
+          await storage.setSyncLastPush(lastPush);
+        }
+      }
+      return { enabled, gistId, lastPush };
+    }
+
+    case MESSAGE_TYPES.SYNC_ENABLE: {
+      let gistId = await storage.getSyncGistId();
+      let isNew = false;
+      if (!gistId) {
+        gistId = await github.findFilterGist();
+      }
+      if (!gistId) {
+        const filter = await storage.getNotificationFilter();
+        try {
+          gistId = await github.createFilterGist(filter);
+          isNew = true;
+        } catch (err) {
+          if (err.code === "missing_scope") {
+            return { success: false, error: "missing_scope" };
+          }
+          throw err;
+        }
+      }
+      if (!isNew) {
+        const pullResult = await applyRemoteRules(gistId);
+        if (!pullResult.success) {
+          if (pullResult.error === "conflict") {
+            await storage.setSyncGistId(gistId);
+            await storage.setSyncEnabled(true);
+          }
+          return { ...pullResult, gistId };
+        }
+        if (pullResult.pushNeeded) {
+          await storage.setSyncGistId(gistId);
+          await storage.setSyncEnabled(true);
+          const pushResult = await syncPush({ skipConflictCheck: true });
+          if (!pushResult.success) return { ...pushResult, gistId };
+          return { success: true, gistId };
+        }
+      }
+      await storage.setSyncGistId(gistId);
+      await storage.setSyncEnabled(true);
+      const filter = await storage.getNotificationFilter();
+      await storage.setSyncLastPushedFilter(filter);
+      await storage.setSyncLastPush(new Date().toISOString());
+      return { success: true, gistId };
+    }
+
+    case MESSAGE_TYPES.SYNC_DISABLE: {
+      await storage.setSyncEnabled(false);
+      return { success: true };
+    }
+
+    case MESSAGE_TYPES.SYNC_PUSH: {
+      return await syncPush();
+    }
+
+    case MESSAGE_TYPES.SYNC_PULL: {
+      const enabled = await storage.getSyncEnabled();
+      if (!enabled) return { success: false, error: "sync_disabled" };
+      const gistId = await storage.getSyncGistId();
+      if (!gistId) return { success: false, error: "no_gist" };
+      const result = await applyRemoteRules(gistId);
+      if (result.pushNeeded) {
+        const pushResult = await syncPush({ skipConflictCheck: true });
+        if (!pushResult.success) return pushResult;
+      }
+      return result;
+    }
+
+    case MESSAGE_TYPES.SYNC_RESOLVE_CONFLICT: {
+      const { choice } = message;
+      const gistId = await storage.getSyncGistId();
+      if (!gistId) return { success: false, error: "no_gist" };
+      if (choice === "local") {
+        const filter = await storage.getNotificationFilter();
+        const updateResult = await github.updateFilterGist(gistId, filter);
+        if (!updateResult) {
+          await storage.setSyncGistId(null);
+          await storage.setSyncEnabled(false);
+          return { success: false, error: "gist_not_found" };
+        }
+        await storage.setSyncLastPush(new Date().toISOString());
+        await storage.setSyncLastPushedFilter(filter);
+        return { success: true, filter };
+      }
+      if (choice === "remote") {
+        const result = await github.getFilterGist(gistId);
+        if (!result) return { success: false, error: "gist_not_found" };
+        const valid = validateFilterRules(result.rules);
+        await acceptRemoteFilter(valid, result.updatedAt || new Date().toISOString());
+        return { success: true, filter: valid };
+      }
+      return { success: false, error: "invalid_choice" };
     }
 
     default:
       throw new Error(`Unknown action: ${message.action}`);
   }
+}
+
+function validateFilterRules(rules) {
+  // Drop malformed rules from untrusted remote data; valid rules pass through unchanged
+  return rules.filter(
+    (r) =>
+      Array.isArray(r?.repos) &&
+      Array.isArray(r?.keywords) &&
+      r.keywords.length > 0 &&
+      r.repos.every((x) => typeof x === "string") &&
+      r.keywords.every((x) => typeof x === "string"),
+  );
+}
+
+async function acceptRemoteFilter(valid, updatedAt) {
+  await storage.setNotificationFilter(valid);
+  await storage.setNotificationFilterStats([]);
+  await storage.setSyncLastPushedFilter(valid);
+  if (updatedAt) await storage.setSyncLastPush(updatedAt);
+  github.lastModified = null;
+  checkNotifications().catch(() => {});
+}
+
+async function applyRemoteRules(gistId) {
+  const result = await github.getFilterGist(gistId);
+  if (result === null) {
+    return { success: false, error: "gist_not_found" };
+  }
+  const { rules, updatedAt: remoteUpdatedAt } = result;
+  if (!Array.isArray(rules)) {
+    return { success: false, error: "invalid_data" };
+  }
+  const valid = validateFilterRules(rules);
+  const local = await storage.getNotificationFilter();
+  if (JSON.stringify(local) === JSON.stringify(valid)) {
+    return { success: true, filter: valid, skipped: true };
+  }
+  const lastPushedRaw = await storage.getSyncLastPushedFilter();
+  const lastPush = await storage.getSyncLastPush();
+  const hasLocalEdits = lastPushedRaw !== null && lastPushedRaw !== JSON.stringify(local);
+  // Compare envelope timestamps — both sides use new Date().toISOString() (UTC, fixed format)
+  const hasRemoteEdits = remoteUpdatedAt && lastPush && remoteUpdatedAt > lastPush;
+
+  if (hasLocalEdits && hasRemoteEdits) {
+    return { success: false, error: "conflict", local, remote: valid };
+  }
+  if (hasLocalEdits && !hasRemoteEdits) {
+    return { success: true, filter: local, skipped: true, pushNeeded: true };
+  }
+  await acceptRemoteFilter(valid, remoteUpdatedAt);
+  return { success: true, filter: valid };
+}
+
+async function syncPush({ skipConflictCheck = false } = {}) {
+  const enabled = await storage.getSyncEnabled();
+  if (!enabled) return { success: false, error: "sync_disabled" };
+  const gistId = await storage.getSyncGistId();
+  if (!gistId) return { success: false, error: "no_gist" };
+  const filter = await storage.getNotificationFilter();
+  if (!skipConflictCheck) {
+    const result = await github.getFilterGist(gistId);
+    if (result !== null) {
+      if (JSON.stringify(result.rules) === JSON.stringify(filter)) {
+        return { success: true, skipped: true };
+      }
+      const lastPush = await storage.getSyncLastPush();
+      if (result.updatedAt && lastPush && result.updatedAt > lastPush) {
+        return { success: false, error: "conflict", local: filter, remote: result.rules };
+      }
+    }
+  }
+  const updateResult = await github.updateFilterGist(gistId, filter);
+  if (!updateResult) {
+    // Gist was deleted externally — disable sync to avoid repeated failures
+    await storage.setSyncGistId(null);
+    await storage.setSyncEnabled(false);
+    return { success: false, error: "gist_not_found" };
+  }
+  await storage.setSyncLastPush(new Date().toISOString());
+  await storage.setSyncLastPushedFilter(filter);
+  return { success: true };
+}
+
+let _syncPushTimer = null;
+function syncPushIfEnabled() {
+  clearTimeout(_syncPushTimer);
+  _syncPushTimer = setTimeout(async () => {
+    try {
+      const enabled = await storage.getSyncEnabled();
+      if (!enabled) return;
+      await syncPush();
+    } catch (err) {
+      console.warn("Auto-push failed:", err.message || err);
+    }
+  }, 2000);
 }
 
 async function handleLogin(authMethod = "oauth", token = null) {
@@ -1001,6 +1202,10 @@ async function handleLogout() {
   await persistCommentCache();
   await stopPolling();
   await storage.clearAuthData();
+  await storage.setSyncEnabled(false);
+  await storage.setSyncGistId(null);
+  await storage.setSyncLastPush(null);
+  await storage.setSyncLastPushedFilter(null);
   await updateBadge(null);
 
   return { success: true };
