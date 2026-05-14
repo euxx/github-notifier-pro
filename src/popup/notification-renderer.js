@@ -65,6 +65,7 @@ let config = {
   sendMessage: async () => {},
   onUserAction: () => {},
   onMarkRepoAsRead: () => {},
+  onMarkAsReadSuccess: () => {},
 };
 
 /**
@@ -135,7 +136,14 @@ export function formatTimeAgo(dateString) {
  * @returns {HTMLElement} Notification list item element
  */
 function createNotificationItem(notif, repoHeader, repoFullName) {
-  const { notificationsList, emptyState, markAllBtn, sendMessage, onUserAction } = config;
+  const {
+    notificationsList,
+    emptyState,
+    markAllBtn,
+    sendMessage,
+    onUserAction,
+    onMarkAsReadSuccess,
+  } = config;
 
   const li = document.createElement("li");
   li.className = "notification-item";
@@ -385,6 +393,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
         }
 
         nextFocusTarget?.focus({ preventScroll: true });
+        onMarkAsReadSuccess();
       } else {
         // Failure: restore item
         restoreItem();

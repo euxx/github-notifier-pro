@@ -485,6 +485,7 @@ function updateFilteredBadge(count) {
       showingFiltered = false;
       if (filteredNotificationsContainer) filteredNotificationsContainer.hidden = true;
       if (filterRulesList) filterRulesList.hidden = false;
+      if (filterCreator && creatorWasOpen) filterCreator.hidden = false;
       syncFilterOverlayHeight(true);
     }
   } else {
@@ -746,6 +747,7 @@ async function markAllAsRead() {
       emptyState.hidden = false;
       markAllBtn.disabled = true;
       markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
+      updateFilteredBadge(0);
     } else {
       rollback();
       console.error("Failed to mark all as read:", result.error);
@@ -1720,12 +1722,17 @@ async function showFilter() {
   hideCreator();
 }
 
-async function renderFilteredInFilterView() {
-  if (!filteredNotificationsList) return;
+async function refreshFilteredBadge() {
   const notifications = await storage.getNotifications();
   const filtered = notifications.filter((n) => n.matchedRules?.length);
-  renderNotificationsInto(filteredNotificationsList, groupByRepo(filtered));
   updateFilteredBadge(filtered.length);
+  return filtered;
+}
+
+async function renderFilteredInFilterView() {
+  if (!filteredNotificationsList) return;
+  const filtered = await refreshFilteredBadge();
+  renderNotificationsInto(filteredNotificationsList, groupByRepo(filtered));
 }
 
 async function toggleFilteredInFilterView() {
@@ -1936,6 +1943,7 @@ async function init() {
       lastUserActionTime = Date.now();
     },
     onMarkRepoAsRead: handleMarkRepoAsRead,
+    onMarkAsReadSuccess: refreshFilteredBadge,
   });
 
   // Listen for system theme changes

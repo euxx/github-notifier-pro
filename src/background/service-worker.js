@@ -1055,15 +1055,20 @@ async function handleMessage(message) {
 }
 
 function validateFilterRules(rules) {
-  // Drop malformed rules from untrusted remote data; valid rules pass through unchanged
-  return rules.filter(
-    (r) =>
-      Array.isArray(r?.repos) &&
-      Array.isArray(r?.keywords) &&
-      r.keywords.length > 0 &&
-      r.repos.every((x) => typeof x === "string") &&
-      r.keywords.every((x) => typeof x === "string"),
-  );
+  // Normalize and drop malformed rules from untrusted remote data
+  return rules
+    .filter(
+      (r) =>
+        Array.isArray(r?.repos) &&
+        Array.isArray(r?.keywords) &&
+        r.repos.every((x) => typeof x === "string") &&
+        r.keywords.every((x) => typeof x === "string"),
+    )
+    .map((r) => ({
+      repos: r.repos.map((x) => x.trim()).filter(Boolean),
+      keywords: r.keywords.map((x) => x.trim()).filter(Boolean),
+    }))
+    .filter((r) => r.keywords.length > 0);
 }
 
 async function acceptRemoteFilter(valid, updatedAt) {
@@ -1087,9 +1092,6 @@ async function applyRemoteRules(gistId) {
     return { success: false, error: "gist_not_found" };
   }
   const { rules, updatedAt: remoteUpdatedAt } = result;
-  if (!Array.isArray(rules)) {
-    return { success: false, error: "invalid_data" };
-  }
   const valid = validateFilterRules(rules);
   const local = await storage.getNotificationFilter();
   if (JSON.stringify(local) === JSON.stringify(valid)) {

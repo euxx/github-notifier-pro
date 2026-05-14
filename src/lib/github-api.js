@@ -1054,9 +1054,9 @@ class GitHubAPI {
     if (!file) return null;
     try {
       const parsed = JSON.parse(file.content);
-      return { rules: parsed.rules || [], updatedAt: parsed.updatedAt || null };
+      if (!Array.isArray(parsed.rules)) return null;
+      return { rules: parsed.rules, updatedAt: parsed.updatedAt || null };
     } catch {
-      // Corrupted content → treat as empty so the next push overwrites with valid local data
       return null;
     }
   }
