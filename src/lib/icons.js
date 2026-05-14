@@ -76,8 +76,17 @@ export function getIconSVG(type, state, merged, conclusion, stateReason) {
 }
 
 /**
- * Parse a static SVG string from ICON_SVGS into a live SVGElement.
- * Uses createContextualFragment to avoid innerHTML, so the AMO linter does not flag it.
+ * Parse an SVG markup string into a live SVGElement.
+ * @param {string} svgString - SVG markup
+ * @returns {SVGElement}
+ */
+export function parseSVG(svgString) {
+  const doc = new DOMParser().parseFromString(svgString, "text/html");
+  return doc.body.firstElementChild;
+}
+
+/**
+ * Get a notification icon as a live SVGElement.
  * @param {string} type - Icon key (e.g. 'pull_request', 'issue', 'comment_bubble')
  * @param {string} [state]
  * @param {boolean} [merged]
@@ -86,10 +95,5 @@ export function getIconSVG(type, state, merged, conclusion, stateReason) {
  * @returns {SVGElement}
  */
 export function getIconSVGElement(type, state, merged, conclusion, stateReason) {
-  const svgString = getIconSVG(type, state, merged, conclusion, stateReason);
-  // createContextualFragment parses in the current document's HTML context,
-  // correctly handling SVG namespaces without an innerHTML assignment.
-  const range = document.createRange();
-  const fragment = range.createContextualFragment(svgString);
-  return fragment.firstElementChild;
+  return parseSVG(getIconSVG(type, state, merged, conclusion, stateReason));
 }

@@ -21,6 +21,7 @@ import {
   buildKeywordNotificationsUrl,
 } from "../lib/url-builder.js";
 import { classifyError } from "../lib/format-utils.js";
+import { parseSVG } from "../lib/icons.js";
 import {
   initRenderer,
   renderNotifications,
@@ -720,11 +721,9 @@ async function markAllAsRead() {
   // Immediate visual feedback
   const originalNodes = Array.from(markAllBtn.childNodes).map((n) => n.cloneNode(true));
   markAllBtn.disabled = true;
-  const spinner = document
-    .createRange()
-    .createContextualFragment(
-      '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>',
-    );
+  const spinner = parseSVG(
+    '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>',
+  );
   markAllBtn.replaceChildren(spinner);
 
   // Immediate visual feedback: start overlay animation with stagger
@@ -1067,7 +1066,7 @@ function createFilterRuleActionButton({
   button.title = title;
   button.setAttribute("aria-label", ariaLabel);
   button.disabled = disabled;
-  button.appendChild(document.createRange().createContextualFragment(svgMarkup));
+  button.appendChild(parseSVG(svgMarkup));
   button.addEventListener("click", onClick);
   return button;
 }
@@ -1172,10 +1171,9 @@ function renderRuleRows(rules, stats = []) {
   if (rules.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    // Reuse the filter funnel icon from the header (createContextualFragment avoids innerHTML)
     const svgMarkup =
       '<svg viewBox="0 0 16 16" width="24" height="24"><path fill="currentColor" d="M.75 3h14.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1 0-1.5ZM3 7.75A.75.75 0 0 1 3.75 7h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 7.75Zm3 4a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>';
-    empty.appendChild(document.createRange().createContextualFragment(svgMarkup));
+    empty.appendChild(parseSVG(svgMarkup));
     const text = document.createElement("p");
     text.textContent = "No rules yet";
     empty.appendChild(text);
@@ -1472,13 +1470,9 @@ function updateFilterCreatorLabel() {
   filterCreatorLabel.textContent = editingRuleIndex >= 0 ? "Edit Rule" : "New Rule";
 }
 
-function showSyncStatus(text, isError = false, useHtml = false) {
+function showSyncStatus(text, isError = false) {
   if (!syncStatus) return;
-  if (useHtml) {
-    syncStatus.innerHTML = text;
-  } else {
-    syncStatus.textContent = text;
-  }
+  syncStatus.textContent = text;
   syncStatus.classList.toggle("error", isError);
   syncStatus.hidden = false;
 }
@@ -1571,10 +1565,16 @@ async function handleSyncToggle() {
           if (authMethod === "oauth") {
             showSyncStatus("Re-login via OAuth to grant the gist scope.", true);
           } else {
-            showSyncStatus(
-              'Add the <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">gist scope</a> to your token on GitHub.',
-              true,
-              true,
+            const link = document.createElement("a");
+            link.href = "https://github.com/settings/tokens";
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = "gist scope";
+            showSyncStatus("", true);
+            syncStatus.replaceChildren(
+              document.createTextNode("Add the "),
+              link,
+              document.createTextNode(" to your token on GitHub."),
             );
           }
         } else {
