@@ -52,8 +52,6 @@ export function truncateReleaseBody(body, maxLength = 200) {
   return trimmed.substring(0, maxLength);
 }
 
-// Author profile URL construction delegated to url-builder.js (buildProfileUrl)
-
 // Cache for notifications to avoid unnecessary re-renders
 let cachedNotifications = null;
 let cachedNotificationsHash = null;
@@ -365,8 +363,9 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
         li.remove();
 
         // Check if any notifications from this group remain
+        const listContainer = repoHeader?.parentElement || notificationsList;
         const escapedRepo = CSS.escape(repoFullName);
-        const remainingInGroup = notificationsList.querySelectorAll(
+        const remainingInGroup = listContainer.querySelectorAll(
           `.notification-item[data-repo="${escapedRepo}"]`,
         );
 
@@ -379,8 +378,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
           }
         }
 
-        const remaining = notificationsList.querySelectorAll(".notification-item").length;
-        if (remaining === 0) {
+        const remaining = listContainer.querySelectorAll(".notification-item").length;
+        if (remaining === 0 && listContainer === notificationsList) {
           emptyState.hidden = false;
           markAllBtn.disabled = true;
         }
@@ -404,78 +403,46 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
  * @param {Array} notifications - Array of notification objects
  * @param {boolean} shouldResort - Whether to re-sort repos by time
  */
-export function renderNotifications(notifications, shouldResort = true) {
-  const { notificationsList, emptyState, markAllBtn } = config;
-
-  // Check if notifications have actually changed
-  const notificationsHash = createNotificationsHash(notifications);
-  if (cachedNotificationsHash === notificationsHash) {
-    return;
-  }
-
-  cachedNotifications = notifications;
-  cachedNotificationsHash = notificationsHash;
-
-  notificationsList.replaceChildren();
-
-  if (!notifications || notifications.length === 0) {
-    emptyState.hidden = false;
-    markAllBtn.disabled = true;
-    return;
-  }
-
-  emptyState.hidden = true;
-  markAllBtn.disabled = false;
-
-  // Group notifications by repository
-  const groupedByRepo = {};
+export function groupByRepo(notifications) {
+  const grouped = {};
   for (const notif of notifications) {
     const repoFullName = notif.repository.full_name;
     const notifTime = new Date(notif.updated_at).getTime();
-
-    if (!groupedByRepo[repoFullName]) {
-      groupedByRepo[repoFullName] = {
+    if (!grouped[repoFullName]) {
+      grouped[repoFullName] = {
         repo: notif.repository,
         notifications: [],
         latestNotifTime: notifTime,
       };
     }
-
-    groupedByRepo[repoFullName].notifications.push(notif);
-
-    if (notifTime > groupedByRepo[repoFullName].latestNotifTime) {
-      groupedByRepo[repoFullName].latestNotifTime = notifTime;
+    grouped[repoFullName].notifications.push(notif);
+    if (notifTime > grouped[repoFullName].latestNotifTime) {
+      grouped[repoFullName].latestNotifTime = notifTime;
     }
   }
+  return grouped;
+}
 
-  // Sort repos by latest notification time
-  let sortedRepos;
-  if (shouldResort) {
-    sortedRepos = Object.keys(groupedByRepo).sort((a, b) => {
-      return groupedByRepo[b].latestNotifTime - groupedByRepo[a].latestNotifTime;
-    });
-    cachedRepoOrder = sortedRepos;
-  } else {
-    const currentRepos = new Set(Object.keys(groupedByRepo));
-    sortedRepos = cachedRepoOrder.filter((repo) => currentRepos.has(repo));
-    const cachedSet = new Set(cachedRepoOrder);
-    const newRepos = Object.keys(groupedByRepo).filter((repo) => !cachedSet.has(repo));
-    if (newRepos.length > 0) {
-      sortedRepos = [...sortedRepos, ...newRepos];
-    }
-  }
+export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
+  container.replaceChildren();
+  if (!groupedByRepo || Object.keys(groupedByRepo).length === 0) return;
 
-  // Render each repository group
+  const sortedRepos =
+    repoOrder ||
+    Object.keys(groupedByRepo).sort(
+      (a, b) => groupedByRepo[b].latestNotifTime - groupedByRepo[a].latestNotifTime,
+    );
+
   for (const repoFullName of sortedRepos) {
     const group = groupedByRepo[repoFullName];
+    if (!group) continue;
     const repoNotificationsUrl = buildRepoNotificationsUrl(repoFullName);
     const repoHomeUrl = group.repo.html_url || `https://github.com/${repoFullName}`;
 
     const repoHeader = document.createElement("div");
     repoHeader.className = "repo-group-header";
-    repoHeader.dataset.repo = repoFullName; // For identifying repository
+    repoHeader.dataset.repo = repoFullName;
 
-    // Create repo info section
     const repoInfoDiv = document.createElement("div");
     repoInfoDiv.className = "repo-info";
 
@@ -486,7 +453,6 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoHomeLink.rel = "noopener noreferrer";
     repoHomeLink.title = `Open ${repoFullName} repository`;
     repoHomeLink.setAttribute("aria-label", `Open ${repoFullName} repository`);
-
     const repoIconSvg = getIconSVGElement("repo");
     repoIconSvg.setAttribute("width", "14");
     repoIconSvg.setAttribute("height", "14");
@@ -501,17 +467,14 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoNotificationsLink.rel = "noopener noreferrer";
     repoNotificationsLink.title = `Open ${repoFullName} notifications`;
     repoNotificationsLink.setAttribute("aria-label", `Open notifications for ${repoFullName}`);
-
     const repoNameSpan = document.createElement("span");
     repoNameSpan.className = "repo-name";
     repoNameSpan.textContent = repoFullName;
     repoNotificationsLink.appendChild(repoNameSpan);
     repoInfoDiv.appendChild(repoNotificationsLink);
 
-    // Create repo actions section
     const repoActionsDiv = document.createElement("div");
     repoActionsDiv.className = "repo-actions";
-
     const repoCountSpan = document.createElement("span");
     repoCountSpan.className = "repo-count";
     repoCountSpan.textContent = String(group.notifications.length);
@@ -521,7 +484,6 @@ export function renderNotifications(notifications, shouldResort = true) {
     markReadBtn.className = "repo-mark-read-btn";
     markReadBtn.title = "Mark all notifications in this repository as read";
     markReadBtn.setAttribute("aria-label", "Mark repository as read");
-
     const checkmarkSvg = getIconSVGElement("checkmark");
     markReadBtn.appendChild(checkmarkSvg);
     repoActionsDiv.appendChild(markReadBtn);
@@ -529,18 +491,58 @@ export function renderNotifications(notifications, shouldResort = true) {
     repoHeader.appendChild(repoInfoDiv);
     repoHeader.appendChild(repoActionsDiv);
 
-    // Add event listener for mark as read button
     markReadBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       config.onMarkRepoAsRead(repoFullName);
     });
 
-    notificationsList.appendChild(repoHeader);
-
+    container.appendChild(repoHeader);
     for (const notif of group.notifications) {
       const li = createNotificationItem(notif, repoHeader, repoFullName);
-      notificationsList.appendChild(li);
+      container.appendChild(li);
     }
   }
+}
+
+export function renderNotifications(notifications, shouldResort = true) {
+  const { notificationsList, emptyState, markAllBtn } = config;
+
+  const notificationsHash = createNotificationsHash(notifications);
+  if (cachedNotificationsHash === notificationsHash) {
+    return;
+  }
+
+  cachedNotifications = notifications;
+  cachedNotificationsHash = notificationsHash;
+
+  if (!notifications || notifications.length === 0) {
+    notificationsList.replaceChildren();
+    emptyState.hidden = false;
+    markAllBtn.disabled = true;
+    return;
+  }
+
+  emptyState.hidden = true;
+  markAllBtn.disabled = false;
+
+  const grouped = groupByRepo(notifications);
+
+  let sortedRepos;
+  if (shouldResort) {
+    sortedRepos = Object.keys(grouped).sort(
+      (a, b) => grouped[b].latestNotifTime - grouped[a].latestNotifTime,
+    );
+    cachedRepoOrder = sortedRepos;
+  } else {
+    const currentRepos = new Set(Object.keys(grouped));
+    sortedRepos = cachedRepoOrder.filter((repo) => currentRepos.has(repo));
+    const cachedSet = new Set(cachedRepoOrder);
+    const newRepos = Object.keys(grouped).filter((repo) => !cachedSet.has(repo));
+    if (newRepos.length > 0) {
+      sortedRepos = [...sortedRepos, ...newRepos];
+    }
+  }
+
+  renderNotificationsInto(notificationsList, grouped, sortedRepos);
 }

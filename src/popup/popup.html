@@ -404,7 +404,16 @@
               />
             </svg>
           </button>
-          <h3 class="settings-title">Notification Filters</h3>
+          <h3 class="settings-title">
+            Notification Filters
+            <button
+              type="button"
+              class="filter-count-badge"
+              id="filter-count-badge"
+              title="View filtered notifications"
+              hidden
+            ></button>
+          </h3>
           <button
             type="button"
             class="btn btn-primary btn-compact filter-submit-btn"
@@ -484,6 +493,9 @@
 
           <!-- Existing rules: rendered dynamically by popup.js -->
           <div id="filter-rules-list"></div>
+          <div id="filtered-notifications-container" hidden>
+            <ul id="notifications-list-filtered" class="notifications-list"></ul>
+          </div>
         </div>
       </div>
 

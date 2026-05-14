@@ -24,6 +24,8 @@ import { classifyError } from "../lib/format-utils.js";
 import {
   initRenderer,
   renderNotifications,
+  renderNotificationsInto,
+  groupByRepo,
   clearNotificationCache,
   formatTimeAgo,
 } from "./notification-renderer.js";
@@ -222,6 +224,9 @@ const syncGistText = document.getElementById("filter-sync-gist-text");
 const syncLabel = document.getElementById("filter-sync-label");
 const syncLastEl = document.getElementById("filter-sync-last");
 const syncStatus = document.getElementById("filter-sync-status");
+const filterCountBadge = document.getElementById("filter-count-badge");
+const filteredNotificationsContainer = document.getElementById("filtered-notifications-container");
+const filteredNotificationsList = document.getElementById("notifications-list-filtered");
 
 // Popup size controls
 const popupWidthInput = document.getElementById("popup-width-input");
@@ -287,8 +292,8 @@ function parsePixelValue(value) {
 }
 
 let syncHeightScheduled = false;
-function syncFilterOverlayHeight() {
-  if (syncHeightScheduled) return;
+function syncFilterOverlayHeight(force = false) {
+  if (!force && syncHeightScheduled) return;
   syncHeightScheduled = true;
   queueMicrotask(() => {
     syncHeightScheduled = false;
@@ -302,13 +307,9 @@ function syncFilterOverlayHeight() {
     }
 
     const bodyStyles = getComputedStyle(document.body);
-    // minHeight/maxHeight come from popup.css `body` rule (300px / 600px).
-    // If those values move to another selector, update the lookup target here too.
     const minHeight = parsePixelValue(bodyStyles.minHeight) ?? 300;
     const maxHeight =
       parsePixelValue(bodyStyles.maxHeight) ??
-      // Fallback only fires if body.max-height is removed; reads mainView's current
-      // height which is itself sized by --filter-overlay-height — converges in 1-2 ticks.
       Math.max(minHeight, Math.round(mainView.getBoundingClientRect().height));
     const headerHeight = filterHeader?.offsetHeight ?? 0;
     const contentHeight = filterContent?.scrollHeight ?? 0;
@@ -458,6 +459,37 @@ export async function updateCountdown() {
     console.error("Error updating countdown:", error);
     refreshCountdownEl.textContent = "";
     refreshCountdownEl.title = "";
+  }
+}
+
+let showingFiltered = false;
+let creatorWasOpen = false;
+
+function renderWithFiltered(notifications, shouldResort) {
+  const visible = [];
+  const filtered = [];
+  for (const n of notifications) {
+    if (n.matchedRules?.length) filtered.push(n);
+    else visible.push(n);
+  }
+  renderNotifications(visible, shouldResort);
+  updateFilteredBadge(filtered.length);
+}
+
+function updateFilteredBadge(count) {
+  if (!filterCountBadge) return;
+  if (count === 0) {
+    filterCountBadge.hidden = true;
+    filterCountBadge.textContent = "";
+    if (showingFiltered) {
+      showingFiltered = false;
+      if (filteredNotificationsContainer) filteredNotificationsContainer.hidden = true;
+      if (filterRulesList) filterRulesList.hidden = false;
+      syncFilterOverlayHeight(true);
+    }
+  } else {
+    filterCountBadge.textContent = `· ${count} filtered`;
+    filterCountBadge.hidden = false;
   }
 }
 
@@ -739,13 +771,13 @@ async function refresh() {
   try {
     await sendMessage(MESSAGE_TYPES.REFRESH);
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-    renderNotifications(state.notifications, true); // Re-sort on refresh
+    renderWithFiltered(state.notifications, true); // Re-sort on refresh
   } catch (error) {
     console.error("Failed to refresh:", error);
 
     // Show appropriate error message based on error type
     const cachedNotifications = await storage.getNotifications();
-    renderNotifications(cachedNotifications, true); // Re-sort even on error
+    renderWithFiltered(cachedNotifications, true); // Re-sort even on error
 
     let message;
     let className = "error-message";
@@ -814,7 +846,7 @@ async function login(authMethod = "oauth", token = null) {
 
     await showView("main"); // Show main view first
     const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-    renderNotifications(state.notifications, true); // Then render notifications
+    renderWithFiltered(state.notifications, true); // Then render notifications
     // Start countdown timer after successful login
     startCountdown();
   } else {
@@ -1116,7 +1148,7 @@ async function executeDeleteRule(idx) {
       editingRuleIndex--;
     }
   }
-  currentFilterStats = [];
+  currentFilterStats = await storage.getNotificationFilterStats();
   renderRuleRows(currentFilterRules, currentFilterStats);
   updateFilterIndicator(currentFilterRules);
 }
@@ -1392,6 +1424,7 @@ async function saveFilterRules(rules) {
     if (filterErrorEl) {
       filterErrorEl.hidden = true;
     }
+    if (showingFiltered) renderFilteredInFilterView();
     syncFilterOverlayHeight();
     return true;
   } catch (err) {
@@ -1687,18 +1720,48 @@ async function showFilter() {
   hideCreator();
 }
 
+async function renderFilteredInFilterView() {
+  if (!filteredNotificationsList) return;
+  const notifications = await storage.getNotifications();
+  const filtered = notifications.filter((n) => n.matchedRules?.length);
+  renderNotificationsInto(filteredNotificationsList, groupByRepo(filtered));
+  updateFilteredBadge(filtered.length);
+}
+
+async function toggleFilteredInFilterView() {
+  if (!filterRulesList || !filteredNotificationsContainer) return;
+
+  showingFiltered = !showingFiltered;
+
+  if (showingFiltered) {
+    creatorWasOpen = filterCreator && !filterCreator.hidden;
+    filterRulesList.hidden = true;
+    if (filterCreator) filterCreator.hidden = true;
+    await renderFilteredInFilterView();
+    filteredNotificationsContainer.hidden = false;
+  } else {
+    filteredNotificationsContainer.hidden = true;
+    filterRulesList.hidden = false;
+    if (filterCreator && creatorWasOpen) filterCreator.hidden = false;
+  }
+  syncFilterOverlayHeight(true);
+}
+
 /**
  * Hide filter view and re-render notifications from storage
  * to reflect any filter changes made while the view was open.
  */
 async function hideFilter() {
+  showingFiltered = false;
+  if (filteredNotificationsContainer) filteredNotificationsContainer.hidden = true;
+  if (filterRulesList) filterRulesList.hidden = false;
   toggleOverlayView(false);
   filterView.hidden = true;
   setFilterLayoutState(false);
   // Re-render from storage so filter changes are visible immediately
   try {
     const notifications = await storage.getNotifications();
-    renderNotifications(notifications, false);
+    renderWithFiltered(notifications, false);
   } catch (err) {
     console.error("Failed to reload notifications after closing filter:", err);
     renderNotifications([], false);
@@ -1768,6 +1831,7 @@ function hideCreator() {
   if (filterAddRuleBtn) filterAddRuleBtn.hidden = true;
   updateFilterCreatorSaveState();
   renderRuleRows(currentFilterRules, currentFilterStats);
+  requestAnimationFrame(() => syncFilterOverlayHeight(true));
 }
 
 /**
@@ -1798,7 +1862,7 @@ async function submitNewRule() {
   }
   if (!(await saveFilterRules(updated))) return;
   currentFilterRules = updated;
-  currentFilterStats = [];
+  currentFilterStats = await storage.getNotificationFilterStats();
   hideCreator();
   updateFilterIndicator(currentFilterRules);
 }
@@ -1836,7 +1900,8 @@ async function handleMarkRepoAsRead(repoFullName) {
       }
 
       clearNotificationCache();
-      renderNotifications(nextNotifications, false);
+      renderWithFiltered(nextNotifications, false);
+      if (showingFiltered) renderFilteredInFilterView();
     } else {
       anim.rollback();
       console.error("Failed to mark repo as read:", response.error);
@@ -1892,7 +1957,7 @@ async function init() {
     const userInfo = await storage.getUserInfo();
     setUserAvatar(userInfo);
 
-    renderNotifications(state.notifications, true); // Re-sort on init
+    renderWithFiltered(state.notifications, true); // Re-sort on init
     await showView("main"); // This will apply saved width
     updateProfileLinks(username, userInfo);
     // Start countdown timer for next refresh
@@ -1941,6 +2006,7 @@ widthIncreaseBtn.addEventListener("click", increaseWidth);
 
 // Filter page
 filterIconBtn?.addEventListener("click", showFilter);
+filterCountBadge?.addEventListener("click", toggleFilteredInFilterView);
 filterBackBtn?.addEventListener("click", hideFilter);
 // Toggle button: "+ New Rule" when collapsed, "Cancel" when expanded
 filterCreatorToggle?.addEventListener("click", () => {
@@ -2036,7 +2102,8 @@ browserStorage.onChanged.addListener((changes, areaName) => {
     // Auto-update notification list when storage changes
     const newNotifications = changes.notifications.newValue || [];
     // Don't resort - keep existing order to prevent jumping
-    renderNotifications(newNotifications, false);
+    renderWithFiltered(newNotifications, false);
+    if (showingFiltered) renderFilteredInFilterView();
   }
 
   // Update filter stats display when background refresh writes new stats

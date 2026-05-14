@@ -2336,7 +2336,7 @@ describe("comment URL cache session storage persistence", () => {
       expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
     });
 
-    it("should apply filter to stored notifications when rules match", async () => {
+    it("should re-annotate stored notifications with matchedRules when rules match", async () => {
       const storedNotifs = [
         { id: "1", title: "v1.0.0-beta", repository: { full_name: "owner/repo" } },
         { id: "2", title: "Fix bug", repository: { full_name: "owner/repo" } },
@@ -2349,13 +2349,15 @@ describe("comment URL cache session storage persistence", () => {
       messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
-        { id: "2", title: "Fix bug", repository: { full_name: "owner/repo" } },
-      ]);
+      const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
+      expect(saved).toHaveLength(3);
+      expect(saved[0].matchedRules).toEqual([0]);
+      expect(saved[1].matchedRules).toEqual([]);
+      expect(saved[2].matchedRules).toEqual([0]);
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it("should not call setNotifications with a filtered subset when no stored notifications match", async () => {
+    it("should re-annotate with empty matchedRules when no stored notifications match", async () => {
       const storedNotifs = [{ id: "1", title: "Fix bug", repository: { full_name: "owner/repo" } }];
       mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
 
@@ -2364,28 +2366,24 @@ describe("comment URL cache session storage persistence", () => {
       messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // The immediate re-filter path must NOT write a filtered subset: "Fix bug" doesn't
-      // match "beta", so the if (filtered.length !== current.length) guard prevents the
-      // write. (Background checkNotifications may call setNotifications independently.)
-      const calledWithSubset = mockStorageFunctions.setNotifications.mock.calls.some(
-        (call) => Array.isArray(call[0]) && call[0].length < storedNotifs.length,
-      );
-      expect(calledWithSubset).toBe(false);
+      const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
+      expect(saved).toHaveLength(1);
+      expect(saved[0].matchedRules).toEqual([]);
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
 
-    it("should skip immediate re-filter and not write empty storage when filter is empty", async () => {
+    it("should re-annotate with empty matchedRules when filter is empty", async () => {
+      const storedNotifs = [
+        { id: "1", title: "v1-beta", repository: { full_name: "owner/repo" }, matchedRules: [0] },
+      ];
+      mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
+
       const sendResponse = vi.fn();
       messageHandler({ action: "setNotificationFilter", filter: [] }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith([]);
-      // filter.length === 0: the immediate re-filter block is skipped so storage is
-      // never overwritten with an empty array by this path.
-      const calledWithEmpty = mockStorageFunctions.setNotifications.mock.calls.some(
-        (call) => Array.isArray(call[0]) && call[0].length === 0,
-      );
-      expect(calledWithEmpty).toBe(false);
+      const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
+      expect(saved[0].matchedRules).toEqual([]);
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
@@ -2484,14 +2482,16 @@ describe("comment URL cache session storage persistence", () => {
       repository: { full_name: repoFullName },
     });
 
-    it("returns all notifications and empty stats when rules are empty", () => {
+    it("returns all notifications with empty matchedRules when rules are empty", () => {
       const notifs = [makeNotif("fix bug"), makeNotif("v1.0.0-beta")];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, []);
-      expect(notifications).toEqual(notifs);
+      expect(notifications).toHaveLength(2);
+      expect(notifications[0].matchedRules).toEqual([]);
+      expect(notifications[1].matchedRules).toEqual([]);
       expect(stats).toEqual([]);
     });
 
-    it("filters matching notifications and counts per repo and per keyword", () => {
+    it("annotates matching notifications and counts per repo and per keyword", () => {
       const rules = [{ repos: [], keywords: ["beta"] }];
       const notifs = [
         makeNotif("v1.0.0-beta", "org/repo-a"),
@@ -2499,19 +2499,19 @@ describe("comment URL cache session storage persistence", () => {
         makeNotif("fix bug", "org/repo-a"),
       ];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(1);
-      expect(notifications[0].title).toBe("fix bug");
+      expect(notifications).toHaveLength(3);
+      expect(notifications[0].matchedRules).toEqual([0]);
+      expect(notifications[1].matchedRules).toEqual([0]);
+      expect(notifications[2].matchedRules).toEqual([]);
       expect(stats[0].repos).toEqual({ "org/repo-a": 1, "org/repo-b": 1 });
       expect(stats[0].keywords).toEqual({ beta: 2 });
     });
 
     it("normalizes repo keys to lowercase for case-insensitive lookup", () => {
       const rules = [{ repos: ["openai/openai-python"], keywords: ["alpha"] }];
-      // API returns full_name with different casing than the user-saved rule
       const notifs = [{ title: "v1-alpha", repository: { full_name: "OpenAI/openai-python" } }];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(0);
-      // Key stored in lowercase; lookup with lowercase user-saved repo should work
+      expect(notifications[0].matchedRules).toEqual([0]);
       expect(stats[0].repos).toEqual({ "openai/openai-python": 1 });
     });
 
@@ -2519,7 +2519,9 @@ describe("comment URL cache session storage persistence", () => {
       const rules = [{ repos: ["owner/repo"], keywords: ["alpha"] }];
       const notifs = [makeNotif("v1-alpha"), makeNotif("v2-alpha"), makeNotif("v3-stable")];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(1);
+      expect(notifications[0].matchedRules).toEqual([0]);
+      expect(notifications[1].matchedRules).toEqual([0]);
+      expect(notifications[2].matchedRules).toEqual([]);
       expect(stats[0].repos).toEqual({ "owner/repo": 2 });
       expect(stats[0].keywords).toEqual({ alpha: 2 });
     });
@@ -2531,11 +2533,12 @@ describe("comment URL cache session storage persistence", () => {
         makeNotif("v2-alpha"), // matches only "alpha"
       ];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(0);
+      expect(notifications[0].matchedRules).toEqual([0]);
+      expect(notifications[1].matchedRules).toEqual([0]);
       expect(stats[0].keywords).toEqual({ alpha: 2, beta: 1 });
     });
 
-    it("tracks stats per rule independently (first matching rule wins)", () => {
+    it("tracks stats per rule independently (notification can match multiple rules)", () => {
       const rules = [
         { repos: ["owner/repo-a"], keywords: ["alpha"] },
         { repos: [], keywords: ["beta"] },
@@ -2546,7 +2549,9 @@ describe("comment URL cache session storage persistence", () => {
         makeNotif("stable", "owner/repo-a"),
       ];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(1);
+      expect(notifications[0].matchedRules).toEqual([0]);
+      expect(notifications[1].matchedRules).toEqual([1]);
+      expect(notifications[2].matchedRules).toEqual([]);
       expect(stats[0].repos).toEqual({ "owner/repo-a": 1 });
       expect(stats[0].keywords).toEqual({ alpha: 1 });
       expect(stats[1].repos).toEqual({ "owner/repo-b": 1 });
@@ -2557,7 +2562,7 @@ describe("comment URL cache session storage persistence", () => {
       const rules = [{ repos: ["owner/repo"], keywords: ["alpha"] }];
       const notifs = [makeNotif("stable release")];
       const { notifications, stats } = applyNotificationFilterWithStats(notifs, rules);
-      expect(notifications).toHaveLength(1);
+      expect(notifications[0].matchedRules).toEqual([]);
       expect(stats[0].repos).toEqual({});
       expect(stats[0].keywords).toEqual({});
     });

@@ -371,19 +371,12 @@ export function matchesNotificationFilter(notif, rules) {
   return rules.some((rule) => matchesRule(notif, rule));
 }
 
-/**
- * Remove notifications that match any notification filter rule.
- * @param {Array} notifications
- * @param {Array<{ repos: string[], keywords: string[] }>} rules
- * @returns {Array}
- */
-function applyNotificationFilter(notifications, rules) {
-  return notifications.filter((n) => !matchesNotificationFilter(n, rules));
+export function isVisible(n) {
+  return !n.matchedRules?.length;
 }
 
 /**
- * Remove notifications that match any filter rule and collect per-rule per-repo
- * and per-keyword counts.
+ * Annotate each notification with indices of matching filter rules and collect stats.
  * @param {Array} notifications
  * @param {Array<{ repos: string[], keywords: string[] }>} rules
  * @returns {{ notifications: Array, stats: Array<Object> }}
@@ -393,29 +386,27 @@ function applyNotificationFilter(notifications, rules) {
  */
 export function applyNotificationFilterWithStats(notifications, rules) {
   const stats = rules.map(() => ({ repos: {}, keywords: {} }));
-  const kept = notifications.filter((n) => {
+  const annotated = notifications.map((n) => {
+    const matched = [];
     for (let i = 0; i < rules.length; i++) {
       if (matchesRule(n, rules[i])) {
+        matched.push(i);
         const repo = n.repository?.full_name;
         if (repo) {
-          // Normalize to lowercase to match the case-insensitive repo matching in matchesRule
           const repoKey = repo.toLowerCase();
           stats[i].repos[repoKey] = (stats[i].repos[repoKey] || 0) + 1;
         }
-        // Count each keyword that contributed to filtering this notification.
-        // n.title is guaranteed non-null here: matchesRule() returns false when title is falsy.
         const titleLower = n.title.toLowerCase();
         for (const kw of rules[i].keywords) {
           if (titleLower.includes(kw.toLowerCase())) {
             stats[i].keywords[kw] = (stats[i].keywords[kw] || 0) + 1;
           }
         }
-        return false;
       }
     }
-    return true;
+    return { ...n, matchedRules: matched };
   });
-  return { notifications: kept, stats };
+  return { notifications: annotated, stats };
 }
 
 /**
@@ -458,10 +449,11 @@ async function mergeAndSaveIfCurrent(
   }
   let safe = filterToCurrentlyStored(notifications, currentStored);
   if (notificationFilter) {
-    safe = applyNotificationFilter(safe, notificationFilter);
+    const { notifications: annotated } = applyNotificationFilterWithStats(safe, notificationFilter);
+    safe = annotated;
   }
   await storage.setNotifications(safe);
-  return safe.length;
+  return safe.filter(isVisible).length;
 }
 
 /**
@@ -636,7 +628,8 @@ async function checkNotifications() {
       hasMoreNotifications = hasMore;
       await storage.setNotifications(safeBasic);
       await storage.setNotificationFilterStats(filterStats);
-      await updateBadge(safeBasic.length, hasMore);
+      const visibleCount = safeBasic.filter(isVisible).length;
+      await updateBadge(visibleCount, hasMore);
 
       // Second pass: Fetch details asynchronously for new/updated notifications
       // Create a deep copy to avoid race conditions with concurrent updates
@@ -768,7 +761,7 @@ async function checkNotifications() {
       }
 
       // Show desktop notifications for new items (using safe-filtered list)
-      await showDesktopNotificationsForNew(safeBasic);
+      await showDesktopNotificationsForNew(safeBasic.filter(isVisible));
     }
   } catch (error) {
     console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
@@ -937,21 +930,16 @@ async function handleMessage(message) {
       // would be semantically wrong after any rule change. Fresh stats will be
       // written on the next full checkNotifications() pass.
       await storage.setNotificationFilterStats([]);
-      // When filter is empty (all rules removed), skip: nothing to hide, and the
-      // re-fetch below will restore previously-hidden notifications.
-      if (filter.length > 0) {
-        const current = await storage.getNotifications();
-        const filtered = applyNotificationFilter(current, filter);
-        if (filtered.length !== current.length) {
-          await storage.setNotifications(filtered);
-          await updateBadge(filtered.length, hasMoreNotifications);
-        }
-      }
-      // Re-fetch to restore notifications that may have been hidden by old rules
-      github.lastModified = null;
-      checkNotifications().catch((err) => {
-        console.error("Background re-fetch after filter change failed:", err);
-      });
+      // Re-annotate stored notifications with new rules
+      const current = await storage.getNotifications();
+      const { notifications: reannotated, stats: freshStats } = applyNotificationFilterWithStats(
+        current,
+        filter,
+      );
+      await storage.setNotifications(reannotated);
+      await storage.setNotificationFilterStats(freshStats);
+      const visibleCount = reannotated.filter(isVisible).length;
+      await updateBadge(visibleCount, hasMoreNotifications);
       syncPushIfEnabled();
       return { success: true };
     }
@@ -1083,6 +1071,12 @@ async function acceptRemoteFilter(valid, updatedAt) {
   await storage.setNotificationFilterStats([]);
   await storage.setSyncLastPushedFilter(valid);
   if (updatedAt) await storage.setSyncLastPush(updatedAt);
+  // Re-annotate stored notifications with new rules immediately
+  const current = await storage.getNotifications();
+  const { notifications: reannotated, stats } = applyNotificationFilterWithStats(current, valid);
+  await storage.setNotifications(reannotated);
+  await storage.setNotificationFilterStats(stats);
+  await updateBadge(reannotated.filter(isVisible).length, hasMoreNotifications);
   github.lastModified = null;
   checkNotifications().catch(() => {});
 }
@@ -1295,7 +1289,7 @@ async function markAsRead(notificationId) {
     const updated = notifications.filter((n) => n.id !== notificationId);
 
     await storage.setNotifications(updated);
-    await updateBadge(updated.length, hasMoreNotifications);
+    await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
 
     // Remove the stale cache entry for this notification
     latestCommentUrlCache.delete(notificationId);
@@ -1341,7 +1335,7 @@ async function markRepoAsRead(owner, repo) {
     const updated = notifications.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
 
     await storage.setNotifications(updated);
-    await updateBadge(updated.length, hasMoreNotifications);
+    await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
 
     // Remove cache entries for the cleared repo's notifications
     const removedIds = notifications
@@ -1539,14 +1533,12 @@ notifications.onClicked.addListener(async (notificationId) => {
       await persistCommentCache();
 
       // Update badge
-      await updateBadge(updatedNotifications.length, hasMoreNotifications);
+      await updateBadge(updatedNotifications.filter(isVisible).length, hasMoreNotifications);
     }
   } catch (error) {
     console.error("Failed to handle notification click:", error);
   }
 });
-
-// URL construction is now handled by centralized url-builder.js module
 
 // Initialize on startup
 initialize();
