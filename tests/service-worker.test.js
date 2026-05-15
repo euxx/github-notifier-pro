@@ -2611,8 +2611,14 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([
         { repos: [], keywords: ["test"] },
       ]);
-      mockGithub.createFilterGist.mockResolvedValue("new-gist-id");
-      mockGithub.updateFilterGist.mockResolvedValue("new-gist-id");
+      mockGithub.createFilterGist.mockResolvedValue({
+        id: "new-gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "new-gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
       const sendResponse = vi.fn();
       messageHandler({ action: "syncEnable" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2624,7 +2630,7 @@ describe("comment URL cache session storage persistence", () => {
 
     it("should reuse existing gist found by findFilterGist and pull remote rules", async () => {
       mockStorageFunctions.getSyncGistId.mockResolvedValue(null);
-      mockGithub.findFilterGist.mockResolvedValue("found-gist-id");
+      mockGithub.findFilterGist.mockResolvedValue({ id: "found-gist-id", updatedAt: null });
       const remoteRules = [{ repos: ["owner/repo"], keywords: ["nightly"] }];
       mockGithub.getFilterGist.mockResolvedValue({ rules: remoteRules, updatedAt: null });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
@@ -2649,6 +2655,40 @@ describe("comment URL cache session storage persistence", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "missing_scope" });
     });
+
+    it("should save remote updatedAt to syncLastPush when reusing existing gist", async () => {
+      mockStorageFunctions.getSyncGistId.mockResolvedValue(null);
+      mockGithub.findFilterGist.mockResolvedValue({
+        id: "found-gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      const remoteRules = [{ repos: ["owner/repo"], keywords: ["nightly"] }];
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: remoteRules,
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncEnable" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenLastCalledWith("2026-05-14T10:00:00Z");
+    });
+
+    it("should save createdAt to syncLastPush when creating new gist", async () => {
+      mockStorageFunctions.getSyncGistId.mockResolvedValue(null);
+      mockGithub.findFilterGist.mockResolvedValue(null);
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue([
+        { repos: [], keywords: ["x"] },
+      ]);
+      mockGithub.createFilterGist.mockResolvedValue({
+        id: "new-gist-id",
+        updatedAt: "2026-05-14T11:00:00Z",
+      });
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncEnable" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenLastCalledWith("2026-05-14T11:00:00Z");
+    });
   });
 
   describe("handleMessage - SYNC_DISABLE", () => {
@@ -2671,12 +2711,15 @@ describe("comment URL cache session storage persistence", () => {
         rules: [{ repos: [], keywords: ["alpha"] }],
         updatedAt: "2026-01-01T00:00:00Z",
       });
-      mockGithub.updateFilterGist.mockResolvedValue("gist-id");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
       const sendResponse = vi.fn();
       messageHandler({ action: "syncPush" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", rules);
-      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalled();
+      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-05-14T10:00:00Z");
       expect(mockStorageFunctions.setSyncLastPushedFilter).toHaveBeenCalledWith(rules);
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
@@ -2714,7 +2757,11 @@ describe("comment URL cache session storage persistence", () => {
       messageHandler({ action: "syncPull" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(remoteRules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, filter: remoteRules });
+      expect(sendResponse).toHaveBeenCalledWith({
+        success: true,
+        filter: remoteRules,
+        lastPush: null,
+      });
     });
 
     it("should save remote updatedAt to syncLastPush after successful pull", async () => {
@@ -2742,7 +2789,12 @@ describe("comment URL cache session storage persistence", () => {
       messageHandler({ action: "syncPull" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, filter: rules, skipped: true });
+      expect(sendResponse).toHaveBeenCalledWith({
+        success: true,
+        filter: rules,
+        skipped: true,
+        lastPush: null,
+      });
     });
 
     it("should detect conflict when local and remote both changed", async () => {
@@ -2807,7 +2859,10 @@ describe("comment URL cache session storage persistence", () => {
         rules: [{ repos: [], keywords: ["old-kw"] }],
         updatedAt: "2026-01-01T00:00:00Z",
       });
-      mockGithub.updateFilterGist.mockResolvedValue("gist-id");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
       const sendResponse = vi.fn();
       messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
       await vi.advanceTimersByTimeAsync(2100);
@@ -2833,7 +2888,10 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
       const rules = [{ repos: [], keywords: ["local-rule"] }];
       mockStorageFunctions.getNotificationFilter.mockResolvedValue(rules);
-      mockGithub.updateFilterGist.mockResolvedValue("gist-id");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
       const sendResponse = vi.fn();
       messageHandler({ action: "syncResolveConflict", choice: "local" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2920,6 +2978,9 @@ describe("comment URL cache session storage persistence", () => {
         updatedAt: "2026-05-14T12:00:00Z",
       });
       mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T10:00:00Z");
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(
+        JSON.stringify([{ repos: [], keywords: ["original"] }]),
+      );
       const sendResponse = vi.fn();
       messageHandler({ action: "syncPush" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2930,6 +2991,29 @@ describe("comment URL cache session storage persistence", () => {
         local: localRules,
         remote: remoteRules,
       });
+    });
+
+    it("should ignore remote gist timestamp changes without rule changes when pushing local edits", async () => {
+      mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
+      mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
+      const originalRules = [{ repos: [], keywords: ["original"] }];
+      const localRules = [{ repos: [], keywords: ["local"] }];
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: originalRules,
+        updatedAt: "2026-05-14T12:00:00Z",
+      });
+      mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T10:00:00Z");
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(JSON.stringify(originalRules));
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncPush" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
     });
   });
 
@@ -2948,7 +3032,10 @@ describe("comment URL cache session storage persistence", () => {
         JSON.stringify([{ repos: [], keywords: ["original"] }]),
       );
       mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T09:00:00Z");
-      mockGithub.updateFilterGist.mockResolvedValue("gist-id");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
       const sendResponse = vi.fn();
       messageHandler({ action: "syncPull" }, {}, sendResponse);
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2956,6 +3043,106 @@ describe("comment URL cache session storage persistence", () => {
       expect(sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, pushNeeded: true }),
       );
+    });
+
+    it("should trigger push when remote gist timestamp changed without rule changes", async () => {
+      mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
+      mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
+      const localRules = [{ repos: [], keywords: ["local-edit"] }];
+      const remoteRules = [{ repos: [], keywords: ["original"] }];
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: remoteRules,
+        updatedAt: "2026-05-14T12:00:00Z",
+      });
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(JSON.stringify(remoteRules));
+      mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T09:00:00Z");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncPull" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, pushNeeded: true }),
+      );
+    });
+
+    it("should not PATCH when local and remote rules differ only in field order", async () => {
+      mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
+      mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
+      const localRules = [
+        { keywords: ["beta"], repos: ["sw33tLie/macshot"] },
+        { keywords: ["deps"], repos: ["TAVANV/dify"] },
+      ];
+      const remoteRules = [
+        { repos: ["sw33tLie/macshot"], keywords: ["beta"] },
+        { repos: ["TAVANV/dify"], keywords: ["deps"] },
+      ];
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: remoteRules,
+        updatedAt: "2026-05-14T08:00:00Z",
+      });
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(JSON.stringify(localRules));
+      mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T08:00:00Z");
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncPull" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, skipped: true }),
+      );
+    });
+
+    it("should PATCH via afterPull path when local has unpushed edits", async () => {
+      mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
+      mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
+      const localRules = [{ repos: [], keywords: ["local-edit"] }];
+      const remoteRules = [{ repos: [], keywords: ["original"] }];
+      const lastPushedRules = [{ repos: [], keywords: ["original"] }];
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: remoteRules,
+        updatedAt: "2026-05-14T08:00:00Z",
+      });
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(
+        JSON.stringify(lastPushedRules),
+      );
+      mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T08:00:00Z");
+      mockGithub.updateFilterGist.mockResolvedValue({
+        id: "gist-id",
+        updatedAt: "2026-05-14T10:00:00Z",
+      });
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncPull" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
+      expect(mockGithub.getFilterGist).toHaveBeenCalledTimes(1);
+    });
+
+    it("should require remote check on manual SYNC_PUSH even when local matches last pushed", async () => {
+      mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
+      mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
+      const localRules = [{ repos: [], keywords: ["local-only"] }];
+      const remoteRules = [{ repos: [], keywords: ["remote-changed"] }];
+      mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
+      mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(JSON.stringify(localRules));
+      mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T08:00:00Z");
+      mockGithub.getFilterGist.mockResolvedValue({
+        rules: remoteRules,
+        updatedAt: "2026-05-14T09:00:00Z",
+      });
+      const sendResponse = vi.fn();
+      messageHandler({ action: "syncPush" }, {}, sendResponse);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockGithub.getFilterGist).toHaveBeenCalledWith("gist-id");
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, error: "conflict" }),
+      );
+      expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
     });
   });
 });

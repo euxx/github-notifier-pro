@@ -976,7 +976,7 @@ class GitHubAPI {
   }
 
   _buildFilterEnvelope(rules) {
-    return { version: 1, updatedAt: new Date().toISOString(), rules };
+    return { version: 1, rules };
   }
 
   async createFilterGist(filterRules) {
@@ -1007,7 +1007,7 @@ class GitHubAPI {
       throw new Error(`Failed to create gist: ${response.status}`);
     }
     const data = await response.json();
-    return data.id;
+    return { id: data.id, updatedAt: data.updated_at || null };
   }
 
   async updateFilterGist(gistId, filterRules) {
@@ -1031,7 +1031,8 @@ class GitHubAPI {
       if (response.status === 404) return null;
       throw new Error(`Failed to update gist: ${response.status}`);
     }
-    return gistId;
+    const data = await response.json();
+    return { id: data.id || gistId, updatedAt: data.updated_at || null };
   }
 
   async _fetchGistData(gistId) {
@@ -1055,7 +1056,7 @@ class GitHubAPI {
     try {
       const parsed = JSON.parse(file.content);
       if (!Array.isArray(parsed.rules)) return null;
-      return { rules: parsed.rules, updatedAt: parsed.updatedAt || null };
+      return { rules: parsed.rules, updatedAt: data.updated_at || null };
     } catch {
       return null;
     }
@@ -1079,7 +1080,9 @@ class GitHubAPI {
       const gists = await response.json();
       if (gists.length === 0) break;
       for (const g of gists) {
-        if (g.files[FILTER_GIST_FILENAME]) return g.id;
+        if (g.files[FILTER_GIST_FILENAME]) {
+          return { id: g.id, updatedAt: g.updated_at || null };
+        }
       }
       page++;
     }

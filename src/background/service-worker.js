@@ -961,13 +961,20 @@ async function handleMessage(message) {
     case MESSAGE_TYPES.SYNC_ENABLE: {
       let gistId = await storage.getSyncGistId();
       let isNew = false;
+      let pushTimestamp = null;
       if (!gistId) {
-        gistId = await github.findFilterGist();
+        const found = await github.findFilterGist();
+        if (found) {
+          gistId = found.id;
+          pushTimestamp = found.updatedAt;
+        }
       }
       if (!gistId) {
         const filter = await storage.getNotificationFilter();
         try {
-          gistId = await github.createFilterGist(filter);
+          const created = await github.createFilterGist(filter);
+          gistId = created.id;
+          pushTimestamp = created.updatedAt;
           isNew = true;
         } catch (err) {
           if (err.code === "missing_scope") {
@@ -988,16 +995,17 @@ async function handleMessage(message) {
         if (pullResult.pushNeeded) {
           await storage.setSyncGistId(gistId);
           await storage.setSyncEnabled(true);
-          const pushResult = await syncPush({ skipConflictCheck: true });
+          const pushResult = await syncPush({ afterPull: true });
           if (!pushResult.success) return { ...pushResult, gistId };
           return { success: true, gistId };
         }
+        pushTimestamp = pullResult.lastPush || null;
       }
       await storage.setSyncGistId(gistId);
       await storage.setSyncEnabled(true);
       const filter = await storage.getNotificationFilter();
       await storage.setSyncLastPushedFilter(filter);
-      await storage.setSyncLastPush(new Date().toISOString());
+      await storage.setSyncLastPush(pushTimestamp || new Date().toISOString());
       return { success: true, gistId };
     }
 
@@ -1017,7 +1025,7 @@ async function handleMessage(message) {
       if (!gistId) return { success: false, error: "no_gist" };
       const result = await applyRemoteRules(gistId);
       if (result.pushNeeded) {
-        const pushResult = await syncPush({ skipConflictCheck: true });
+        const pushResult = await syncPush({ afterPull: true });
         if (!pushResult.success) return pushResult;
       }
       return result;
@@ -1035,7 +1043,7 @@ async function handleMessage(message) {
           await storage.setSyncEnabled(false);
           return { success: false, error: "gist_not_found" };
         }
-        await storage.setSyncLastPush(new Date().toISOString());
+        await storage.setSyncLastPush(updateResult.updatedAt || new Date().toISOString());
         await storage.setSyncLastPushedFilter(filter);
         return { success: true, filter };
       }
@@ -1071,6 +1079,14 @@ function validateFilterRules(rules) {
     .filter((r) => r.keywords.length > 0);
 }
 
+function canonicalizeFilterRules(rules) {
+  return JSON.stringify(validateFilterRules(rules));
+}
+
+function canonicalizeStoredFilterRules(raw) {
+  return raw !== null ? canonicalizeFilterRules(JSON.parse(raw)) : null;
+}
+
 async function acceptRemoteFilter(valid, updatedAt) {
   await storage.setNotificationFilter(valid);
   await storage.setNotificationFilterStats([]);
@@ -1094,14 +1110,19 @@ async function applyRemoteRules(gistId) {
   const { rules, updatedAt: remoteUpdatedAt } = result;
   const valid = validateFilterRules(rules);
   const local = await storage.getNotificationFilter();
-  if (JSON.stringify(local) === JSON.stringify(valid)) {
-    return { success: true, filter: valid, skipped: true };
+  const localRaw = canonicalizeFilterRules(local);
+  const remoteRaw = JSON.stringify(valid);
+  if (localRaw === remoteRaw) {
+    return { success: true, filter: valid, skipped: true, lastPush: remoteUpdatedAt };
   }
-  const lastPushedRaw = await storage.getSyncLastPushedFilter();
-  const lastPush = await storage.getSyncLastPush();
-  const hasLocalEdits = lastPushedRaw !== null && lastPushedRaw !== JSON.stringify(local);
-  // Compare envelope timestamps — both sides use new Date().toISOString() (UTC, fixed format)
-  const hasRemoteEdits = remoteUpdatedAt && lastPush && remoteUpdatedAt > lastPush;
+  const [lastPushedRaw, lastPush] = await Promise.all([
+    storage.getSyncLastPushedFilter(),
+    storage.getSyncLastPush(),
+  ]);
+  const normalizedLastPushedRaw = canonicalizeStoredFilterRules(lastPushedRaw);
+  const hasLocalEdits = normalizedLastPushedRaw !== null && normalizedLastPushedRaw !== localRaw;
+  const remoteTimestampChanged = remoteUpdatedAt && lastPush && remoteUpdatedAt > lastPush;
+  const hasRemoteEdits = remoteTimestampChanged && normalizedLastPushedRaw !== remoteRaw;
 
   if (hasLocalEdits && hasRemoteEdits) {
     return { success: false, error: "conflict", local, remote: valid };
@@ -1110,23 +1131,37 @@ async function applyRemoteRules(gistId) {
     return { success: true, filter: local, skipped: true, pushNeeded: true };
   }
   await acceptRemoteFilter(valid, remoteUpdatedAt);
-  return { success: true, filter: valid };
+  return { success: true, filter: valid, lastPush: remoteUpdatedAt };
 }
 
-async function syncPush({ skipConflictCheck = false } = {}) {
+async function syncPush({ afterPull = false } = {}) {
   const enabled = await storage.getSyncEnabled();
   if (!enabled) return { success: false, error: "sync_disabled" };
   const gistId = await storage.getSyncGistId();
   if (!gistId) return { success: false, error: "no_gist" };
-  const filter = await storage.getNotificationFilter();
-  if (!skipConflictCheck) {
+  const [filter, lastPushedRaw] = await Promise.all([
+    storage.getNotificationFilter(),
+    storage.getSyncLastPushedFilter(),
+  ]);
+  const filterRaw = canonicalizeFilterRules(filter);
+  const normalizedLastPushedRaw = canonicalizeStoredFilterRules(lastPushedRaw);
+  if (afterPull && normalizedLastPushedRaw !== null && normalizedLastPushedRaw === filterRaw) {
+    return { success: true, skipped: true };
+  }
+  if (!afterPull) {
     const result = await github.getFilterGist(gistId);
     if (result !== null) {
-      if (JSON.stringify(result.rules) === JSON.stringify(filter)) {
+      const remoteRaw = canonicalizeFilterRules(result.rules);
+      if (remoteRaw === filterRaw) {
         return { success: true, skipped: true };
       }
       const lastPush = await storage.getSyncLastPush();
-      if (result.updatedAt && lastPush && result.updatedAt > lastPush) {
+      if (
+        result.updatedAt &&
+        lastPush &&
+        result.updatedAt > lastPush &&
+        normalizedLastPushedRaw !== remoteRaw
+      ) {
         return { success: false, error: "conflict", local: filter, remote: result.rules };
       }
     }
@@ -1138,7 +1173,7 @@ async function syncPush({ skipConflictCheck = false } = {}) {
     await storage.setSyncEnabled(false);
     return { success: false, error: "gist_not_found" };
   }
-  await storage.setSyncLastPush(new Date().toISOString());
+  await storage.setSyncLastPush(updateResult.updatedAt || new Date().toISOString());
   await storage.setSyncLastPushedFilter(filter);
   return { success: true };
 }
