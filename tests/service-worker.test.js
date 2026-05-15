@@ -203,6 +203,13 @@ mockRuntime.onMessage.addListener.mockImplementation((handler) => {
   messageHandler = handler;
 });
 
+// Resolves when sendResponse fires; fire-and-forget work is not awaited here.
+function callHandler(message) {
+  return new Promise((resolve) => {
+    messageHandler(message, {}, resolve);
+  });
+}
+
 mockAlarms.onAlarm.addListener.mockImplementation(() => {
   // Alarm handler captured but not used in tests
 });
@@ -325,16 +332,11 @@ describe("service-worker", () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
-
-      // Wait for async handling
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "login", authMethod: "pat", token: "ghp_test" });
 
       expect(mockGithub.fetchUsername).toHaveBeenCalled();
       expect(mockStorageFunctions.setToken).toHaveBeenCalledWith("ghp_test");
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           success: true,
           username: "testuser",
@@ -345,13 +347,9 @@ describe("service-worker", () => {
     it("should return error on login failure", async () => {
       mockGithub.fetchUsername.mockRejectedValue(new Error("Invalid token"));
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({ action: "login", authMethod: "pat", token: "invalid" });
 
-      messageHandler({ action: "login", authMethod: "pat", token: "invalid" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           success: false,
           error: "Invalid token",
@@ -362,17 +360,13 @@ describe("service-worker", () => {
 
   describe("handleMessage - LOGOUT", () => {
     it("should logout and clear state", async () => {
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "logout" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "logout" });
 
       expect(mockGithub.logout).toHaveBeenCalled();
       expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
       expect(mockStorageFunctions.clearAuthData).toHaveBeenCalled();
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "?" });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -382,13 +376,9 @@ describe("service-worker", () => {
       mockGithub.username = "testuser";
       mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "1", title: "Test" }]);
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({ action: "getState" });
 
-      messageHandler({ action: "getState" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           isAuthenticated: true,
           username: "testuser",
@@ -403,14 +393,10 @@ describe("service-worker", () => {
       mockStorageFunctions.getUsername.mockResolvedValue("storeduser");
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "getState" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "getState" });
 
       expect(mockStorageFunctions.getUsername).toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           username: "storeduser",
         }),
@@ -420,14 +406,10 @@ describe("service-worker", () => {
 
   describe("handleMessage - GET_RATE_LIMIT", () => {
     it("should return rate limit info", async () => {
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "getRateLimit" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "getRateLimit" });
 
       expect(mockGithub.getRateLimitInfo).toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         rateLimit: { resetIn: "5 min" },
       });
     });
@@ -446,16 +428,12 @@ describe("service-worker", () => {
       mockGithub.markAsRead.mockResolvedValue(true);
       mockGithub.isAuthenticated = true;
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openNotification", notificationId: "123" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "openNotification", notificationId: "123" });
 
       expect(mockTabs.create).toHaveBeenCalledWith({
         url: "https://github.com/owner/repo/issues/1",
       });
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           success: true,
         }),
@@ -465,17 +443,12 @@ describe("service-worker", () => {
     it("should throw error for non-existent notification", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({
+        action: "openNotification",
+        notificationId: "nonexistent",
+      });
 
-      messageHandler(
-        { action: "openNotification", notificationId: "nonexistent" },
-        {},
-        sendResponse,
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         error: "Notification not found",
       });
     });
@@ -490,17 +463,11 @@ describe("service-worker", () => {
         { id: "999", type: "Issue", repository: {} },
       ]);
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openNotification", notificationId: "999" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "openNotification", notificationId: "999" });
 
       expect(mockTabs.create).not.toHaveBeenCalled();
       // Verify an error response was sent without pinning the message wording.
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.any(String) }),
-      );
+      expect(result).toEqual(expect.objectContaining({ error: expect.any(String) }));
     });
   });
 
@@ -527,16 +494,12 @@ describe("service-worker", () => {
       mockGithub.markAsRead.mockResolvedValue(true);
       mockGithub.isAuthenticated = true;
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openLatestComment", notificationId: "200" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "openLatestComment", notificationId: "200" });
 
       expect(mockTabs.create).toHaveBeenCalledWith({
         url: "https://github.com/owner/repo/issues/5#issuecomment-67890",
       });
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      expect(result).toEqual(expect.objectContaining({ success: true }));
     });
 
     it("should use prefetched cache when cache entry matches updated_at", async () => {
@@ -558,11 +521,7 @@ describe("service-worker", () => {
       mockGithub.markAsRead.mockResolvedValue(true);
       mockGithub.isAuthenticated = true;
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openLatestComment", notificationId: "202" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "openLatestComment", notificationId: "202" });
 
       expect(mockTabs.create).toHaveBeenCalledWith({
         url: "https://github.com/owner/repo/issues/7#issuecomment-cached",
@@ -593,11 +552,7 @@ describe("service-worker", () => {
       mockGithub.markAsRead.mockResolvedValue(true);
       mockGithub.isAuthenticated = true;
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openLatestComment", notificationId: "203" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "openLatestComment", notificationId: "203" });
 
       // Must use fresh URL, not the stale cached one
       expect(mockTabs.create).toHaveBeenCalledWith({
@@ -621,32 +576,23 @@ describe("service-worker", () => {
       mockGithub.markAsRead.mockResolvedValue(true);
       mockGithub.isAuthenticated = true;
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "openLatestComment", notificationId: "201" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "openLatestComment", notificationId: "201" });
 
       expect(mockTabs.create).toHaveBeenCalledWith({
         url: "https://github.com/owner/repo/pull/10",
       });
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+      expect(result).toEqual(expect.objectContaining({ success: true }));
     });
 
     it("should throw error for non-existent notification", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({
+        action: "openLatestComment",
+        notificationId: "nonexistent",
+      });
 
-      messageHandler(
-        { action: "openLatestComment", notificationId: "nonexistent" },
-        {},
-        sendResponse,
-      );
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({ error: "Notification not found" });
+      expect(result).toEqual({ error: "Notification not found" });
     });
   });
 
@@ -782,31 +728,23 @@ describe("service-worker", () => {
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "markAsRead", notificationId: "123" });
 
       expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
         { id: "456", title: "Another" },
       ]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1" });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should return error on API failure", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", title: "Test" }]);
       mockGithub.markAsRead.mockRejectedValue(new Error("API Error"));
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({ action: "markAsRead", notificationId: "123" });
 
-      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: false,
         error: "API Error",
       });
@@ -822,16 +760,12 @@ describe("service-worker", () => {
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
-      const refreshResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, refreshResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "markAsRead", notificationId: "123" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "markAsRead", notificationId: "123" });
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1+" });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -839,16 +773,12 @@ describe("service-worker", () => {
     it("should mark all notifications as read", async () => {
       mockGithub.markAllAsRead.mockResolvedValue(true);
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "markAllAsRead" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "markAllAsRead" });
 
       expect(mockGithub.markAllAsRead).toHaveBeenCalled();
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "" });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -860,18 +790,14 @@ describe("service-worker", () => {
       ]);
       mockGithub.markRepoAsRead.mockResolvedValue(true);
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" });
 
       expect(mockGithub.markRepoAsRead).toHaveBeenCalledWith("owner", "repo");
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
         { id: "456", repository: { full_name: "other/repo" }, title: "Test 2" },
       ]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1" });
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: true,
         notifications: [{ id: "456", repository: { full_name: "other/repo" }, title: "Test 2" }],
       });
@@ -883,13 +809,9 @@ describe("service-worker", () => {
       ]);
       mockGithub.markRepoAsRead.mockRejectedValue(new Error("API Error"));
 
-      const sendResponse = vi.fn();
+      const result = await callHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" });
 
-      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: false,
         error: "API Error",
       });
@@ -905,16 +827,12 @@ describe("service-worker", () => {
       ]);
       mockGithub.markRepoAsRead.mockResolvedValue(true);
 
-      const refreshResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, refreshResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "markRepoAsRead", owner: "owner", repo: "repo" });
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1+" });
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: true,
         notifications: [{ id: "456", repository: { full_name: "other/repo" }, title: "Test 2" }],
       });
@@ -926,18 +844,14 @@ describe("service-worker", () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "refresh" });
 
       expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
       expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
         delayInMinutes: 1,
         periodInMinutes: 1,
       });
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should reset lastModified to force non-conditional request", async () => {
@@ -945,10 +859,7 @@ describe("service-worker", () => {
       mockGithub.lastModified = "Thu, 01 Jan 2025 00:00:00 GMT";
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       expect(mockGithub.lastModified).toBeNull();
     });
@@ -960,9 +871,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 60; // Start with 60 seconds
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "login", authMethod: "pat", token: "ghp_test" });
 
       // Clear previous calls
       mockAlarms.clear.mockClear();
@@ -972,8 +881,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 120; // Change to 120 seconds
       mockGithub.fetchUsername.mockResolvedValue("testuser");
 
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Should update alarm with new interval (2 minutes)
       expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
@@ -988,9 +896,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 60; // Start with 60 seconds
       mockGithub.getNotifications.mockResolvedValue(null); // 304 Not Modified
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "login", authMethod: "pat", token: "ghp_test" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "login", authMethod: "pat", token: "ghp_test" });
 
       // Clear previous calls
       mockAlarms.clear.mockClear();
@@ -1000,8 +906,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 180; // Change to 180 seconds
       mockGithub.fetchUsername.mockResolvedValue("testuser");
 
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Should update alarm even on 304 (3 minutes)
       expect(mockAlarms.clear).toHaveBeenCalledWith("check-notifications");
@@ -1016,9 +921,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 30; // Below minimum
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Should clamp to 1 minute minimum
       expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
@@ -1032,9 +935,7 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 1200; // Above maximum (20 minutes)
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Should clamp to 10 minutes maximum
       expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
@@ -1048,16 +949,13 @@ describe("service-worker", () => {
       mockGithub.pollInterval = 120; // 2 minutes
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Trigger another refresh with same interval
       mockAlarms.clear.mockClear();
       mockAlarms.create.mockClear();
 
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "refresh" });
 
       // Should still create alarm (as part of REFRESH logic) but with same interval
       expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
@@ -1069,13 +967,9 @@ describe("service-worker", () => {
 
   describe("handleMessage - unknown action", () => {
     it("should return error for unknown action", async () => {
-      const sendResponse = vi.fn();
+      const result = await callHandler({ action: "unknownAction" });
 
-      messageHandler({ action: "unknownAction" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         error: "Unknown action: unknownAction",
       });
     });
@@ -1086,10 +980,7 @@ describe("service-worker", () => {
       mockGithub.isAuthenticated = true;
       mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "markAllAsRead" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "markAllAsRead" });
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "" });
     });
@@ -1102,10 +993,7 @@ describe("service-worker", () => {
       ]);
       mockGithub.markAsRead.mockResolvedValue(true);
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "markAsRead", notificationId: "1" }, {}, sendResponse);
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "markAsRead", notificationId: "1" });
 
       // After removing one, should show 2
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "2" });
@@ -1960,9 +1848,7 @@ describe("service-worker helper functions", () => {
 
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await callHandler({ action: "refresh" });
 
       // The error should propagate to checkNotifications' catch block
       // which sets an error title on the badge
@@ -2003,13 +1889,11 @@ describe("service-worker helper functions", () => {
 
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "refresh" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      const result = await callHandler({ action: "refresh" });
 
       // showDesktopNotificationsForNew catches its own errors internally,
       // so the refresh should still succeed
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
 
       consoleSpy.mockRestore();
     });
@@ -2177,66 +2061,53 @@ describe("comment URL cache session storage persistence", () => {
       const rules = [{ repos: ["owner/repo"], keywords: ["beta"] }];
       mockStorageFunctions.getNotificationFilter.mockResolvedValue(rules);
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "getNotificationFilter" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "getNotificationFilter" });
 
-      expect(sendResponse).toHaveBeenCalledWith({ filter: rules });
+      expect(result).toEqual({ filter: rules });
     });
 
     it("should return empty array when no filter is configured", async () => {
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "getNotificationFilter" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "getNotificationFilter" });
 
-      expect(sendResponse).toHaveBeenCalledWith({ filter: [] });
+      expect(result).toEqual({ filter: [] });
     });
   });
 
   describe("handleMessage - SET_NOTIFICATION_FILTER", () => {
     it("should save valid filter rules", async () => {
       const rules = [{ repos: ["owner/repo"], keywords: ["beta"] }];
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: rules });
 
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(rules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should accept rule with empty repos (global scope)", async () => {
       const rules = [{ repos: [], keywords: ["nightly"] }];
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: rules });
 
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(rules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should reject non-array filter", async () => {
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: "bad" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: "bad" });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({ error: expect.stringContaining("filter must be an array") }),
       );
       expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
     });
 
     it("should reject rule missing repos array", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ keywords: ["beta"] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ keywords: ["beta"] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("repos and keywords arrays"),
         }),
@@ -2244,15 +2115,12 @@ describe("comment URL cache session storage persistence", () => {
     });
 
     it("should reject rule missing keywords array", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ repos: ["owner/repo"] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ repos: ["owner/repo"] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("repos and keywords arrays"),
         }),
@@ -2260,15 +2128,12 @@ describe("comment URL cache session storage persistence", () => {
     });
 
     it("should reject rule with empty keywords", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ repos: [], keywords: [] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ repos: [], keywords: [] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("at least one keyword"),
         }),
@@ -2276,15 +2141,12 @@ describe("comment URL cache session storage persistence", () => {
     });
 
     it("should reject rule with only whitespace/empty-string keywords", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ repos: [], keywords: ["", " ", "  "] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ repos: [], keywords: ["", " ", "  "] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("at least one keyword"),
         }),
@@ -2293,9 +2155,7 @@ describe("comment URL cache session storage persistence", () => {
 
     it("should trim whitespace from repos and keywords", async () => {
       const rules = [{ repos: [" owner/repo "], keywords: [" beta "] }];
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "setNotificationFilter", filter: rules });
 
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith([
         { repos: ["owner/repo"], keywords: ["beta"] },
@@ -2303,15 +2163,12 @@ describe("comment URL cache session storage persistence", () => {
     });
 
     it("should reject rule with non-string repo elements", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ repos: [123], keywords: ["beta"] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ repos: [123], keywords: ["beta"] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("arrays of strings"),
         }),
@@ -2320,15 +2177,12 @@ describe("comment URL cache session storage persistence", () => {
     });
 
     it("should reject rule with non-string keyword elements", async () => {
-      const sendResponse = vi.fn();
-      messageHandler(
-        { action: "setNotificationFilter", filter: [{ repos: [], keywords: [null] }] },
-        {},
-        sendResponse,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({
+        action: "setNotificationFilter",
+        filter: [{ repos: [], keywords: [null] }],
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(
+      expect(result).toEqual(
         expect.objectContaining({
           error: expect.stringContaining("arrays of strings"),
         }),
@@ -2345,16 +2199,14 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
 
       const rules = [{ repos: [], keywords: ["beta"] }];
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: rules });
 
       const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
       expect(saved).toHaveLength(3);
       expect(saved[0].matchedRules).toEqual([0]);
       expect(saved[1].matchedRules).toEqual([]);
       expect(saved[2].matchedRules).toEqual([0]);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should re-annotate with empty matchedRules when no stored notifications match", async () => {
@@ -2362,14 +2214,12 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
 
       const rules = [{ repos: [], keywords: ["beta"] }];
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: rules }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: rules });
 
       const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
       expect(saved).toHaveLength(1);
       expect(saved[0].matchedRules).toEqual([]);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should re-annotate with empty matchedRules when filter is empty", async () => {
@@ -2378,13 +2228,11 @@ describe("comment URL cache session storage persistence", () => {
       ];
       mockStorageFunctions.getNotifications.mockResolvedValue(storedNotifs);
 
-      const sendResponse = vi.fn();
-      messageHandler({ action: "setNotificationFilter", filter: [] }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "setNotificationFilter", filter: [] });
 
       const saved = mockStorageFunctions.setNotifications.mock.calls[0][0];
       expect(saved[0].matchedRules).toEqual([]);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -2573,10 +2421,8 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
       mockStorageFunctions.getSyncGistId.mockResolvedValue("abc123");
       mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-01-01T00:00:00Z");
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncGetState" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({
+      const result = await callHandler({ action: "syncGetState" });
+      expect(result).toEqual({
         enabled: true,
         gistId: "abc123",
         lastPush: "2026-01-01T00:00:00Z",
@@ -2591,12 +2437,10 @@ describe("comment URL cache session storage persistence", () => {
         updated_at: "2026-01-02T00:00:00Z",
         created_at: "2026-01-01T00:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncGetState" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncGetState" });
       expect(mockGithub.getFilterGistMeta).toHaveBeenCalledWith("abc123");
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-01-02T00:00:00Z");
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         enabled: true,
         gistId: "abc123",
         lastPush: "2026-01-02T00:00:00Z",
@@ -2619,13 +2463,11 @@ describe("comment URL cache session storage persistence", () => {
         id: "new-gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncEnable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncEnable" });
       expect(mockGithub.createFilterGist).toHaveBeenCalled();
       expect(mockStorageFunctions.setSyncGistId).toHaveBeenCalledWith("new-gist-id");
       expect(mockStorageFunctions.setSyncEnabled).toHaveBeenCalledWith(true);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, gistId: "new-gist-id" });
+      expect(result).toEqual({ success: true, gistId: "new-gist-id" });
     });
 
     it("should reuse existing gist found by findFilterGist and pull remote rules", async () => {
@@ -2634,13 +2476,11 @@ describe("comment URL cache session storage persistence", () => {
       const remoteRules = [{ repos: ["owner/repo"], keywords: ["nightly"] }];
       mockGithub.getFilterGist.mockResolvedValue({ rules: remoteRules, updatedAt: null });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncEnable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncEnable" });
       expect(mockGithub.createFilterGist).not.toHaveBeenCalled();
       expect(mockStorageFunctions.setSyncGistId).toHaveBeenCalledWith("found-gist-id");
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(remoteRules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, gistId: "found-gist-id" });
+      expect(result).toEqual({ success: true, gistId: "found-gist-id" });
     });
 
     it("should return missing_scope when createFilterGist throws with that code", async () => {
@@ -2650,10 +2490,8 @@ describe("comment URL cache session storage persistence", () => {
       const err = new Error("missing_gist_scope");
       err.code = "missing_scope";
       mockGithub.createFilterGist.mockRejectedValue(err);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncEnable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "missing_scope" });
+      const result = await callHandler({ action: "syncEnable" });
+      expect(result).toEqual({ success: false, error: "missing_scope" });
     });
 
     it("should save remote updatedAt to syncLastPush when reusing existing gist", async () => {
@@ -2668,9 +2506,7 @@ describe("comment URL cache session storage persistence", () => {
         updatedAt: "2026-05-14T10:00:00Z",
       });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncEnable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "syncEnable" });
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenLastCalledWith("2026-05-14T10:00:00Z");
     });
 
@@ -2684,20 +2520,16 @@ describe("comment URL cache session storage persistence", () => {
         id: "new-gist-id",
         updatedAt: "2026-05-14T11:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncEnable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "syncEnable" });
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenLastCalledWith("2026-05-14T11:00:00Z");
     });
   });
 
   describe("handleMessage - SYNC_DISABLE", () => {
     it("should disable sync", async () => {
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncDisable" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncDisable" });
       expect(mockStorageFunctions.setSyncEnabled).toHaveBeenCalledWith(false);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -2715,13 +2547,11 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", rules);
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-05-14T10:00:00Z");
       expect(mockStorageFunctions.setSyncLastPushedFilter).toHaveBeenCalledWith(rules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
 
     it("should skip push when content is identical", async () => {
@@ -2730,19 +2560,15 @@ describe("comment URL cache session storage persistence", () => {
       const rules = [{ repos: [], keywords: ["beta"] }];
       mockStorageFunctions.getNotificationFilter.mockResolvedValue(rules);
       mockGithub.getFilterGist.mockResolvedValue({ rules, updatedAt: "2026-01-01T00:00:00Z" });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, skipped: true });
+      expect(result).toEqual({ success: true, skipped: true });
     });
 
     it("should fail when sync is disabled", async () => {
       mockStorageFunctions.getSyncEnabled.mockResolvedValue(false);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "sync_disabled" });
+      const result = await callHandler({ action: "syncPush" });
+      expect(result).toEqual({ success: false, error: "sync_disabled" });
     });
   });
 
@@ -2753,11 +2579,9 @@ describe("comment URL cache session storage persistence", () => {
       const remoteRules = [{ repos: ["owner/repo"], keywords: ["nightly"] }];
       mockGithub.getFilterGist.mockResolvedValue({ rules: remoteRules, updatedAt: null });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPull" });
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(remoteRules);
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: true,
         filter: remoteRules,
         lastPush: null,
@@ -2773,9 +2597,7 @@ describe("comment URL cache session storage persistence", () => {
         updatedAt: "2026-05-14T08:00:00Z",
       });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "syncPull" });
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-05-14T08:00:00Z");
     });
 
@@ -2785,11 +2607,9 @@ describe("comment URL cache session storage persistence", () => {
       const rules = [{ repos: [], keywords: ["beta"] }];
       mockGithub.getFilterGist.mockResolvedValue({ rules, updatedAt: null });
       mockStorageFunctions.getNotificationFilter.mockResolvedValue(rules);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPull" });
       expect(mockStorageFunctions.setNotificationFilter).not.toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: true,
         filter: rules,
         skipped: true,
@@ -2811,40 +2631,30 @@ describe("comment URL cache session storage persistence", () => {
         JSON.stringify([{ repos: [], keywords: ["original"] }]),
       );
       mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T10:00:00Z");
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: "conflict" }),
-      );
+      const result = await callHandler({ action: "syncPull" });
+      expect(result).toEqual(expect.objectContaining({ success: false, error: "conflict" }));
     });
 
     it("should fail when gist not found", async () => {
       mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
       mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
       mockGithub.getFilterGist.mockResolvedValue(null);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "gist_not_found" });
+      const result = await callHandler({ action: "syncPull" });
+      expect(result).toEqual({ success: false, error: "gist_not_found" });
     });
 
     it("should fail when no gist ID stored", async () => {
       mockStorageFunctions.getSyncEnabled.mockResolvedValue(true);
       mockStorageFunctions.getSyncGistId.mockResolvedValue(null);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "no_gist" });
+      const result = await callHandler({ action: "syncPull" });
+      expect(result).toEqual({ success: false, error: "no_gist" });
     });
 
     it("should fail when sync is disabled", async () => {
       mockStorageFunctions.getSyncEnabled.mockResolvedValue(false);
       mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "sync_disabled" });
+      const result = await callHandler({ action: "syncPull" });
+      expect(result).toEqual({ success: false, error: "sync_disabled" });
     });
   });
 
@@ -2892,13 +2702,11 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncResolveConflict", choice: "local" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncResolveConflict", choice: "local" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", rules);
-      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalled();
+      expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-05-14T10:00:00Z");
       expect(mockStorageFunctions.setSyncLastPushedFilter).toHaveBeenCalledWith(rules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, filter: rules });
+      expect(result).toEqual({ success: true, filter: rules });
     });
 
     it("should apply remote filter when choice is remote", async () => {
@@ -2908,40 +2716,32 @@ describe("comment URL cache session storage persistence", () => {
         rules: remoteRules,
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncResolveConflict", choice: "remote" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncResolveConflict", choice: "remote" });
       expect(mockStorageFunctions.setNotificationFilter).toHaveBeenCalledWith(remoteRules);
       expect(mockStorageFunctions.setSyncLastPush).toHaveBeenCalledWith("2026-05-14T10:00:00Z");
-      expect(sendResponse).toHaveBeenCalledWith({ success: true, filter: remoteRules });
+      expect(result).toEqual({ success: true, filter: remoteRules });
     });
 
     it("should clear sync state when local push finds gist deleted", async () => {
       mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
       mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
       mockGithub.updateFilterGist.mockResolvedValue(null);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncResolveConflict", choice: "local" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncResolveConflict", choice: "local" });
       expect(mockStorageFunctions.setSyncGistId).toHaveBeenCalledWith(null);
       expect(mockStorageFunctions.setSyncEnabled).toHaveBeenCalledWith(false);
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "gist_not_found" });
+      expect(result).toEqual({ success: false, error: "gist_not_found" });
     });
 
     it("should return error for invalid choice", async () => {
       mockStorageFunctions.getSyncGistId.mockResolvedValue("gist-id");
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncResolveConflict", choice: "invalid" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "invalid_choice" });
+      const result = await callHandler({ action: "syncResolveConflict", choice: "invalid" });
+      expect(result).toEqual({ success: false, error: "invalid_choice" });
     });
 
     it("should return error when no gist ID stored", async () => {
       mockStorageFunctions.getSyncGistId.mockResolvedValue(null);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncResolveConflict", choice: "local" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "no_gist" });
+      const result = await callHandler({ action: "syncResolveConflict", choice: "local" });
+      expect(result).toEqual({ success: false, error: "no_gist" });
     });
   });
 
@@ -2957,12 +2757,10 @@ describe("comment URL cache session storage persistence", () => {
         updatedAt: "2026-01-01T00:00:00Z",
       });
       mockGithub.updateFilterGist.mockResolvedValue(null);
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockStorageFunctions.setSyncGistId).toHaveBeenCalledWith(null);
       expect(mockStorageFunctions.setSyncEnabled).toHaveBeenCalledWith(false);
-      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: "gist_not_found" });
+      expect(result).toEqual({ success: false, error: "gist_not_found" });
     });
   });
 
@@ -2981,11 +2779,9 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(
         JSON.stringify([{ repos: [], keywords: ["original"] }]),
       );
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith({
+      expect(result).toEqual({
         success: false,
         error: "conflict",
         local: localRules,
@@ -3009,11 +2805,9 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
-      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).toEqual({ success: true });
     });
   });
 
@@ -3036,13 +2830,9 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPull" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true, pushNeeded: true }),
-      );
+      expect(result).toEqual(expect.objectContaining({ success: true, pushNeeded: true }));
     });
 
     it("should trigger push when remote gist timestamp changed without rule changes", async () => {
@@ -3061,13 +2851,9 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPull" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true, pushNeeded: true }),
-      );
+      expect(result).toEqual(expect.objectContaining({ success: true, pushNeeded: true }));
     });
 
     it("should not PATCH when local and remote rules differ only in field order", async () => {
@@ -3088,13 +2874,9 @@ describe("comment URL cache session storage persistence", () => {
       mockStorageFunctions.getNotificationFilter.mockResolvedValue(localRules);
       mockStorageFunctions.getSyncLastPushedFilter.mockResolvedValue(JSON.stringify(localRules));
       mockStorageFunctions.getSyncLastPush.mockResolvedValue("2026-05-14T08:00:00Z");
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPull" });
       expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true, skipped: true }),
-      );
+      expect(result).toEqual(expect.objectContaining({ success: true, skipped: true }));
     });
 
     it("should PATCH via afterPull path when local has unpushed edits", async () => {
@@ -3116,9 +2898,7 @@ describe("comment URL cache session storage persistence", () => {
         id: "gist-id",
         updatedAt: "2026-05-14T10:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPull" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await callHandler({ action: "syncPull" });
       expect(mockGithub.updateFilterGist).toHaveBeenCalledWith("gist-id", localRules);
       expect(mockGithub.getFilterGist).toHaveBeenCalledTimes(1);
     });
@@ -3135,13 +2915,9 @@ describe("comment URL cache session storage persistence", () => {
         rules: remoteRules,
         updatedAt: "2026-05-14T09:00:00Z",
       });
-      const sendResponse = vi.fn();
-      messageHandler({ action: "syncPush" }, {}, sendResponse);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      const result = await callHandler({ action: "syncPush" });
       expect(mockGithub.getFilterGist).toHaveBeenCalledWith("gist-id");
-      expect(sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, error: "conflict" }),
-      );
+      expect(result).toEqual(expect.objectContaining({ success: false, error: "conflict" }));
       expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
     });
   });
