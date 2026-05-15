@@ -1,0 +1,523 @@
+/* Settings View */
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 0 0 auto;
+  background: var(--bg-primary);
+  --control-bg: rgba(0, 0, 0, 0.06);
+  --control-hover: rgba(0, 0, 0, 0.1);
+  --control-active: rgba(0, 0, 0, 0.16);
+  --control-focus: rgba(0, 0, 0, 0.22);
+  --control-focus-border: rgba(0, 0, 0, 0.18);
+  --list-divider: rgba(0, 0, 0, 0.1);
+  --row-divider: rgba(0, 0, 0, 0.06);
+  --button-focus: var(--control-focus);
+}
+
+body.dark-theme .settings-view {
+  --control-bg: rgba(255, 255, 255, 0.08);
+  --control-hover: rgba(255, 255, 255, 0.14);
+  --control-active: rgba(255, 255, 255, 0.22);
+  --control-focus: rgba(255, 255, 255, 0.28);
+  --control-focus-border: rgba(255, 255, 255, 0.24);
+  --list-divider: rgba(255, 255, 255, 0.1);
+  --row-divider: rgba(255, 255, 255, 0.06);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--list-divider);
+}
+
+.settings-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1; /* push any trailing header controls to the right */
+}
+
+.settings-content {
+  flex: 0 0 auto;
+  padding: 16px 20px;
+  /* Use hidden instead of auto: the settings panel never needs to scroll,
+     and overflow-y: auto triggers a two-pass scrollbar layout on every width
+     change, causing a ~17px horizontal flash on the right side of the popup. */
+  overflow-y: hidden;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 6px 12px 0;
+  padding-left: 10px;
+  border-bottom: 0.7px solid var(--row-divider);
+}
+
+.setting-row:first-child {
+  padding-top: 0; /* Remove top padding for first row to align with settings-content padding */
+  padding-left: 7px;
+}
+
+.setting-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.setting-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.setting-icon .icon-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* User info in settings */
+.setting-user-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px 12px 0;
+}
+
+.settings-profile-link {
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.settings-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--avatar-ring-color);
+  transition:
+    box-shadow 0.15s ease,
+    filter 0.15s ease,
+    transform 0.15s ease;
+}
+
+.settings-profile-link .settings-avatar:hover,
+.settings-profile-link:focus-visible .settings-avatar {
+  box-shadow:
+    0 0 0 1px var(--avatar-ring-highlight-color),
+    0 0 0 4px var(--avatar-ring-glow);
+  filter: brightness(1.04);
+  transform: scale(1.02);
+}
+
+.settings-profile-link .setting-account-name:hover,
+.settings-profile-link:focus-visible .setting-account-name {
+  color: var(--text-highlight);
+}
+
+.settings-user-details {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-user-details .setting-account-name {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.settings-auth-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--control-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  white-space: nowrap;
+  margin-left: 6px;
+  margin-top: 2px;
+}
+
+/* Width controls */
+.width-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+}
+
+.width-input {
+  width: 50px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  text-align: center;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  appearance: textfield;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.width-input:focus-visible {
+  outline: none;
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.width-input::-webkit-inner-spin-button,
+.width-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.width-unit {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-right: 0;
+  padding-bottom: 3px;
+  margin-right: -2px;
+}
+
+.width-btn {
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+}
+
+.width-btn:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+
+.width-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.width-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.setting-row-column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.setting-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.setting-row:last-of-type {
+  border-bottom: none;
+}
+
+.setting-label,
+.setting-account-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 50px;
+  flex-shrink: 0;
+}
+
+.setting-label {
+  padding-left: 0;
+}
+
+.setting-account-name {
+  padding-left: 0;
+}
+
+.setting-row .setting-select {
+  flex: 0 0 auto;
+  max-width: 120px;
+  width: 120px;
+}
+
+.theme-options {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+}
+
+.theme-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-option .theme-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+
+.theme-option:hover .theme-option-label {
+  color: var(--text-primary);
+  background: var(--control-hover);
+}
+
+.theme-option input:checked + .theme-option-label {
+  color: var(--text-primary);
+  background: var(--control-hover);
+}
+
+.theme-option input:focus-visible + .theme-option-label {
+  color: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.theme-option-icon {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+/* Toggle Switch - Checkbox Style */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.toggle-switch input[type="checkbox"] {
+  margin: 0;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.toggle-slider {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--control-hover);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.toggle-slider::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  transform: translateX(0);
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
+}
+
+.toggle-switch:hover .toggle-slider {
+  background: var(--control-active);
+}
+
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider {
+  background: var(--control-active);
+}
+
+.toggle-switch input[type="checkbox"]:checked + .toggle-slider::after {
+  transform: translateX(16px);
+  background: var(--bg-primary);
+}
+
+.toggle-switch input[type="checkbox"]:focus-visible + .toggle-slider {
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.toggle-switch:has(input[type="checkbox"]:disabled) {
+  cursor: not-allowed;
+}
+
+.toggle-switch input[type="checkbox"]:disabled + .toggle-slider {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.btn-compact {
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon-left {
+  flex-shrink: 0;
+}
+
+.setting-item {
+  margin-bottom: 16px;
+}
+
+.setting-section {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Remove border-bottom from the row immediately before a section */
+.setting-row:has(+ .setting-section),
+.setting-row.no-border-bottom {
+  border-bottom: none;
+}
+
+.setting-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  padding-left: 6px;
+}
+
+.setting-item label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.setting-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.setting-input:focus-visible {
+  outline: none;
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.setting-select {
+  width: 100%;
+  padding: 8px 10px;
+  padding-right: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath fill='%236b7280' d='M6 9L1 4h10z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+
+.setting-select:focus-visible {
+  outline: none;
+  border-color: var(--control-focus-border);
+  box-shadow: 0 0 0 3px var(--control-focus);
+}
+
+.setting-hint {
+  margin-top: 4px;
+  padding-left: 40px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.setting-value {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px 6px 0;
+  margin-top: 16px;
+}
+
+.settings-actions .btn {
+  flex: 1;
+}
