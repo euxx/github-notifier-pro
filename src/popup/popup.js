@@ -18,8 +18,9 @@ import { applyTheme } from "../lib/theme.js";
 import { buildProfileUrl } from "../lib/url-builder.js";
 import { classifyError } from "../lib/format-utils.js";
 import { parseSVG } from "../lib/icons.js";
-import { initRenderer, clearNotificationCache, formatTimeAgo } from "./notification-renderer.js";
+import { initRenderer, clearNotificationCache } from "./notification-renderer.js";
 import { createFilter } from "./filter.js";
+import { createSync } from "./sync.js";
 
 /**
  * Get auth method labels
@@ -184,19 +185,7 @@ const notificationsContainer = document.getElementById("notifications-container"
 const refreshCountdownEl = document.getElementById("refresh-countdown");
 
 // Filter view is owned by createFilter (./filter.js).
-
-// Gist sync elements
-const syncToggle = document.getElementById("filter-sync-toggle");
-const syncActions = document.getElementById("filter-sync-actions");
-const syncConflict = document.getElementById("filter-sync-conflict");
-const syncPushBtn = document.getElementById("filter-sync-push");
-const syncPullBtn = document.getElementById("filter-sync-pull");
-const syncUseLocalBtn = document.getElementById("filter-sync-use-local");
-const syncUseRemoteBtn = document.getElementById("filter-sync-use-remote");
-const syncGistLink = document.getElementById("filter-sync-gist-link");
-const syncGistText = document.getElementById("filter-sync-gist-text");
-const syncLastEl = document.getElementById("filter-sync-last");
-const syncStatus = document.getElementById("filter-sync-status");
+// Gist sync UI is owned by createSync (./sync.js).
 
 // Popup size controls
 const popupWidthInput = document.getElementById("popup-width-input");
@@ -406,6 +395,12 @@ const filter = createFilter({
   mainView,
 });
 
+const sync = createSync({
+  sendMessage,
+  storage,
+  onPulledFilter: filter.applyPulledFilter,
+});
+
 /**
  * Show settings view
  */
@@ -472,7 +467,7 @@ async function showSettings() {
       desktopNotificationsHint.hidden = false;
     }
   }
-  initSyncUI();
+  sync.init();
   toggleOverlayView(true);
   settingsView.hidden = false;
 }
@@ -896,214 +891,6 @@ function removeOverlayFadeOut(elements) {
   }
 }
 
-function showSyncStatus(text, isError = false) {
-  if (!syncStatus) return;
-  syncStatus.textContent = text;
-  syncStatus.classList.toggle("error", isError);
-  syncStatus.hidden = false;
-}
-
-function hideSyncStatus() {
-  if (!syncStatus) return;
-  syncStatus.hidden = true;
-}
-
-async function initSyncUI() {
-  if (!syncToggle) return;
-  try {
-    const state = await sendMessage(MESSAGE_TYPES.SYNC_GET_STATE);
-    syncToggle.checked = state.enabled;
-    if (syncActions) syncActions.hidden = !state.enabled;
-    updateSyncGistLink(state.gistId);
-    updateSyncLastPush(state.lastPush);
-  } catch {
-    syncToggle.checked = false;
-  }
-}
-
-async function silentPull() {
-  try {
-    const result = await sendMessage(MESSAGE_TYPES.SYNC_PULL);
-    if (result.error === "conflict") {
-      showSyncConflict();
-      return;
-    }
-    if (result.success && !result.skipped) {
-      filter.applyPulledFilter(result.filter);
-    }
-  } catch {}
-}
-
-function updateSyncGistLink(gistId) {
-  if (!syncGistLink || !syncGistText) return;
-  if (gistId) {
-    syncGistLink.href = `https://gist.github.com/${gistId}`;
-    syncGistLink.hidden = false;
-    syncGistText.hidden = true;
-  } else {
-    syncGistLink.hidden = true;
-    syncGistText.hidden = false;
-  }
-}
-
-function updateSyncLastPush(isoString) {
-  if (!syncLastEl) return;
-  if (!isoString) {
-    syncLastEl.hidden = true;
-    syncLastEl.removeAttribute("title");
-    return;
-  }
-  const text = formatTimeAgo(isoString);
-  syncLastEl.textContent = ` · ${text}`;
-  syncLastEl.hidden = false;
-  syncLastEl.title = `Last synced: ${new Date(isoString).toLocaleString()}`;
-}
-
-async function handleSyncToggle() {
-  const enabled = syncToggle.checked;
-  hideSyncStatus();
-
-  if (enabled) {
-    syncToggle.disabled = true;
-    showSyncStatus("Enabling sync...");
-    try {
-      const result = await Promise.race([
-        sendMessage(MESSAGE_TYPES.SYNC_ENABLE),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 30000)),
-      ]);
-      if (!result.success) {
-        if (result.error === "conflict") {
-          if (syncActions) syncActions.hidden = true;
-          updateSyncGistLink(result.gistId);
-          showSyncConflict();
-          return;
-        }
-        syncToggle.checked = false;
-        if (result.error === "missing_scope") {
-          const authMethod = await storage.getAuthMethod();
-          if (authMethod === "oauth") {
-            showSyncStatus("Re-login via OAuth to grant the gist scope.", true);
-          } else {
-            const link = document.createElement("a");
-            link.href = "https://github.com/settings/tokens";
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.textContent = "gist scope";
-            showSyncStatus("", true);
-            syncStatus.replaceChildren(
-              document.createTextNode("Add the "),
-              link,
-              document.createTextNode(" to your token on GitHub."),
-            );
-          }
-        } else {
-          showSyncStatus(result.error || "Failed to enable sync.", true);
-        }
-        return;
-      }
-      if (syncActions) syncActions.hidden = false;
-      updateSyncGistLink(result.gistId);
-      updateSyncLastPush(new Date().toISOString());
-      showSyncStatus("Synced.");
-      setTimeout(hideSyncStatus, 3000);
-    } catch (err) {
-      syncToggle.checked = false;
-      showSyncStatus(err.message || "Failed to enable sync.", true);
-    } finally {
-      syncToggle.disabled = false;
-    }
-  } else {
-    try {
-      await sendMessage(MESSAGE_TYPES.SYNC_DISABLE);
-    } catch {}
-    if (syncActions) syncActions.hidden = true;
-  }
-}
-
-async function handleSyncPull() {
-  hideSyncStatus();
-  showSyncStatus("Pulling...");
-  try {
-    const result = await sendMessage(MESSAGE_TYPES.SYNC_PULL);
-    if (!result.success) {
-      if (result.error === "conflict") {
-        showSyncConflict();
-        return;
-      }
-      showSyncStatus(result.error === "gist_not_found" ? "Gist not found." : "Pull failed.", true);
-      return;
-    }
-    if (result.skipped) {
-      showSyncStatus("Already in sync.");
-    } else {
-      filter.applyPulledFilter(result.filter);
-      updateSyncLastPush(new Date().toISOString());
-      showSyncStatus("Pulled.");
-    }
-    setTimeout(hideSyncStatus, 3000);
-  } catch {
-    showSyncStatus("Pull failed.", true);
-  }
-}
-
-async function handleSyncPush() {
-  hideSyncStatus();
-  showSyncStatus("Pushing...");
-  try {
-    const result = await sendMessage(MESSAGE_TYPES.SYNC_PUSH);
-    if (!result.success) {
-      if (result.error === "conflict") {
-        showSyncConflict();
-        return;
-      }
-      showSyncStatus(result.error || "Push failed.", true);
-      return;
-    }
-    if (result.skipped) {
-      showSyncStatus("Already in sync.");
-    } else {
-      updateSyncLastPush(new Date().toISOString());
-      showSyncStatus("Pushed.");
-    }
-    setTimeout(hideSyncStatus, 3000);
-  } catch {
-    showSyncStatus("Push failed.", true);
-  }
-}
-
-function showSyncConflict() {
-  if (syncActions) syncActions.hidden = true;
-  if (syncConflict) syncConflict.hidden = false;
-  showSyncStatus("Local and remote differ.", true);
-}
-
-function hideSyncConflict() {
-  if (syncConflict) syncConflict.hidden = true;
-  if (syncActions) syncActions.hidden = false;
-  hideSyncStatus();
-}
-
-async function handleSyncResolve(choice) {
-  hideSyncStatus();
-  showSyncStatus(choice === "local" ? "Pushing local..." : "Applying remote...");
-  try {
-    const result = await sendMessage(MESSAGE_TYPES.SYNC_RESOLVE_CONFLICT, { choice });
-    if (!result.success) {
-      showSyncStatus(result.error || "Failed.", true);
-      return;
-    }
-    if (choice === "remote") {
-      filter.applyPulledFilter(result.filter);
-    }
-    hideSyncConflict();
-    updateSyncLastPush(new Date().toISOString());
-    showSyncStatus("Synced.");
-    setTimeout(hideSyncStatus, 3000);
-  } catch {
-    showSyncStatus("Failed to resolve.", true);
-  }
-}
-
 /**
  * Mark all notifications in a repository as read
  * @param {string} repoFullName - Repository full name (owner/repo)
@@ -1209,7 +996,7 @@ async function init() {
       // Non-critical: indicator defaults to inactive
     }
 
-    silentPull().catch(() => {});
+    sync.silentPull().catch(() => {});
   } else {
     await showView("login"); // This will set 400px width
   }
@@ -1243,12 +1030,7 @@ widthDecreaseBtn.addEventListener("click", decreaseWidth);
 widthIncreaseBtn.addEventListener("click", increaseWidth);
 
 // Filter page is wired up inside createFilter (./filter.js).
-
-syncToggle?.addEventListener("change", handleSyncToggle);
-syncPushBtn?.addEventListener("click", handleSyncPush);
-syncPullBtn?.addEventListener("click", handleSyncPull);
-syncUseLocalBtn?.addEventListener("click", () => handleSyncResolve("local"));
-syncUseRemoteBtn?.addEventListener("click", () => handleSyncResolve("remote"));
+// Gist sync is wired up inside createSync (./sync.js).
 
 // Desktop notification settings
 desktopNotificationsToggle.addEventListener("change", async () => {
