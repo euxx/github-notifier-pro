@@ -21,7 +21,7 @@ import {
   NOTIFICATION_TYPE_ICONS,
   CONCURRENCY,
 } from "../lib/constants.js";
-import { formatReason, classifyError } from "../lib/format-utils.js";
+import { classifyError } from "../lib/format-utils.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 import {
@@ -31,18 +31,22 @@ import {
   sanitizeRules,
 } from "../lib/filter-rules.js";
 import { createSyncEngine } from "./sync-engine.js";
+import {
+  NOTIFICATION_ID_PREFIX,
+  AGGREGATED_NOTIFICATION_ID,
+  GITHUB_NOTIFICATIONS_URL,
+  showDesktopNotificationsForNew,
+  safeClearNotification,
+} from "./desktop-notifications.js";
 
-/**
- * Desktop notification constants
- * @exported for testing
- */
-export const NOTIFICATION_ID_PREFIX = "github-notif-";
-export const AGGREGATED_NOTIFICATION_ID = "github-notif-more";
-export const NOTIFICATION_DELAY_MS = 1000;
-export const GITHUB_NOTIFICATIONS_URL = "https://github.com/notifications";
-const NOTIFICATION_ICON_PATH = "images/icon.png";
-const CHROME_PRIORITY_NORMAL = 2; // Individual notifications
-const CHROME_PRIORITY_LOW = 1; // Aggregated notifications
+// The click handler below uses these symbols directly; the re-export keeps
+// service-worker.test.js's notification-click describe block able to import
+// them from this module without retargeting to desktop-notifications.js.
+export {
+  NOTIFICATION_ID_PREFIX,
+  AGGREGATED_NOTIFICATION_ID,
+  GITHUB_NOTIFICATIONS_URL,
+} from "./desktop-notifications.js";
 
 /**
  * Badge background colors for different states
@@ -53,24 +57,6 @@ const BADGE_COLORS = {
   RATE_LIMITED: "#f59e0b", // Orange - rate limit error
   TIMEOUT: "#ef4444", // Red - timeout error
 };
-
-/**
- * Detect Chrome/Chromium browser
- * Firefox doesn't support priority and requireInteraction notification options
- */
-const isChrome = typeof chrome !== "undefined" && typeof browser === "undefined";
-
-/**
- * Apply Chrome-specific notification options
- * @param {object} options - Notification options object
- * @param {number} priority - Chrome notification priority (1-2)
- */
-function applyChromeNotificationOptions(options, priority) {
-  if (isChrome) {
-    options.priority = priority;
-    options.requireInteraction = false; // Allow auto-dismiss
-  }
-}
 
 /**
  * In-memory LRU cache for author information
@@ -1200,140 +1186,6 @@ async function markRepoAsRead(owner, repo) {
   } catch (error) {
     console.error("Failed to mark repo as read:", error);
     return { success: false, error: error.message };
-  }
-}
-
-/**
- * Helper function to safely clear a notification
- * Isolates clear failures to prevent them from blocking other operations
- */
-async function safeClearNotification(notificationId) {
-  try {
-    await notifications.clear(notificationId);
-  } catch (error) {
-    console.error(`Failed to clear notification ${notificationId}:`, error);
-  }
-}
-
-/**
- * Helper function to delay execution
- */
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Show desktop notifications for new items
- * @exported for testing
- */
-export async function showDesktopNotificationsForNew(notificationsList) {
-  try {
-    // Always clear previous aggregated notification first to prevent stale messages
-    // Do this unconditionally (even for invalid input) to ensure cleanup
-    await safeClearNotification(AGGREGATED_NOTIFICATION_ID);
-
-    // Validate parameter type
-    if (!Array.isArray(notificationsList)) {
-      return;
-    }
-
-    // Early return if empty - after cleanup
-    if (notificationsList.length === 0) {
-      return;
-    }
-
-    // Check if desktop notifications are enabled
-    const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
-
-    if (!enableDesktopNotifications) {
-      return;
-    }
-
-    // Filter new notifications
-    const newNotifications = notificationsList.filter((n) => n.isNew);
-
-    if (newNotifications.length === 0) {
-      return;
-    }
-
-    // Get max notification limit from settings (validated in storage.js)
-    const maxNotifications = await storage.getMaxDesktopNotifications();
-
-    // Note: Assumes notifications are already sorted by updated_at descending (GitHub API default)
-    // Show individual notifications up to the limit with delay between each
-    const notificationsToShow = newNotifications.slice(0, maxNotifications);
-    for (let i = 0; i < notificationsToShow.length; i++) {
-      if (i > 0) {
-        // Add delay between notifications to prevent overwhelming the notification center
-        await delay(NOTIFICATION_DELAY_MS);
-      }
-      await showDesktopNotification(notificationsToShow[i]);
-    }
-
-    // If there are more notifications beyond the limit, show an aggregated notification
-    const remainingCount = newNotifications.length - maxNotifications;
-    if (remainingCount > 0) {
-      // Add delay before showing aggregated notification
-      if (notificationsToShow.length > 0) {
-        await delay(NOTIFICATION_DELAY_MS);
-      }
-      await showAggregatedNotification(remainingCount);
-    }
-  } catch (error) {
-    console.error("Failed to show desktop notifications:", error);
-  }
-}
-
-/**
- * Show a single desktop notification
- * @exported for testing
- */
-export async function showDesktopNotification(notif) {
-  try {
-    // Format title to match popup display: "#123 Title"
-    let displayTitle = notif.title;
-    if (notif.number !== undefined) {
-      displayTitle = `#${notif.number} ${notif.title}`;
-    }
-
-    const notificationOptions = {
-      type: "basic",
-      iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
-      title: displayTitle, // Primary: #123 Title
-      message: `${notif.repository.full_name} · ${formatReason(notif.reason)}`, // Secondary info
-      // Note: 'priority' and 'requireInteraction' are not supported in Firefox
-      // Only include them for Chrome/Chromium browsers
-    };
-
-    // Add Chrome-specific options (Firefox doesn't support these)
-    applyChromeNotificationOptions(notificationOptions, CHROME_PRIORITY_NORMAL);
-
-    // Create notification
-    const notificationId = `${NOTIFICATION_ID_PREFIX}${notif.id}`;
-    await notifications.create(notificationId, notificationOptions);
-  } catch (error) {
-    console.error("Failed to create desktop notification:", error);
-  }
-}
-
-/**
- * Show an aggregated notification for remaining new notifications
- * @exported for testing
- */
-export async function showAggregatedNotification(remainingCount) {
-  try {
-    const notificationOptions = {
-      type: "basic",
-      iconUrl: runtime.getURL(NOTIFICATION_ICON_PATH),
-      title: "GitHub Notifications",
-      message: `... and ${remainingCount} more new notification${remainingCount > 1 ? "s" : ""}`,
-    };
-
-    // Add Chrome-specific options (Firefox doesn't support these)
-    applyChromeNotificationOptions(notificationOptions, CHROME_PRIORITY_LOW); // Lower priority for aggregated notifications
-
-    // Create aggregated notification
-    await notifications.create(AGGREGATED_NOTIFICATION_ID, notificationOptions);
-  } catch (error) {
-    console.error("Failed to create aggregated notification:", error);
   }
 }
 
