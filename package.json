@@ -34,7 +34,6 @@
     "lint-staged": "latest",
     "oxfmt": "latest",
     "oxlint": "latest",
-    "prettier": "latest",
     "vitest": "latest"
   },
   "lint-staged": {
