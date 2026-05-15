@@ -1583,8 +1583,11 @@ describe("service-worker helper functions", () => {
 
       mockStorageFunctions.getNotifications.mockResolvedValue([]);
       mockStorageFunctions.setNotifications.mockResolvedValue(undefined);
-      // Desktop notification preference fetch fails
-      mockStorageFunctions.getEnableDesktopNotifications.mockRejectedValue(
+      // Desktop notification preference fetch fails. Use mockRejectedValueOnce
+      // so the rejection only applies to this assertion's call; otherwise the
+      // fire-and-forget checkNotifications() chain in later tests would keep
+      // hitting the same reject and spam stderr.
+      mockStorageFunctions.getEnableDesktopNotifications.mockRejectedValueOnce(
         new Error("Storage read error"),
       );
 
