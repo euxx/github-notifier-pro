@@ -24,6 +24,14 @@ import {
 import { formatReason, classifyError } from "../lib/format-utils.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
+import {
+  applyRulesWithStats,
+  isVisible,
+  validateRulesStrict,
+  sanitizeRules,
+  canonicalizeRules,
+  canonicalizeStoredRules,
+} from "../lib/filter-rules.js";
 
 /**
  * Desktop notification constants
@@ -336,80 +344,6 @@ function createDetailFetchTask(notification, index, detailedNotifications, force
 }
 
 /**
- * Check whether a single notification matches one notification filter rule.
- * @param {Object} notif - Notification object
- * @param {{ repos: string[], keywords: string[] }} rule - One filter rule
- * @returns {boolean}
- */
-function matchesRule(notif, rule) {
-  const { repos, keywords } = rule;
-
-  // Rule is effectively empty — skip it
-  if (repos.length === 0 && keywords.length === 0) return false;
-
-  // Repo scope check: empty = all repos; non-empty = only listed repos (case-insensitive)
-  const repoName = notif.repository?.full_name?.toLowerCase();
-  if (repos.length > 0 && (!repoName || !repos.some((r) => r.toLowerCase() === repoName)))
-    return false;
-
-  // Keyword check: hide notifications whose title contains any keyword
-  const title = notif.title;
-  if (!title) return false;
-  const titleLower = title.toLowerCase();
-  return keywords.some((kw) => titleLower.includes(kw.toLowerCase()));
-}
-
-/**
- * Check whether a notification matches any rule in the notification filter list.
- * Returns true if the notification should be hidden.
- * @param {Object} notif - Notification object
- * @param {Array<{ repos: string[], keywords: string[] }>} rules - Filter rules array
- * @returns {boolean}
- * @exported for testing
- */
-export function matchesNotificationFilter(notif, rules) {
-  return rules.some((rule) => matchesRule(notif, rule));
-}
-
-export function isVisible(n) {
-  return !n.matchedRules?.length;
-}
-
-/**
- * Annotate each notification with indices of matching filter rules and collect stats.
- * @param {Array} notifications
- * @param {Array<{ repos: string[], keywords: string[] }>} rules
- * @returns {{ notifications: Array, stats: Array<Object> }}
- *   stats[i].repos maps lowercase(repoFullName) → number of notifications filtered by rules[i]
- *   stats[i].keywords maps keyword → number of notifications that matched it in rules[i]
- * @exported for testing
- */
-export function applyNotificationFilterWithStats(notifications, rules) {
-  const stats = rules.map(() => ({ repos: {}, keywords: {} }));
-  const annotated = notifications.map((n) => {
-    const matched = [];
-    for (let i = 0; i < rules.length; i++) {
-      if (matchesRule(n, rules[i])) {
-        matched.push(i);
-        const repo = n.repository?.full_name;
-        if (repo) {
-          const repoKey = repo.toLowerCase();
-          stats[i].repos[repoKey] = (stats[i].repos[repoKey] || 0) + 1;
-        }
-        const titleLower = n.title.toLowerCase();
-        for (const kw of rules[i].keywords) {
-          if (titleLower.includes(kw.toLowerCase())) {
-            stats[i].keywords[kw] = (stats[i].keywords[kw] || 0) + 1;
-          }
-        }
-      }
-    }
-    return { ...n, matchedRules: matched };
-  });
-  return { notifications: annotated, stats };
-}
-
-/**
  * Filter notifications to only those that still exist in storage
  * Prevents overwriting user deletions during concurrent operations
  * @param {Array} detailedNotifications - Notifications to filter
@@ -449,7 +383,7 @@ async function mergeAndSaveIfCurrent(
   }
   let safe = filterToCurrentlyStored(notifications, currentStored);
   if (notificationFilter) {
-    const { notifications: annotated } = applyNotificationFilterWithStats(safe, notificationFilter);
+    const { notifications: annotated } = applyRulesWithStats(safe, notificationFilter);
     safe = annotated;
   }
   await storage.setNotifications(safe);
@@ -617,7 +551,7 @@ async function checkNotifications() {
       const preFilter = basicProcessed.filter(
         (n) => !existingIds.has(n.id) || currentStoredIds.has(n.id),
       );
-      const { notifications: safeBasic, stats: filterStats } = applyNotificationFilterWithStats(
+      const { notifications: safeBasic, stats: filterStats } = applyRulesWithStats(
         preFilter,
         notificationFilter,
       );
@@ -905,26 +839,7 @@ async function handleMessage(message) {
 
     case MESSAGE_TYPES.SET_NOTIFICATION_FILTER: {
       const filter = message.filter;
-      if (!Array.isArray(filter)) {
-        throw new Error("filter must be an array");
-      }
-      for (const rule of filter) {
-        if (!Array.isArray(rule?.repos) || !Array.isArray(rule?.keywords)) {
-          throw new Error("Each rule must have repos and keywords arrays");
-        }
-        if (
-          rule.repos.some((r) => typeof r !== "string") ||
-          rule.keywords.some((kw) => typeof kw !== "string")
-        ) {
-          throw new Error("Rule repos and keywords must be arrays of strings");
-        }
-        // Normalize: trim whitespace and drop empty strings
-        rule.repos = rule.repos.map((r) => r.trim()).filter(Boolean);
-        rule.keywords = rule.keywords.map((kw) => kw.trim()).filter(Boolean);
-        if (rule.keywords.length === 0) {
-          throw new Error("Each rule must have at least one keyword");
-        }
-      }
+      validateRulesStrict(filter);
       await storage.setNotificationFilter(filter);
       // Clear stale stats — they are indexed parallel to the old rules array and
       // would be semantically wrong after any rule change. Fresh stats will be
@@ -932,7 +847,7 @@ async function handleMessage(message) {
       await storage.setNotificationFilterStats([]);
       // Re-annotate stored notifications with new rules
       const current = await storage.getNotifications();
-      const { notifications: reannotated, stats: freshStats } = applyNotificationFilterWithStats(
+      const { notifications: reannotated, stats: freshStats } = applyRulesWithStats(
         current,
         filter,
       );
@@ -1050,7 +965,7 @@ async function handleMessage(message) {
       if (choice === "remote") {
         const result = await github.getFilterGist(gistId);
         if (!result) return { success: false, error: "gist_not_found" };
-        const valid = validateFilterRules(result.rules);
+        const valid = sanitizeRules(result.rules);
         await acceptRemoteFilter(valid, result.updatedAt || new Date().toISOString());
         return { success: true, filter: valid };
       }
@@ -1062,31 +977,6 @@ async function handleMessage(message) {
   }
 }
 
-function validateFilterRules(rules) {
-  // Normalize and drop malformed rules from untrusted remote data
-  return rules
-    .filter(
-      (r) =>
-        Array.isArray(r?.repos) &&
-        Array.isArray(r?.keywords) &&
-        r.repos.every((x) => typeof x === "string") &&
-        r.keywords.every((x) => typeof x === "string"),
-    )
-    .map((r) => ({
-      repos: r.repos.map((x) => x.trim()).filter(Boolean),
-      keywords: r.keywords.map((x) => x.trim()).filter(Boolean),
-    }))
-    .filter((r) => r.keywords.length > 0);
-}
-
-function canonicalizeFilterRules(rules) {
-  return JSON.stringify(validateFilterRules(rules));
-}
-
-function canonicalizeStoredFilterRules(raw) {
-  return raw !== null ? canonicalizeFilterRules(JSON.parse(raw)) : null;
-}
-
 async function acceptRemoteFilter(valid, updatedAt) {
   await storage.setNotificationFilter(valid);
   await storage.setNotificationFilterStats([]);
@@ -1094,7 +984,7 @@ async function acceptRemoteFilter(valid, updatedAt) {
   if (updatedAt) await storage.setSyncLastPush(updatedAt);
   // Re-annotate stored notifications with new rules immediately
   const current = await storage.getNotifications();
-  const { notifications: reannotated, stats } = applyNotificationFilterWithStats(current, valid);
+  const { notifications: reannotated, stats } = applyRulesWithStats(current, valid);
   await storage.setNotifications(reannotated);
   await storage.setNotificationFilterStats(stats);
   await updateBadge(reannotated.filter(isVisible).length, hasMoreNotifications);
@@ -1108,9 +998,9 @@ async function applyRemoteRules(gistId) {
     return { success: false, error: "gist_not_found" };
   }
   const { rules, updatedAt: remoteUpdatedAt } = result;
-  const valid = validateFilterRules(rules);
+  const valid = sanitizeRules(rules);
   const local = await storage.getNotificationFilter();
-  const localRaw = canonicalizeFilterRules(local);
+  const localRaw = canonicalizeRules(local);
   const remoteRaw = JSON.stringify(valid);
   if (localRaw === remoteRaw) {
     return { success: true, filter: valid, skipped: true, lastPush: remoteUpdatedAt };
@@ -1119,7 +1009,7 @@ async function applyRemoteRules(gistId) {
     storage.getSyncLastPushedFilter(),
     storage.getSyncLastPush(),
   ]);
-  const normalizedLastPushedRaw = canonicalizeStoredFilterRules(lastPushedRaw);
+  const normalizedLastPushedRaw = canonicalizeStoredRules(lastPushedRaw);
   const hasLocalEdits = normalizedLastPushedRaw !== null && normalizedLastPushedRaw !== localRaw;
   const remoteTimestampChanged = remoteUpdatedAt && lastPush && remoteUpdatedAt > lastPush;
   const hasRemoteEdits = remoteTimestampChanged && normalizedLastPushedRaw !== remoteRaw;
@@ -1143,15 +1033,15 @@ async function syncPush({ afterPull = false } = {}) {
     storage.getNotificationFilter(),
     storage.getSyncLastPushedFilter(),
   ]);
-  const filterRaw = canonicalizeFilterRules(filter);
-  const normalizedLastPushedRaw = canonicalizeStoredFilterRules(lastPushedRaw);
+  const filterRaw = canonicalizeRules(filter);
+  const normalizedLastPushedRaw = canonicalizeStoredRules(lastPushedRaw);
   if (afterPull && normalizedLastPushedRaw !== null && normalizedLastPushedRaw === filterRaw) {
     return { success: true, skipped: true };
   }
   if (!afterPull) {
     const result = await github.getFilterGist(gistId);
     if (result !== null) {
-      const remoteRaw = canonicalizeFilterRules(result.rules);
+      const remoteRaw = canonicalizeRules(result.rules);
       if (remoteRaw === filterRaw) {
         return { success: true, skipped: true };
       }
@@ -1346,7 +1236,7 @@ async function recalcFilterStats(notifications) {
     await storage.setNotificationFilterStats([]);
     return;
   }
-  const { stats } = applyNotificationFilterWithStats(notifications, rules);
+  const { stats } = applyRulesWithStats(notifications, rules);
   await storage.setNotificationFilterStats(stats);
 }
 
