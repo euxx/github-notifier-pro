@@ -1327,6 +1327,7 @@ async function markAsRead(notificationId) {
 
     await storage.setNotifications(updated);
     await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
+    await recalcFilterStats(updated);
 
     // Remove the stale cache entry for this notification
     latestCommentUrlCache.delete(notificationId);
@@ -1339,6 +1340,16 @@ async function markAsRead(notificationId) {
   }
 }
 
+async function recalcFilterStats(notifications) {
+  const rules = await storage.getNotificationFilter();
+  if (rules.length === 0) {
+    await storage.setNotificationFilterStats([]);
+    return;
+  }
+  const { stats } = applyNotificationFilterWithStats(notifications, rules);
+  await storage.setNotificationFilterStats(stats);
+}
+
 async function markAllAsRead() {
   try {
     await github.markAllAsRead();
@@ -1349,6 +1360,7 @@ async function markAllAsRead() {
     // Clear local storage and the comment URL cache
     hasMoreNotifications = false;
     await storage.setNotifications([]);
+    await storage.setNotificationFilterStats([]);
     await updateBadge(0);
     latestCommentUrlCache.clear();
     await persistCommentCache();
@@ -1373,6 +1385,7 @@ async function markRepoAsRead(owner, repo) {
 
     await storage.setNotifications(updated);
     await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
+    await recalcFilterStats(updated);
 
     // Remove cache entries for the cleared repo's notifications
     const removedIds = notifications
@@ -1553,6 +1566,7 @@ notifications.onClicked.addListener(async (notificationId) => {
     // Remove from storage FIRST to prevent re-creation from race conditions
     const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
     await storage.setNotifications(updatedNotifications);
+    await recalcFilterStats(updatedNotifications);
 
     // Clear the notification (isolate failures to prevent blocking tab open + mark as read)
     await safeClearNotification(notificationId);

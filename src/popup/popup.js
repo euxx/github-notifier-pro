@@ -222,7 +222,6 @@ const syncUseLocalBtn = document.getElementById("filter-sync-use-local");
 const syncUseRemoteBtn = document.getElementById("filter-sync-use-remote");
 const syncGistLink = document.getElementById("filter-sync-gist-link");
 const syncGistText = document.getElementById("filter-sync-gist-text");
-const syncLabel = document.getElementById("filter-sync-label");
 const syncLastEl = document.getElementById("filter-sync-last");
 const syncStatus = document.getElementById("filter-sync-status");
 const filterCountBadge = document.getElementById("filter-count-badge");
@@ -1531,13 +1530,13 @@ function updateSyncLastPush(isoString) {
   if (!syncLastEl) return;
   if (!isoString) {
     syncLastEl.hidden = true;
-    syncLabel?.removeAttribute("title");
+    syncLastEl.removeAttribute("title");
     return;
   }
   const text = formatTimeAgo(isoString);
   syncLastEl.textContent = ` · ${text}`;
   syncLastEl.hidden = false;
-  if (syncLabel) syncLabel.title = `Last synced: ${new Date(isoString).toLocaleString()}`;
+  syncLastEl.title = `Last synced: ${new Date(isoString).toLocaleString()}`;
 }
 
 async function handleSyncToggle() {
