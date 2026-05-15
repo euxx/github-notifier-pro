@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.1] - 2026-05-15
+
+### Fixed
+
+- Filter rule count badges not recomputed after mark-as-read, mark-repo-as-read, mark-all-as-read, or desktop notification click
+- Sync now uses GitHub gist `updated_at` as the authoritative timestamp, avoiding missed remote changes on devices with skewed clocks
+- Sync no longer flags false conflicts when filter rule field order differs (`{keywords, repos}` vs `{repos, keywords}`) or when only the timestamp changed without rule edits
+- Replace `createContextualFragment` and `innerHTML` with `DOMParser` to satisfy AMO security linter
+
 ## [1.3.0] - 2026-05-14
 
 ### Added
