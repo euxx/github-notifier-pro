@@ -29,9 +29,8 @@ import {
   isVisible,
   validateRulesStrict,
   sanitizeRules,
-  canonicalizeRules,
-  canonicalizeStoredRules,
 } from "../lib/filter-rules.js";
+import { createSyncEngine } from "./sync-engine.js";
 
 /**
  * Desktop notification constants
@@ -97,6 +96,24 @@ const CACHED_DETAIL_FIELDS = [
 
 // Tracks whether the last successful notifications fetch had additional pages.
 let hasMoreNotifications = false;
+
+// Sync engine handles filter rule push/pull state machine. The host (this
+// file) injects an onFilterReplaced hook so the side effects of accepting a
+// remote filter — re-annotate stored notifications, refresh the badge, and
+// force the next poll to be unconditional — stay in the worker's domain.
+const syncEngine = createSyncEngine({
+  github,
+  storage,
+  async onFilterReplaced(valid) {
+    const current = await storage.getNotifications();
+    const { notifications: reannotated, stats } = applyRulesWithStats(current, valid);
+    await storage.setNotifications(reannotated);
+    await storage.setNotificationFilterStats(stats);
+    await updateBadge(reannotated.filter(isVisible).length, hasMoreNotifications);
+    github.lastModified = null;
+    checkNotifications().catch(() => {});
+  },
+});
 
 /**
  * In-memory cache for prefetched latest comment URLs.
@@ -855,7 +872,7 @@ async function handleMessage(message) {
       await storage.setNotificationFilterStats(freshStats);
       const visibleCount = reannotated.filter(isVisible).length;
       await updateBadge(visibleCount, hasMoreNotifications);
-      syncPushIfEnabled();
+      syncEngine.pushIfEnabled();
       return { success: true };
     }
 
@@ -899,7 +916,7 @@ async function handleMessage(message) {
         }
       }
       if (!isNew) {
-        const pullResult = await applyRemoteRules(gistId);
+        const pullResult = await syncEngine.applyRemoteRules(gistId);
         if (!pullResult.success) {
           if (pullResult.error === "conflict") {
             await storage.setSyncGistId(gistId);
@@ -910,7 +927,7 @@ async function handleMessage(message) {
         if (pullResult.pushNeeded) {
           await storage.setSyncGistId(gistId);
           await storage.setSyncEnabled(true);
-          const pushResult = await syncPush({ afterPull: true });
+          const pushResult = await syncEngine.push({ afterPull: true });
           if (!pushResult.success) return { ...pushResult, gistId };
           return { success: true, gistId };
         }
@@ -930,7 +947,7 @@ async function handleMessage(message) {
     }
 
     case MESSAGE_TYPES.SYNC_PUSH: {
-      return await syncPush();
+      return await syncEngine.push();
     }
 
     case MESSAGE_TYPES.SYNC_PULL: {
@@ -938,9 +955,9 @@ async function handleMessage(message) {
       if (!enabled) return { success: false, error: "sync_disabled" };
       const gistId = await storage.getSyncGistId();
       if (!gistId) return { success: false, error: "no_gist" };
-      const result = await applyRemoteRules(gistId);
+      const result = await syncEngine.applyRemoteRules(gistId);
       if (result.pushNeeded) {
-        const pushResult = await syncPush({ afterPull: true });
+        const pushResult = await syncEngine.push({ afterPull: true });
         if (!pushResult.success) return pushResult;
       }
       return result;
@@ -966,7 +983,7 @@ async function handleMessage(message) {
         const result = await github.getFilterGist(gistId);
         if (!result) return { success: false, error: "gist_not_found" };
         const valid = sanitizeRules(result.rules);
-        await acceptRemoteFilter(valid, result.updatedAt || new Date().toISOString());
+        await syncEngine.acceptRemoteFilter(valid, result.updatedAt || new Date().toISOString());
         return { success: true, filter: valid };
       }
       return { success: false, error: "invalid_choice" };
@@ -975,111 +992,6 @@ async function handleMessage(message) {
     default:
       throw new Error(`Unknown action: ${message.action}`);
   }
-}
-
-async function acceptRemoteFilter(valid, updatedAt) {
-  await storage.setNotificationFilter(valid);
-  await storage.setNotificationFilterStats([]);
-  await storage.setSyncLastPushedFilter(valid);
-  if (updatedAt) await storage.setSyncLastPush(updatedAt);
-  // Re-annotate stored notifications with new rules immediately
-  const current = await storage.getNotifications();
-  const { notifications: reannotated, stats } = applyRulesWithStats(current, valid);
-  await storage.setNotifications(reannotated);
-  await storage.setNotificationFilterStats(stats);
-  await updateBadge(reannotated.filter(isVisible).length, hasMoreNotifications);
-  github.lastModified = null;
-  checkNotifications().catch(() => {});
-}
-
-async function applyRemoteRules(gistId) {
-  const result = await github.getFilterGist(gistId);
-  if (result === null) {
-    return { success: false, error: "gist_not_found" };
-  }
-  const { rules, updatedAt: remoteUpdatedAt } = result;
-  const valid = sanitizeRules(rules);
-  const local = await storage.getNotificationFilter();
-  const localRaw = canonicalizeRules(local);
-  const remoteRaw = JSON.stringify(valid);
-  if (localRaw === remoteRaw) {
-    return { success: true, filter: valid, skipped: true, lastPush: remoteUpdatedAt };
-  }
-  const [lastPushedRaw, lastPush] = await Promise.all([
-    storage.getSyncLastPushedFilter(),
-    storage.getSyncLastPush(),
-  ]);
-  const normalizedLastPushedRaw = canonicalizeStoredRules(lastPushedRaw);
-  const hasLocalEdits = normalizedLastPushedRaw !== null && normalizedLastPushedRaw !== localRaw;
-  const remoteTimestampChanged = remoteUpdatedAt && lastPush && remoteUpdatedAt > lastPush;
-  const hasRemoteEdits = remoteTimestampChanged && normalizedLastPushedRaw !== remoteRaw;
-
-  if (hasLocalEdits && hasRemoteEdits) {
-    return { success: false, error: "conflict", local, remote: valid };
-  }
-  if (hasLocalEdits && !hasRemoteEdits) {
-    return { success: true, filter: local, skipped: true, pushNeeded: true };
-  }
-  await acceptRemoteFilter(valid, remoteUpdatedAt);
-  return { success: true, filter: valid, lastPush: remoteUpdatedAt };
-}
-
-async function syncPush({ afterPull = false } = {}) {
-  const enabled = await storage.getSyncEnabled();
-  if (!enabled) return { success: false, error: "sync_disabled" };
-  const gistId = await storage.getSyncGistId();
-  if (!gistId) return { success: false, error: "no_gist" };
-  const [filter, lastPushedRaw] = await Promise.all([
-    storage.getNotificationFilter(),
-    storage.getSyncLastPushedFilter(),
-  ]);
-  const filterRaw = canonicalizeRules(filter);
-  const normalizedLastPushedRaw = canonicalizeStoredRules(lastPushedRaw);
-  if (afterPull && normalizedLastPushedRaw !== null && normalizedLastPushedRaw === filterRaw) {
-    return { success: true, skipped: true };
-  }
-  if (!afterPull) {
-    const result = await github.getFilterGist(gistId);
-    if (result !== null) {
-      const remoteRaw = canonicalizeRules(result.rules);
-      if (remoteRaw === filterRaw) {
-        return { success: true, skipped: true };
-      }
-      const lastPush = await storage.getSyncLastPush();
-      if (
-        result.updatedAt &&
-        lastPush &&
-        result.updatedAt > lastPush &&
-        normalizedLastPushedRaw !== remoteRaw
-      ) {
-        return { success: false, error: "conflict", local: filter, remote: result.rules };
-      }
-    }
-  }
-  const updateResult = await github.updateFilterGist(gistId, filter);
-  if (!updateResult) {
-    // Gist was deleted externally — disable sync to avoid repeated failures
-    await storage.setSyncGistId(null);
-    await storage.setSyncEnabled(false);
-    return { success: false, error: "gist_not_found" };
-  }
-  await storage.setSyncLastPush(updateResult.updatedAt || new Date().toISOString());
-  await storage.setSyncLastPushedFilter(filter);
-  return { success: true };
-}
-
-let _syncPushTimer = null;
-function syncPushIfEnabled() {
-  clearTimeout(_syncPushTimer);
-  _syncPushTimer = setTimeout(async () => {
-    try {
-      const enabled = await storage.getSyncEnabled();
-      if (!enabled) return;
-      await syncPush();
-    } catch (err) {
-      console.warn("Auto-push failed:", err.message || err);
-    }
-  }, 2000);
 }
 
 async function handleLogin(authMethod = "oauth", token = null) {
