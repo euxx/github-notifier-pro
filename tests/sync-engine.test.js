@@ -338,3 +338,40 @@ describe("syncEngine.applyRemoteRules + push - pushNeeded branch", () => {
     expect(github.updateFilterGist).not.toHaveBeenCalled();
   });
 });
+
+describe("syncEngine.applyRemoteRules - gist_not_found", () => {
+  it("returns gist_not_found when remote gist read returns null", async () => {
+    const { github, engine } = build({
+      storageInit: { syncEnabled: true, syncGistId: "gist-id" },
+    });
+    github.getFilterGist.mockResolvedValue(null);
+
+    const result = await engine.applyRemoteRules("gist-id");
+
+    expect(result).toEqual({ success: false, error: "gist_not_found" });
+  });
+});
+
+describe("syncEngine.acceptRemoteFilter - onFilterReplaced hook", () => {
+  it("invokes onFilterReplaced after persisting accepted remote rules", async () => {
+    const remoteRules = [{ repos: [], keywords: ["remote-only"] }];
+    const remoteUpdatedAt = "2026-05-14T12:00:00Z";
+    const { github, hook, engine } = build({
+      storageInit: {
+        syncEnabled: true,
+        syncGistId: "gist-id",
+        notificationFilter: [{ repos: [], keywords: ["local"] }],
+      },
+    });
+    github.getFilterGist.mockResolvedValue({
+      rules: remoteRules,
+      updatedAt: remoteUpdatedAt,
+    });
+
+    const result = await engine.applyRemoteRules("gist-id");
+
+    expect(result).toEqual(expect.objectContaining({ success: true }));
+    expect(hook).toHaveBeenCalledTimes(1);
+    expect(hook).toHaveBeenCalledWith(remoteRules, remoteUpdatedAt);
+  });
+});
