@@ -5,7 +5,6 @@
 
 // Alarm Configuration
 export const ALARM_NAME = "check-notifications";
-export const DEFAULT_POLL_INTERVAL_MINUTES = 1; // Browser minimum is 1 minute
 
 // API Configuration
 export const GITHUB_API_BASE = "https://api.github.com";
