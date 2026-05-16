@@ -98,7 +98,7 @@ export async function showDesktopNotificationsForNew(notificationsList) {
 /**
  * Render one individual desktop notification.
  */
-export async function showDesktopNotification(notif) {
+async function showDesktopNotification(notif) {
   try {
     let displayTitle = notif.title;
     if (notif.number !== undefined) {
@@ -124,7 +124,7 @@ export async function showDesktopNotification(notif) {
  * Render the "+N more" rollup that follows when more new items exist than
  * the per-batch limit allows.
  */
-export async function showAggregatedNotification(remainingCount) {
+async function showAggregatedNotification(remainingCount) {
   try {
     const notificationOptions = {
       type: "basic",
