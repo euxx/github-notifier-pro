@@ -11,6 +11,7 @@
  */
 
 import { MESSAGE_TYPES } from "../lib/constants.js";
+import { isVisible } from "../lib/filter-rules.js";
 import { parseSVG } from "../lib/icons.js";
 import { buildRepoNotificationsUrl, buildKeywordNotificationsUrl } from "../lib/url-builder.js";
 import {
@@ -593,8 +594,8 @@ export function createFilter(deps) {
     const visible = [];
     const filtered = [];
     for (const n of notifications) {
-      if (n.matchedRules?.length) filtered.push(n);
-      else visible.push(n);
+      if (isVisible(n)) visible.push(n);
+      else filtered.push(n);
     }
     renderNotifications(visible, shouldResort);
     updateFilteredBadge(filtered.length);
@@ -602,7 +603,7 @@ export function createFilter(deps) {
 
   async function refreshFilteredBadge() {
     const stored = await storage.getNotifications();
-    const filtered = stored.filter((n) => n.matchedRules?.length);
+    const filtered = stored.filter((n) => !isVisible(n));
     updateFilteredBadge(filtered.length);
     return filtered;
   }
