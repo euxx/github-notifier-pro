@@ -11,8 +11,9 @@
 
 /**
  * Strict validation for locally authored rules.
- * Throws on malformed input. Mutates each rule in place to apply trim/dedupe
- * normalization, matching the legacy SET_NOTIFICATION_FILTER behavior.
+ * Throws on malformed input. Mutates each rule in place to trim whitespace and
+ * drop empty entries from repos/keywords, matching the legacy
+ * SET_NOTIFICATION_FILTER behavior.
  *
  * @param {unknown} rules
  * @throws {Error} when filter is not an array, a rule is missing fields, fields are
