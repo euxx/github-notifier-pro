@@ -21,7 +21,7 @@ import {
   NOTIFICATION_TYPE_ICONS,
   CONCURRENCY,
 } from "../lib/constants.js";
-import { classifyError } from "../lib/format-utils.js";
+import { classifyError } from "../lib/http.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 import {

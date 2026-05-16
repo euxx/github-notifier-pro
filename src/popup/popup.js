@@ -16,7 +16,7 @@ import {
 } from "../lib/constants.js";
 import { applyTheme } from "../lib/theme.js";
 import { buildProfileUrl } from "../lib/url-builder.js";
-import { classifyError } from "../lib/format-utils.js";
+import { classifyError } from "../lib/http.js";
 import { parseSVG } from "../lib/icons.js";
 import { initRenderer, clearNotificationCache } from "./notification-renderer.js";
 import { createFilter } from "./filter.js";

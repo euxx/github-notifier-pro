@@ -179,6 +179,10 @@ vi.mock("../src/lib/constants.js", () => ({
 vi.mock("../src/lib/format-utils.js", () => ({
   formatReason: vi.fn((reason) => reason || "Unknown"),
   getReasonPriority: vi.fn(() => null),
+}));
+
+// Mock http (classifyError is the only piece service-worker imports from here)
+vi.mock("../src/lib/http.js", () => ({
   classifyError: vi.fn((error) => {
     const msg = error?.message || "";
     if (msg.includes("Rate limited")) return "rate-limited";
