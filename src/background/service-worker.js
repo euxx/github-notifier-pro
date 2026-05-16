@@ -609,26 +609,7 @@ initialize();
 runtime.onStartup.addListener(initialize);
 runtime.onInstalled.addListener(initialize);
 
-// ─── Test-only re-exports ─────────────────────────────────────────────
-// service-worker.test.js imports these to drive tests through the worker
-// surface. Production code imports them directly from notification-fetcher.
-export {
-  getIconForType,
-  updateNotificationDetails,
-  copyCachedDetails,
-} from "./notification-fetcher.js";
-
-/**
- * Test-only access to the fetcher's comment URL cache and prefetch.
- * Production code goes through fetcher.getCommentUrl / evict* helpers.
- */
+// Test-only access to the fetcher's comment URL cache so the
+// OPEN_LATEST_COMMENT integration tests can pre-seed entries that the
+// handler is expected to read through fetcher.getCommentUrl().
 export const latestCommentUrlCache = fetcher._commentCache;
-export async function persistCommentCache() {
-  return fetcher.persistCommentCache();
-}
-export async function restoreCommentCache() {
-  return fetcher.restoreCommentCache();
-}
-export async function prefetchLatestCommentUrls(notifs) {
-  return fetcher.prefetchLatestCommentUrls(notifs);
-}
