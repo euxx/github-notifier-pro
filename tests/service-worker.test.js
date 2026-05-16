@@ -213,8 +213,9 @@ function callHandler(message) {
   });
 }
 
-mockAlarms.onAlarm.addListener.mockImplementation(() => {
-  // Alarm handler captured but not used in tests
+let alarmHandler = null;
+mockAlarms.onAlarm.addListener.mockImplementation((handler) => {
+  alarmHandler = handler;
 });
 
 mockNotifications.onClicked.addListener.mockImplementation((handler) => {
@@ -1600,6 +1601,66 @@ describe("service-worker helper functions", () => {
       // showDesktopNotificationsForNew catches its own errors internally,
       // so the refresh should still succeed
       expect(result).toEqual({ success: true });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("still updates the alarm when X-Poll-Interval changes even if setNotifications throws", async () => {
+      // Regression for the fetcher extraction: previously checkNotifications
+      // updated the alarm only after fetcher.runFetch() returned, so a later
+      // setNotifications failure swallowed the new poll-interval signal.
+      // The fix routes the alarm update through onPollIntervalChanged, which
+      // fires immediately after github.getNotifications() resolves.
+      //
+      // Drive the alarm handler directly (not REFRESH) so the assertion isn't
+      // masked by REFRESH's own post-checkNotifications alarm reset.
+      mockGithub.isAuthenticated = true;
+      mockGithub.pollInterval = 60;
+      // Establish baseline: a successful fetch at 60s.
+      mockGithub.getNotifications.mockResolvedValueOnce({ items: [], hasMore: false, count: 0 });
+      mockStorageFunctions.getNotifications.mockResolvedValue([]);
+      await alarmHandler({ name: "check-notifications" });
+
+      mockAlarms.clear.mockClear();
+      mockAlarms.create.mockClear();
+
+      // Simulate the next response carrying a fresh X-Poll-Interval: the
+      // real github client updates `pollInterval` from response headers
+      // during the call, so mutate it inside the mock to mirror that.
+      mockGithub.getNotifications.mockImplementationOnce(async () => {
+        mockGithub.pollInterval = 180;
+        return {
+          items: [
+            {
+              id: "1",
+              subject: { title: "Issue 1", type: "Issue", url: null },
+              reason: "mention",
+              unread: true,
+              updated_at: "2024-01-01T00:00:00Z",
+              repository: {
+                name: "repo",
+                full_name: "owner/repo",
+                html_url: "https://github.com/owner/repo",
+              },
+            },
+          ],
+          hasMore: false,
+        };
+      });
+      mockStorageFunctions.setNotifications.mockRejectedValueOnce(
+        new Error("Storage quota exceeded"),
+      );
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await alarmHandler({ name: "check-notifications" });
+
+      // The alarm must be re-armed with the new 3-minute period even though
+      // setNotifications threw later in runFetch.
+      expect(mockAlarms.create).toHaveBeenCalledWith("check-notifications", {
+        delayInMinutes: 3,
+        periodInMinutes: 3,
+      });
 
       consoleSpy.mockRestore();
     });

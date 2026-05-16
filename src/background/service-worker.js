@@ -60,10 +60,21 @@ async function updateBadge(count, hasMore = false) {
 // pagination flag, author cache, comment URL cache (with session-storage
 // persistence), and the priority/background detail fetch logic. updateBadge
 // is injected so the fetcher doesn't need to import the chrome.action API.
+// onPollIntervalChanged is injected so the alarm registration owned by this
+// file gets updated the moment a new server-driven X-Poll-Interval lands —
+// before any storage write — so a later setNotifications failure can't
+// silently lose the signal.
 const fetcher = createNotificationFetcher({
   github,
   storage,
   onBadgeUpdate: updateBadge,
+  async onPollIntervalChanged(minutes) {
+    await alarms.clear(ALARM_NAME);
+    await alarms.create(ALARM_NAME, {
+      delayInMinutes: minutes,
+      periodInMinutes: minutes,
+    });
+  },
 });
 
 // Sync engine handles filter rule push/pull state machine. The host (this
@@ -129,20 +140,13 @@ async function doInitialize() {
 }
 
 /**
- * Drive a fetch through the fetcher and react to side-channel signals
- * (notably: server-driven X-Poll-Interval changes, which need to update
- * the chrome.alarms registration owned by this file).
+ * Drive a fetch through the fetcher and surface error feedback.
+ * Server-driven X-Poll-Interval changes update the alarm via the
+ * onPollIntervalChanged hook injected at fetcher construction.
  */
 async function checkNotifications() {
   try {
-    const result = await fetcher.runFetch();
-    if (result?.pollIntervalChanged) {
-      await alarms.clear(ALARM_NAME);
-      await alarms.create(ALARM_NAME, {
-        delayInMinutes: result.newPollIntervalMinutes,
-        periodInMinutes: result.newPollIntervalMinutes,
-      });
-    }
+    await fetcher.runFetch();
   } catch (error) {
     console.error("Failed to check notifications:", error);
     const errorType = classifyError(error);

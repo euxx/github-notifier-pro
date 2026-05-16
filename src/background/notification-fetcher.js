@@ -127,10 +127,16 @@ export function copyCachedDetails(baseData, existing) {
  *   Host-owned badge writer. Called by runFetch on each commit and on
  *   superseded-fetch checks. Not called on errors — error-state badge
  *   handling stays in the host so it can map error type to color/title.
+ * @param {(minutes: number) => (Promise<void>|void)} [deps.onPollIntervalChanged]
+ *   Fired the moment runFetch sees github.pollInterval drift from the
+ *   previous tick (server-driven X-Poll-Interval). Fires BEFORE any
+ *   storage writes so a later setNotifications failure cannot lose the
+ *   alarm-update signal. Optional; pre-clamped to the fetcher's
+ *   MIN/MAX_POLL_INTERVAL_SECONDS bounds.
  * @returns {Object} fetcher API
  */
 export function createNotificationFetcher(deps) {
-  const { github, storage, onBadgeUpdate } = deps;
+  const { github, storage, onBadgeUpdate, onPollIntervalChanged } = deps;
 
   // ─── State ─────────────────────────────────────────────────────────────
   const authorCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
@@ -311,32 +317,33 @@ export function createNotificationFetcher(deps) {
     const notificationFilter = await storage.getNotificationFilter();
     const previousPollInterval = github.pollInterval;
 
-    let pollIntervalChanged = false;
-    let newPollIntervalMinutes = 0;
-
     const result = await github.getNotifications();
 
-    // Detect server-driven poll interval changes (even on 304). The host
-    // alarm stays managed by service-worker, so we just report what changed.
+    // Detect server-driven poll interval changes (even on 304) and fire the
+    // host hook immediately, BEFORE any storage write. If a later step
+    // (setNotifications, detail fetch) throws, the alarm has already been
+    // updated; rolling the hook to the end of runFetch would lose the signal.
     if (github.pollInterval !== previousPollInterval) {
       const pollIntervalSeconds = Math.min(
         Math.max(github.pollInterval || 0, MIN_POLL_INTERVAL_SECONDS),
         MAX_POLL_INTERVAL_SECONDS,
       );
-      newPollIntervalMinutes = Math.ceil(pollIntervalSeconds / 60);
-      pollIntervalChanged = true;
+      const newPollIntervalMinutes = Math.ceil(pollIntervalSeconds / 60);
       console.log(
         `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
       );
+      if (onPollIntervalChanged) {
+        await onPollIntervalChanged(newPollIntervalMinutes);
+      }
     }
 
     if (result === null) {
       console.log(`Fetch #${currentFetchVersion}: 304 Not Modified - no changes`);
-      return { pollIntervalChanged, newPollIntervalMinutes };
+      return;
     }
 
     if (!result) {
-      return { pollIntervalChanged, newPollIntervalMinutes };
+      return;
     }
 
     const { items: notifications, hasMore } = result;
@@ -345,7 +352,7 @@ export function createNotificationFetcher(deps) {
       console.log(
         `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`,
       );
-      return { pollIntervalChanged, newPollIntervalMinutes };
+      return;
     }
 
     const existingNotifications = await storage.getNotifications();
@@ -382,7 +389,7 @@ export function createNotificationFetcher(deps) {
 
     if (currentFetchVersion < notificationFetchVersion) {
       console.log(`Fetch #${currentFetchVersion} superseded before saving basic data, aborting`);
-      return { pollIntervalChanged, newPollIntervalMinutes };
+      return;
     }
 
     // Re-read storage to catch user actions (markAsRead etc.) that completed
@@ -391,7 +398,7 @@ export function createNotificationFetcher(deps) {
     const currentStored = await storage.getNotifications();
     if (currentFetchVersion < notificationFetchVersion) {
       console.log(`Fetch #${currentFetchVersion} superseded during safeBasic re-read, aborting`);
-      return { pollIntervalChanged, newPollIntervalMinutes };
+      return;
     }
     const currentStoredIds = new Set(currentStored.map((n) => n.id));
     const preFilter = basicProcessed.filter(
@@ -517,11 +524,6 @@ export function createNotificationFetcher(deps) {
 
     // Desktop notifications for new items use the safe-filtered list.
     await showDesktopNotificationsForNew(safeBasic.filter(isVisible));
-
-    return {
-      pollIntervalChanged,
-      newPollIntervalMinutes,
-    };
   }
 
   return {
