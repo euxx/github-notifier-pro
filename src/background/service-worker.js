@@ -4,26 +4,15 @@
 
 import github from "../lib/github-api.js";
 import * as storage from "../lib/storage.js";
-import {
-  action,
-  alarms,
-  runtime,
-  tabs,
-  notifications,
-  storage as browserStorage,
-} from "../lib/chrome-api.js";
+import { action, alarms, runtime, tabs, notifications } from "../lib/chrome-api.js";
 import {
   ALARM_NAME,
   MIN_POLL_INTERVAL_SECONDS,
   MAX_POLL_INTERVAL_SECONDS,
   MESSAGE_TYPES,
-  NOTIFICATION_TYPES,
-  NOTIFICATION_TYPE_ICONS,
-  CONCURRENCY,
 } from "../lib/constants.js";
 import { classifyError } from "../lib/http.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
-import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 import {
   applyRulesWithStats,
   isVisible,
@@ -31,11 +20,11 @@ import {
   sanitizeRules,
 } from "../lib/filter-rules.js";
 import { createSyncEngine } from "./sync-engine.js";
+import { createNotificationFetcher } from "./notification-fetcher.js";
 import {
   NOTIFICATION_ID_PREFIX,
   AGGREGATED_NOTIFICATION_ID,
   GITHUB_NOTIFICATIONS_URL,
-  showDesktopNotificationsForNew,
   safeClearNotification,
 } from "./desktop-notifications.js";
 
@@ -50,29 +39,32 @@ const BADGE_COLORS = {
 };
 
 /**
- * In-memory LRU cache for author information
- * Stores up to 100 author objects to prevent unbounded memory growth
- * Key: author login, Value: { login, avatar_url, html_url }
+ * Update badge with notification count
+ * @param {number|null} count - Number of notifications (null if not authenticated)
+ * @param {boolean} hasMore - Whether there are more notifications beyond this count
  */
-const authorCache = new LRUCache(DEFAULT_LRU_CACHE_SIZE);
+async function updateBadge(count, hasMore = false) {
+  if (count === null) {
+    await action.setBadgeText({ text: "?" });
+    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.UNAUTHENTICATED });
+  } else if (count === 0) {
+    await action.setBadgeText({ text: "" });
+  } else {
+    const badgeText = hasMore ? `${count}+` : count.toString();
+    await action.setBadgeText({ text: badgeText });
+    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.NORMAL });
+  }
+}
 
-const CACHED_DETAIL_FIELDS = [
-  "state",
-  "state_reason",
-  "merged",
-  "conclusion",
-  "status",
-  "detailsFailed",
-  "author",
-  "comment_count",
-  "number",
-  "created_at",
-  "body",
-  "html_url",
-];
-
-// Tracks whether the last successful notifications fetch had additional pages.
-let hasMoreNotifications = false;
+// Notification fetcher owns the GitHub-pull pipeline: fetch version, hasMore
+// pagination flag, author cache, comment URL cache (with session-storage
+// persistence), and the priority/background detail fetch logic. updateBadge
+// is injected so the fetcher doesn't need to import the chrome.action API.
+const fetcher = createNotificationFetcher({
+  github,
+  storage,
+  onBadgeUpdate: updateBadge,
+});
 
 // Sync engine handles filter rule push/pull state machine. The host (this
 // file) injects an onFilterReplaced hook so the side effects of accepting a
@@ -86,62 +78,11 @@ const syncEngine = createSyncEngine({
     const { notifications: reannotated, stats } = applyRulesWithStats(current, valid);
     await storage.setNotifications(reannotated);
     await storage.setNotificationFilterStats(stats);
-    await updateBadge(reannotated.filter(isVisible).length, hasMoreNotifications);
+    await updateBadge(reannotated.filter(isVisible).length, fetcher.getHasMore());
     github.lastModified = null;
     checkNotifications().catch(() => {});
   },
 });
-
-/**
- * In-memory cache for prefetched latest comment URLs.
- * Key: notification ID, Value: { url: string, updated_at: string }
- * Entries are invalidated when a notification's updated_at changes on the next fetch.
- * @exported for testing
- */
-export const latestCommentUrlCache = new Map();
-
-/**
- * Session storage key for persisting latestCommentUrlCache across MV3 worker restarts.
- * chrome.storage.session survives service worker recycling but is cleared on browser close.
- * Not available in Firefox (where service workers are not recycled anyway).
- */
-const SESSION_KEY_COMMENT_CACHE = "latestCommentUrlCache";
-
-/**
- * Persist the current latestCommentUrlCache to session storage (best-effort).
- * Silently ignores environments where session storage is unavailable (Firefox).
- * @exported for testing
- */
-export async function persistCommentCache() {
-  if (!browserStorage.session) return;
-  const serialized = Object.fromEntries(latestCommentUrlCache);
-  await browserStorage.session.set({ [SESSION_KEY_COMMENT_CACHE]: serialized }).catch((err) => {
-    console.warn("Failed to persist comment URL cache to session storage:", err);
-  });
-}
-
-/**
- * Restore latestCommentUrlCache from session storage on worker startup.
- * A no-op when session storage is unavailable or empty.
- * @exported for testing
- */
-export async function restoreCommentCache() {
-  if (!browserStorage.session) return;
-  try {
-    const result = await browserStorage.session.get(SESSION_KEY_COMMENT_CACHE);
-    const cached = result[SESSION_KEY_COMMENT_CACHE];
-    if (cached && typeof cached === "object") {
-      for (const [id, value] of Object.entries(cached)) {
-        latestCommentUrlCache.set(id, value);
-      }
-      console.log(
-        `Restored ${latestCommentUrlCache.size} comment URL cache entries from session storage`,
-      );
-    }
-  } catch (err) {
-    console.warn("Failed to restore comment URL cache from session storage:", err);
-  }
-}
 
 /**
  * Guard against concurrent initialize() calls.
@@ -150,9 +91,6 @@ export async function restoreCommentCache() {
  */
 let initializePromise = null;
 
-/**
- * Initialize extension state from storage
- */
 async function initialize() {
   if (initializePromise) {
     console.log("initialize() already running, skipping duplicate call");
@@ -177,524 +115,36 @@ async function doInitialize() {
       github.username = username;
     }
 
-    // Populate author cache from existing notifications
-    await initializeAuthorCache();
-
-    // Restore comment URL cache from session storage (survives MV3 worker recycling).
-    // This is a no-op on Firefox or when session storage has no saved data.
-    await restoreCommentCache();
+    await fetcher.initializeAuthorCache();
+    // Restore comment URL cache from session storage (survives MV3 worker
+    // recycling). No-op on Firefox or when session storage has no saved data.
+    await fetcher.restoreCommentCache();
 
     await startPolling();
     await checkNotifications();
   } else {
-    hasMoreNotifications = false;
+    fetcher.resetHasMore();
     await updateBadge(null);
   }
 }
 
 /**
- * Initialize author cache from stored notifications
- * This provides instant avatar display for known authors
+ * Drive a fetch through the fetcher and react to side-channel signals
+ * (notably: server-driven X-Poll-Interval changes, which need to update
+ * the chrome.alarms registration owned by this file).
  */
-async function initializeAuthorCache() {
-  try {
-    const notifications = await storage.getNotifications();
-    for (const notif of notifications) {
-      if (notif.author && notif.author.login) {
-        authorCache.set(notif.author.login, notif.author);
-      }
-    }
-  } catch (error) {
-    console.error("Failed to initialize author cache:", error);
-  }
-}
-
-/**
- * Update badge with notification count
- * @param {number|null} count - Number of notifications (null if not authenticated)
- * @param {boolean} hasMore - Whether there are more notifications beyond this count
- */
-async function updateBadge(count, hasMore = false) {
-  if (count === null) {
-    // Not authenticated
-    await action.setBadgeText({ text: "?" });
-    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.UNAUTHENTICATED });
-  } else if (count === 0) {
-    await action.setBadgeText({ text: "" });
-  } else {
-    const badgeText = hasMore ? `${count}+` : count.toString();
-    await action.setBadgeText({ text: badgeText });
-    await action.setBadgeBackgroundColor({ color: BADGE_COLORS.NORMAL });
-  }
-}
-
-/**
- * Helper: Update notification details from API response
- * @exported for testing
- */
-export function updateNotificationDetails(baseData, details, notifType) {
-  // Check suites expose conclusion/status; issues and PRs expose state (with state_reason/merged)
-  if (notifType === NOTIFICATION_TYPES.CHECK_SUITE) {
-    baseData.conclusion = details.conclusion;
-    baseData.status = details.status;
-  } else {
-    baseData.state = details.state;
-    if (notifType === NOTIFICATION_TYPES.ISSUE && details.state_reason) {
-      baseData.state_reason = details.state_reason;
-    }
-    if (notifType === NOTIFICATION_TYPES.PULL_REQUEST && details.merged) {
-      baseData.merged = true;
-    }
-  }
-
-  // GitHub issues/PRs use 'user'; commits use 'author' — normalise both to a common shape
-  const authorData = details.user || details.author;
-  if (authorData) {
-    const author = {
-      login: authorData.login,
-      avatar_url: authorData.avatar_url,
-      html_url: authorData.html_url,
-    };
-    baseData.author = author;
-
-    // Cache author data for future use
-    authorCache.set(authorData.login, author);
-  }
-
-  // Only copy fields when present — avoids overwriting cached data with undefined if the API response omits them
-  // For PRs, sum issue-style comments and review comments so the button appears for code reviews too
-  if (details.comments !== undefined) {
-    const reviewComments =
-      notifType === NOTIFICATION_TYPES.PULL_REQUEST ? (details.review_comments ?? 0) : 0;
-    baseData.comment_count = details.comments + reviewComments;
-  }
-  if (details.number !== undefined) baseData.number = details.number;
-  if (details.created_at) baseData.created_at = details.created_at;
-  if (details.body !== undefined) baseData.body = details.body;
-  if (details.html_url) baseData.html_url = details.html_url; // Cache the HTML URL for quick access
-}
-
-/**
- * Helper: Copy cached details to new notification data
- * @exported for testing
- */
-export function copyCachedDetails(baseData, existing) {
-  CACHED_DETAIL_FIELDS.forEach((key) => {
-    if (existing[key] !== undefined) {
-      baseData[key] = existing[key];
-    }
-  });
-
-  // Also populate author cache if we have author data
-  if (existing.author && existing.author.login) {
-    authorCache.set(existing.author.login, existing.author);
-  }
-}
-
-/**
- * Track the version of the current notification fetch to prevent race conditions
- * Incremented each time checkNotifications is called
- */
-let notificationFetchVersion = 0;
-
-/**
- * Fetch tasks with concurrency limit to prevent API request storms
- * @param {Array<Function>} tasks - Array of async functions to execute
- * @param {number} limit - Maximum concurrent tasks
- * @returns {Promise<Array>} Results from all tasks
- */
-async function fetchWithConcurrencyLimit(tasks, limit = 5) {
-  const results = [];
-  for (let i = 0; i < tasks.length; i += limit) {
-    const batch = tasks.slice(i, i + limit);
-    const batchResults = await Promise.all(batch.map((task) => task()));
-    results.push(...batchResults);
-  }
-  return results;
-}
-
-/**
- * Create a task to fetch notification details
- * @param {Object} notification - Notification object
- * @param {number} index - Index in notifications array
- * @param {Array} detailedNotifications - Array to update with details
- * @returns {Function} Async function to fetch details
- */
-function createDetailFetchTask(notification, index, detailedNotifications, forceRefresh = false) {
-  return async () => {
-    try {
-      const details = await github.getNotificationDetails(notification, forceRefresh);
-      updateNotificationDetails(detailedNotifications[index], details, notification.subject.type);
-      return { success: true, id: notification.id, index };
-    } catch (error) {
-      console.error(`Failed to fetch details for notification ${notification.id}:`, error);
-      if (notification.subject.type !== NOTIFICATION_TYPES.CHECK_SUITE) {
-        detailedNotifications[index].state = "open";
-      }
-      detailedNotifications[index].detailsFailed = true;
-      return { success: false, id: notification.id, index, error: error.message };
-    }
-  };
-}
-
-/**
- * Filter notifications to only those that still exist in storage
- * Prevents overwriting user deletions during concurrent operations
- * @param {Array} detailedNotifications - Notifications to filter
- * @param {Array} currentStoredNotifications - Currently stored notifications
- * @returns {Array} Filtered notifications
- */
-function filterToCurrentlyStored(detailedNotifications, currentStoredNotifications) {
-  const currentStoredIds = new Set(currentStoredNotifications.map((n) => n.id));
-  return detailedNotifications.filter((n) => currentStoredIds.has(n.id));
-}
-
-/**
- * Merge notifications with current storage and save, guarded by fetch version.
- * Aborts if a newer fetch has started (before or during the async storage read).
- * Callers are responsible for updating the badge after a successful save.
- * @param {number} fetchVersion - Version of the fetch that produced these notifications
- * @param {Array} notifications - Notifications to save
- * @param {string} label - Log label for debugging
- * @param {Array|null} [notificationFilter=null] - Optional filter rules to apply before saving
- * @returns {Promise<number|false>} Number of saved notifications, or false if superseded
- */
-async function mergeAndSaveIfCurrent(
-  fetchVersion,
-  notifications,
-  label,
-  notificationFilter = null,
-) {
-  if (fetchVersion < notificationFetchVersion) {
-    console.log(`Fetch #${fetchVersion} superseded before ${label}, skipping`);
-    return false;
-  }
-  const currentStored = await storage.getNotifications();
-  // Re-check after async read: user mark-as-read may have bumped the version
-  if (fetchVersion < notificationFetchVersion) {
-    console.log(`Fetch #${fetchVersion} superseded during ${label} storage read, skipping`);
-    return false;
-  }
-  let safe = filterToCurrentlyStored(notifications, currentStored);
-  if (notificationFilter) {
-    const { notifications: annotated } = applyRulesWithStats(safe, notificationFilter);
-    safe = annotated;
-  }
-  await storage.setNotifications(safe);
-  return safe.filter(isVisible).length;
-}
-
-/**
- * Check for new notifications
- *
- * Race condition prevention:
- * - Each fetch gets a unique version number
- * - Only the most recent fetch can overwrite storage
- * - Older detail fetches are discarded if a newer fetch has completed
- */
-/**
- * Prefetch the latest comment URL for each notification that has comments.
- * Results are stored in latestCommentUrlCache keyed by notification ID.
- * Stale entries (where updated_at no longer matches) are pruned first.
- *
- * @param {Array} notifications - Processed notification objects
- * @exported for testing
- */
-export async function prefetchLatestCommentUrls(notifications) {
-  // Prune cache entries whose updated_at no longer matches the current notification
-  for (const [id, cached] of latestCommentUrlCache) {
-    const notif = notifications.find((n) => n.id === id);
-    if (!notif || notif.updated_at !== cached.updated_at) {
-      latestCommentUrlCache.delete(id);
-    }
-  }
-
-  for (const notif of notifications) {
-    // Only prefetch Issue and PullRequest notifications with comments
-    if (
-      (notif.type !== NOTIFICATION_TYPES.ISSUE && notif.type !== NOTIFICATION_TYPES.PULL_REQUEST) ||
-      !notif.comment_count
-    ) {
-      continue;
-    }
-
-    // Skip if already cached for this updated_at
-    const cached = latestCommentUrlCache.get(notif.id);
-    if (cached && cached.updated_at === notif.updated_at) {
-      continue;
-    }
-
-    try {
-      const url = await github.getLatestCommentUrl(notif);
-      if (url) {
-        latestCommentUrlCache.set(notif.id, { url, updated_at: notif.updated_at });
-      }
-    } catch (error) {
-      console.error(`Failed to prefetch comment URL for notification ${notif.id}:`, error);
-    }
-  }
-
-  // Persist updated cache to session storage so it survives MV3 worker recycling
-  await persistCommentCache();
-}
-
 async function checkNotifications() {
-  if (!github.isAuthenticated) {
-    return;
-  }
-
-  // Increment version for this fetch to prevent race conditions
-  const currentFetchVersion = ++notificationFetchVersion;
-  console.log(`Starting notification fetch #${currentFetchVersion}`);
-
-  // Load notification filter config once per fetch cycle
-  const notificationFilter = await storage.getNotificationFilter();
-
-  // Track previous poll interval to detect changes
-  const previousPollInterval = github.pollInterval;
-
   try {
-    const result = await github.getNotifications();
-
-    // Check if poll interval changed (even on 304) and update alarm accordingly
-    // GitHub may send new X-Poll-Interval in 304 responses
-    if (github.pollInterval !== previousPollInterval) {
-      const { seconds: pollIntervalSeconds, minutes: newPollIntervalMinutes } =
-        getClampedPollInterval();
-      console.log(
-        `Poll interval changed: ${previousPollInterval}s → ${pollIntervalSeconds}s (${newPollIntervalMinutes} min)`,
-      );
-
-      // Update the alarm with new interval
+    const result = await fetcher.runFetch();
+    if (result?.pollIntervalChanged) {
       await alarms.clear(ALARM_NAME);
       await alarms.create(ALARM_NAME, {
-        delayInMinutes: newPollIntervalMinutes,
-        periodInMinutes: newPollIntervalMinutes,
+        delayInMinutes: result.newPollIntervalMinutes,
+        periodInMinutes: result.newPollIntervalMinutes,
       });
-    }
-
-    // null means 304 Not Modified - no new notifications
-    if (result === null) {
-      console.log(`Fetch #${currentFetchVersion}: 304 Not Modified - no changes`);
-      return;
-    }
-
-    if (result) {
-      const { items: notifications, hasMore } = result;
-
-      // Check if a newer fetch has already started
-      if (currentFetchVersion < notificationFetchVersion) {
-        console.log(
-          `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, aborting`,
-        );
-        return;
-      }
-
-      // Get existing notifications to check for new ones
-      const existingNotifications = await storage.getNotifications();
-      const existingIds = new Set(existingNotifications.map((n) => n.id));
-      const existingMap = new Map(existingNotifications.map((n) => [n.id, n]));
-
-      // First pass: Create basic notification data immediately
-      const basicProcessed = notifications.map((n) => {
-        const existing = existingMap.get(n.id);
-        const baseData = {
-          id: n.id,
-          title: n.subject.title,
-          type: n.subject.type,
-          reason: n.reason,
-          unread: n.unread,
-          updated_at: n.updated_at,
-          url: n.subject.url,
-          repository: {
-            name: n.repository.name,
-            full_name: n.repository.full_name,
-            html_url: n.repository.html_url,
-          },
-          icon: getIconForType(n.subject.type),
-          isNew: !existingIds.has(n.id), // Mark as new if not in existing set
-        };
-
-        // Pre-populate from existing cached data if available
-        // This provides instant display for cached data
-        if (existing) {
-          copyCachedDetails(baseData, existing);
-        }
-
-        return baseData;
-      });
-
-      // Check again before saving (another fetch might have started)
-      if (currentFetchVersion < notificationFetchVersion) {
-        console.log(`Fetch #${currentFetchVersion} superseded before saving basic data, aborting`);
-        return;
-      }
-
-      // Re-read current storage to catch any user actions (markAsRead etc.) that
-      // completed while the fetch was in-flight. Keep new notifications unconditionally,
-      // but only keep pre-existing ones if they're still in storage (not user-deleted).
-      const currentStored = await storage.getNotifications();
-      // Re-check version after async read: a user mark-as-read may have bumped
-      // notificationFetchVersion while we were reading, making our snapshot stale.
-      if (currentFetchVersion < notificationFetchVersion) {
-        console.log(`Fetch #${currentFetchVersion} superseded during safeBasic re-read, aborting`);
-        return;
-      }
-      const currentStoredIds = new Set(currentStored.map((n) => n.id));
-      // Apply race-condition guard, then notification filter (keyword-based).
-      const preFilter = basicProcessed.filter(
-        (n) => !existingIds.has(n.id) || currentStoredIds.has(n.id),
-      );
-      const { notifications: safeBasic, stats: filterStats } = applyRulesWithStats(
-        preFilter,
-        notificationFilter,
-      );
-
-      // Save basic data immediately - popup can display now.
-      // Update hasMoreNotifications here (inside all version checks) so it only
-      // reflects fetches that actually commit to storage.
-      hasMoreNotifications = hasMore;
-      await storage.setNotifications(safeBasic);
-      await storage.setNotificationFilterStats(filterStats);
-      const visibleCount = safeBasic.filter(isVisible).length;
-      await updateBadge(visibleCount, hasMore);
-
-      // Second pass: Fetch details asynchronously for new/updated notifications
-      // Create a deep copy to avoid race conditions with concurrent updates
-      const detailedNotifications = basicProcessed.map((n) => ({ ...n }));
-
-      // Identify which notifications need details fetched
-      const notificationsNeedingDetails = [];
-      for (let index = 0; index < notifications.length; index++) {
-        const n = notifications[index];
-        const existing = existingMap.get(n.id);
-        const needsUpdate = !existing || existing.updated_at !== n.updated_at;
-
-        if (needsUpdate) {
-          notificationsNeedingDetails.push({ notification: n, index });
-        }
-      }
-
-      // Split into priority (visible) and background loading
-      const priorityNotifications = notificationsNeedingDetails.slice(0, CONCURRENCY.VISIBLE_COUNT);
-      const backgroundNotifications = notificationsNeedingDetails.slice(CONCURRENCY.VISIBLE_COUNT);
-
-      console.log(
-        `Loading details: ${priorityNotifications.length} priority, ${backgroundNotifications.length} background`,
-      );
-
-      // Priority loading: First visible notifications
-      let priorityResults = []; // Define in outer scope for background logging
-      let prioritySaved = false; // Track whether the priority save actually committed
-      if (priorityNotifications.length > 0) {
-        priorityResults = await fetchWithConcurrencyLimit(
-          priorityNotifications.map(({ notification: n, index }) =>
-            createDetailFetchTask(n, index, detailedNotifications, true),
-          ),
-          CONCURRENCY.PRIORITY,
-        );
-
-        // Log priority loading results
-        const prioritySuccess = priorityResults.filter((r) => r.success === true).length;
-        const priorityFailed = priorityResults.filter((r) => r.success === false).length;
-        console.log(
-          `Fetch #${currentFetchVersion} priority: ${prioritySuccess} loaded, ${priorityFailed} failed`,
-        );
-
-        // Merge with current storage and save (guarded by version check)
-        const priorityCount = await mergeAndSaveIfCurrent(
-          currentFetchVersion,
-          detailedNotifications,
-          "priority save",
-          notificationFilter,
-        );
-        prioritySaved = priorityCount !== false;
-        if (prioritySaved) {
-          await updateBadge(priorityCount, hasMoreNotifications);
-          console.log(
-            `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
-          );
-        }
-      }
-
-      // Background loading: Remaining notifications
-      // This happens asynchronously and doesn't block the priority loading
-      if (backgroundNotifications.length > 0) {
-        fetchWithConcurrencyLimit(
-          backgroundNotifications.map(({ notification: n, index }) =>
-            createDetailFetchTask(n, index, detailedNotifications, true),
-          ),
-          CONCURRENCY.BACKGROUND,
-        )
-          .then(async (backgroundResults) => {
-            // Check if a newer fetch has completed while we were fetching details
-            if (currentFetchVersion < notificationFetchVersion) {
-              console.log(
-                `Fetch #${currentFetchVersion} superseded by #${notificationFetchVersion}, discarding background updates`,
-              );
-              return;
-            }
-
-            const allResults = [...priorityResults, ...backgroundResults];
-            const failedCount = allResults.filter((r) => r && r.success === false).length;
-            const successCount = allResults.filter((r) => r && r.success === true).length;
-
-            console.log(
-              `Notification details (fetch #${currentFetchVersion}): ${successCount} fetched, ${failedCount} failed`,
-            );
-
-            // Log cache statistics for monitoring
-            const cacheStats = authorCache.getStats();
-            console.log(
-              `Author cache: ${cacheStats.size}/${cacheStats.maxSize} (${cacheStats.utilization})`,
-            );
-
-            // Merge with current storage and save (guarded by version check)
-            const savedCount = await mergeAndSaveIfCurrent(
-              currentFetchVersion,
-              detailedNotifications,
-              "background save",
-              notificationFilter,
-            );
-            if (savedCount !== false) {
-              await updateBadge(savedCount, hasMoreNotifications);
-              console.log(
-                `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
-              );
-
-              // Prefetch latest comment URLs so popup clicks are instant.
-              // Only run when save committed — a superseded fetch must not re-populate
-              // the cache with stale data or issue unnecessary API requests.
-              prefetchLatestCommentUrls(detailedNotifications).catch((error) => {
-                console.error("Error prefetching latest comment URLs:", error);
-              });
-            }
-          })
-          .catch((error) => {
-            console.error(
-              `Error fetching background notification details (fetch #${currentFetchVersion}):`,
-              error,
-            );
-          });
-      }
-
-      // When there are no background notifications, prefetch after priority save.
-      // Skipped when notificationsNeedingDetails is empty (nothing changed) to avoid
-      // unnecessary API calls on repeated 304-equivalent fetches.
-      // Only runs when the save actually committed — do not prefetch for superseded fetches.
-      if (backgroundNotifications.length === 0 && prioritySaved) {
-        prefetchLatestCommentUrls(detailedNotifications).catch((error) => {
-          console.error("Error prefetching latest comment URLs:", error);
-        });
-      }
-
-      // Show desktop notifications for new items (using safe-filtered list)
-      await showDesktopNotificationsForNew(safeBasic.filter(isVisible));
     }
   } catch (error) {
-    console.error(`Failed to check notifications (fetch #${currentFetchVersion}):`, error);
-
-    // Handle different error types with appropriate UI feedback
+    console.error("Failed to check notifications:", error);
     const errorType = classifyError(error);
     if (errorType === "rate-limited") {
       const rateLimitInfo = github.getRateLimitInfo();
@@ -717,17 +167,8 @@ async function checkNotifications() {
 }
 
 /**
- * Get icon name for notification type
- * @exported for testing
- */
-export function getIconForType(type) {
-  return NOTIFICATION_TYPE_ICONS[type] || "notification";
-}
-
-/**
  * Calculate clamped poll interval from GitHub API response
  * Clamps between MIN_POLL_INTERVAL_SECONDS (60s/1min) and MAX_POLL_INTERVAL_SECONDS (600s/10min)
- * @returns {{seconds: number, minutes: number}} Poll interval in seconds and minutes
  */
 function getClampedPollInterval() {
   const pollIntervalSeconds = Math.min(
@@ -738,37 +179,24 @@ function getClampedPollInterval() {
   return { seconds: pollIntervalSeconds, minutes: pollIntervalMinutes };
 }
 
-/**
- * Start polling for notifications
- */
 async function startPolling() {
   const { minutes: pollIntervalMinutes } = getClampedPollInterval();
-
   await alarms.create(ALARM_NAME, {
     delayInMinutes: pollIntervalMinutes,
     periodInMinutes: pollIntervalMinutes,
   });
 }
 
-/**
- * Stop polling
- */
 async function stopPolling() {
   await alarms.clear(ALARM_NAME);
 }
 
-/**
- * Handle alarm events
- */
 alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_NAME) {
     await checkNotifications();
   }
 });
 
-/**
- * Handle messages from popup
- */
 runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message)
     .then(sendResponse)
@@ -776,7 +204,7 @@ runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.error("Message handling error:", error);
       sendResponse({ error: error.message });
     });
-  return true; // Keep channel open for async response
+  return true;
 });
 
 async function handleMessage(message) {
@@ -802,6 +230,7 @@ async function handleMessage(message) {
 
     case MESSAGE_TYPES.OPEN_LATEST_COMMENT:
       return await openLatestComment(message.notificationId);
+
     case MESSAGE_TYPES.MARK_AS_READ:
       return await markAsRead(message.notificationId);
 
@@ -812,14 +241,11 @@ async function handleMessage(message) {
       return await markRepoAsRead(message.owner, message.repo);
 
     case MESSAGE_TYPES.REFRESH:
-      github.lastModified = null; // Force non-conditional request
+      github.lastModified = null;
       await checkNotifications();
-      // Reset the alarm timer without recreating it
-      // This ensures the countdown shows the full period
+      // Reset alarm timer so the countdown shows the full period.
       if (github.isAuthenticated) {
         const { minutes: pollIntervalMinutes } = getClampedPollInterval();
-
-        // Clear and recreate to reset the timer
         await alarms.clear(ALARM_NAME);
         await alarms.create(ALARM_NAME, {
           delayInMinutes: pollIntervalMinutes,
@@ -835,11 +261,10 @@ async function handleMessage(message) {
       const filter = message.filter;
       validateRulesStrict(filter);
       await storage.setNotificationFilter(filter);
-      // Clear stale stats — they are indexed parallel to the old rules array and
-      // would be semantically wrong after any rule change. Fresh stats will be
-      // written on the next full checkNotifications() pass.
+      // Clear stale stats — they are indexed parallel to the old rules array
+      // and would be semantically wrong after any rule change. Fresh stats
+      // are written below.
       await storage.setNotificationFilterStats([]);
-      // Re-annotate stored notifications with new rules
       const current = await storage.getNotifications();
       const { notifications: reannotated, stats: freshStats } = applyRulesWithStats(
         current,
@@ -848,7 +273,7 @@ async function handleMessage(message) {
       await storage.setNotifications(reannotated);
       await storage.setNotificationFilterStats(freshStats);
       const visibleCount = reannotated.filter(isVisible).length;
-      await updateBadge(visibleCount, hasMoreNotifications);
+      await updateBadge(visibleCount, fetcher.getHasMore());
       syncEngine.pushIfEnabled();
       return { success: true };
     }
@@ -923,9 +348,8 @@ async function handleMessage(message) {
       return { success: true };
     }
 
-    case MESSAGE_TYPES.SYNC_PUSH: {
+    case MESSAGE_TYPES.SYNC_PUSH:
       return await syncEngine.push();
-    }
 
     case MESSAGE_TYPES.SYNC_PULL: {
       const enabled = await storage.getSyncEnabled();
@@ -980,36 +404,27 @@ async function handleLogin(authMethod = "oauth", token = null) {
     github.token = token;
     await github.fetchUsername();
 
-    // Save credentials
     await storage.setToken(github.token);
     await storage.setUsername(github.username);
-    await storage.setUserInfo(github.userInfo); // Save full user info including avatar
+    await storage.setUserInfo(github.userInfo);
     await storage.setAuthMethod(authMethod);
 
-    // Start polling
     await startPolling();
     await checkNotifications();
 
-    return {
-      success: true,
-      username: github.username,
-    };
+    return { success: true, username: github.username };
   } catch (error) {
-    // Clear the in-memory token so isAuthenticated returns false on subsequent getState() calls
+    // Clear in-memory token so isAuthenticated is false on subsequent getState()
     github.token = null;
     github.username = null;
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 }
 
 async function handleLogout() {
   github.logout();
-  hasMoreNotifications = false;
-  latestCommentUrlCache.clear();
-  await persistCommentCache();
+  fetcher.resetHasMore();
+  await fetcher.clearCommentCache();
   await stopPolling();
   await storage.clearAuthData();
   await storage.setSyncEnabled(false);
@@ -1017,100 +432,73 @@ async function handleLogout() {
   await storage.setSyncLastPush(null);
   await storage.setSyncLastPushedFilter(null);
   await updateBadge(null);
-
   return { success: true };
 }
 
 async function getState() {
-  const notifications = await storage.getNotifications();
+  const notifs = await storage.getNotifications();
 
-  // Ensure username is available
   let username = github.username;
   if (!username && github.isAuthenticated) {
     username = await storage.getUsername();
     if (username) {
-      github.username = username; // Update github object
+      github.username = username;
     }
   }
 
   return {
     isAuthenticated: github.isAuthenticated,
     username,
-    notifications,
+    notifications: notifs,
   };
 }
 
 async function openNotification(notificationId) {
-  const notifications = await storage.getNotifications();
-  const notification = notifications.find((n) => n.id === notificationId);
-
+  const notifs = await storage.getNotifications();
+  const notification = notifs.find((n) => n.id === notificationId);
   if (!notification) {
     throw new Error("Notification not found");
   }
 
-  // Build URL using centralized builder
   const url = buildNotificationUrl(notification);
-
-  // Open tab immediately
   await tabs.create({ url });
-
-  // Mark as read in background (don't block the opening)
   markAsRead(notificationId).catch((error) => {
     console.error("Failed to mark as read:", error);
   });
-
   return { success: true, url };
 }
 
 async function openLatestComment(notificationId) {
-  const notifications = await storage.getNotifications();
-  const notification = notifications.find((n) => n.id === notificationId);
-
+  const notifs = await storage.getNotifications();
+  const notification = notifs.find((n) => n.id === notificationId);
   if (!notification) {
     throw new Error("Notification not found");
   }
 
-  // Use prefetched URL if available and still valid for this notification's updated_at
-  const cached = latestCommentUrlCache.get(notificationId);
-  let latestCommentUrl =
-    cached && cached.updated_at === notification.updated_at ? cached.url : null;
-
-  // Fall back to a live API query when the cache has no valid entry
+  let latestCommentUrl = fetcher.getCommentUrl(notificationId, notification.updated_at);
   if (!latestCommentUrl) {
     latestCommentUrl = await github.getLatestCommentUrl(notification);
   }
-
   const url = latestCommentUrl ?? buildNotificationUrl(notification);
 
-  // Open tab immediately
   await tabs.create({ url });
-
-  // Mark as read in background (don't block the opening)
   markAsRead(notificationId).catch((error) => {
     console.error("Failed to mark as read:", error);
   });
-
   return { success: true, url };
 }
 
 async function markAsRead(notificationId) {
   try {
     await github.markAsRead(notificationId);
+    fetcher.bumpVersion();
 
-    // Invalidate in-progress detail fetches so they don't restore this notification.
-    notificationFetchVersion++;
-
-    // Update local storage
-    const notifications = await storage.getNotifications();
-    const updated = notifications.filter((n) => n.id !== notificationId);
-
+    const notifs = await storage.getNotifications();
+    const updated = notifs.filter((n) => n.id !== notificationId);
     await storage.setNotifications(updated);
-    await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
+    await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
     await recalcFilterStats(updated);
-
-    // Remove the stale cache entry for this notification
-    latestCommentUrlCache.delete(notificationId);
-    await persistCommentCache();
+    await fetcher.evictCommentEntry(notificationId);
 
     return { success: true };
   } catch (error) {
@@ -1119,30 +507,26 @@ async function markAsRead(notificationId) {
   }
 }
 
-async function recalcFilterStats(notifications) {
+async function recalcFilterStats(notifs) {
   const rules = await storage.getNotificationFilter();
   if (rules.length === 0) {
     await storage.setNotificationFilterStats([]);
     return;
   }
-  const { stats } = applyRulesWithStats(notifications, rules);
+  const { stats } = applyRulesWithStats(notifs, rules);
   await storage.setNotificationFilterStats(stats);
 }
 
 async function markAllAsRead() {
   try {
     await github.markAllAsRead();
+    fetcher.bumpVersion();
+    fetcher.resetHasMore();
 
-    // Invalidate in-progress detail fetches so they don't restore notifications after the clear.
-    notificationFetchVersion++;
-
-    // Clear local storage and the comment URL cache
-    hasMoreNotifications = false;
     await storage.setNotifications([]);
     await storage.setNotificationFilterStats([]);
     await updateBadge(0);
-    latestCommentUrlCache.clear();
-    await persistCommentCache();
+    await fetcher.clearCommentCache();
 
     return { success: true };
   } catch (error) {
@@ -1154,24 +538,18 @@ async function markAllAsRead() {
 async function markRepoAsRead(owner, repo) {
   try {
     await github.markRepoAsRead(owner, repo);
+    fetcher.bumpVersion();
 
-    // Invalidate in-progress detail fetches so they don't restore repo notifications.
-    notificationFetchVersion++;
-
-    // Filter out notifications from this repository
-    const notifications = await storage.getNotifications();
-    const updated = notifications.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
-
+    const notifs = await storage.getNotifications();
+    const updated = notifs.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
     await storage.setNotifications(updated);
-    await updateBadge(updated.filter(isVisible).length, hasMoreNotifications);
+    await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
     await recalcFilterStats(updated);
 
-    // Remove cache entries for the cleared repo's notifications
-    const removedIds = notifications
+    const removedIds = notifs
       .filter((n) => n.repository.full_name === `${owner}/${repo}`)
       .map((n) => n.id);
-    for (const id of removedIds) latestCommentUrlCache.delete(id);
-    await persistCommentCache();
+    await fetcher.evictCommentEntries(removedIds);
 
     return { success: true, notifications: updated };
   } catch (error) {
@@ -1181,64 +559,72 @@ async function markRepoAsRead(owner, repo) {
 }
 
 /**
- * Handle notification click - open the notification URL
+ * Handle desktop notification click.
+ * Aggregated rollup → open GitHub notifications page.
+ * Individual notification → open its URL, mark as read, evict from caches.
  */
 notifications.onClicked.addListener(async (notificationId) => {
   try {
-    // Handle aggregated notification click - open GitHub notifications page
     if (notificationId === AGGREGATED_NOTIFICATION_ID) {
-      // Clear notification (isolate failures to prevent blocking)
       await safeClearNotification(notificationId);
-      // Note: We can't programmatically open the popup, so we open GitHub notifications page instead
       await tabs.create({ url: GITHUB_NOTIFICATIONS_URL });
       return;
     }
 
-    // Validate and extract notification ID from the chrome notification ID
     if (!notificationId.startsWith(NOTIFICATION_ID_PREFIX)) {
       console.error("Invalid notification ID format:", notificationId);
       return;
     }
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
 
-    // Get all notifications to find the one that was clicked
-    // Invalidate in-progress fetches before the async chain so any fetch that
-    // passes its version check during our read won't restore the removed notification.
-    notificationFetchVersion++;
+    // Bump fetch version before any async work so an in-flight fetch's
+    // version check fires after our removal lands and discards its writes.
+    fetcher.bumpVersion();
     const notificationsList = await storage.getNotifications();
     const notification = notificationsList.find((n) => n.id === githubNotifId);
 
-    // Remove from storage FIRST to prevent re-creation from race conditions
     const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
     await storage.setNotifications(updatedNotifications);
     await recalcFilterStats(updatedNotifications);
 
-    // Clear the notification (isolate failures to prevent blocking tab open + mark as read)
     await safeClearNotification(notificationId);
 
     if (notification) {
-      // Build and open URL using centralized builder
       const url = buildNotificationUrl(notification);
       await tabs.create({ url });
-
-      // Mark as read
       await github.markAsRead(githubNotifId);
-
-      // Remove stale comment URL cache entry for this notification
-      latestCommentUrlCache.delete(githubNotifId);
-      await persistCommentCache();
-
-      // Update badge
-      await updateBadge(updatedNotifications.filter(isVisible).length, hasMoreNotifications);
+      await fetcher.evictCommentEntry(githubNotifId);
+      await updateBadge(updatedNotifications.filter(isVisible).length, fetcher.getHasMore());
     }
   } catch (error) {
     console.error("Failed to handle notification click:", error);
   }
 });
 
-// Initialize on startup
 initialize();
-
-// Also initialize when service worker wakes up
 runtime.onStartup.addListener(initialize);
 runtime.onInstalled.addListener(initialize);
+
+// ─── Test-only re-exports ─────────────────────────────────────────────
+// service-worker.test.js imports these to drive tests through the worker
+// surface. Production code imports them directly from notification-fetcher.
+export {
+  getIconForType,
+  updateNotificationDetails,
+  copyCachedDetails,
+} from "./notification-fetcher.js";
+
+/**
+ * Test-only access to the fetcher's comment URL cache and prefetch.
+ * Production code goes through fetcher.getCommentUrl / evict* helpers.
+ */
+export const latestCommentUrlCache = fetcher._commentCache;
+export async function persistCommentCache() {
+  return fetcher.persistCommentCache();
+}
+export async function restoreCommentCache() {
+  return fetcher.restoreCommentCache();
+}
+export async function prefetchLatestCommentUrls(notifs) {
+  return fetcher.prefetchLatestCommentUrls(notifs);
+}
