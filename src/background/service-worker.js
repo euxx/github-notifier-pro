@@ -39,15 +39,6 @@ import {
   safeClearNotification,
 } from "./desktop-notifications.js";
 
-// The click handler below uses these symbols directly; the re-export keeps
-// service-worker.test.js's notification-click describe block able to import
-// them from this module without retargeting to desktop-notifications.js.
-export {
-  NOTIFICATION_ID_PREFIX,
-  AGGREGATED_NOTIFICATION_ID,
-  GITHUB_NOTIFICATIONS_URL,
-} from "./desktop-notifications.js";
-
 /**
  * Badge background colors for different states
  */

@@ -227,10 +227,9 @@ const {
   latestCommentUrlCache,
   persistCommentCache,
   restoreCommentCache,
-  NOTIFICATION_ID_PREFIX,
-  AGGREGATED_NOTIFICATION_ID,
-  GITHUB_NOTIFICATIONS_URL,
 } = await import("../src/background/service-worker.js");
+const { NOTIFICATION_ID_PREFIX, AGGREGATED_NOTIFICATION_ID, GITHUB_NOTIFICATIONS_URL } =
+  await import("../src/background/desktop-notifications.js");
 
 // Mutable reference that always points to the latestCommentUrlCache of the most recently
 // imported service-worker module. Updated in beforeEach after vi.resetModules().
