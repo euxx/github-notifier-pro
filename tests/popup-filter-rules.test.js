@@ -667,14 +667,19 @@ describe("popup filter rules", () => {
         return Promise.resolve({});
       });
 
-      row.querySelector(".confirm-delete").click();
-      await flushTasks();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        row.querySelector(".confirm-delete").click();
+        await flushTasks();
 
-      const rowsAfter = document.querySelectorAll("#filter-rules-list .filter-rule-row");
-      expect(rowsAfter).toHaveLength(2);
-      expect(Array.from(rowsAfter).every((r) => !r.classList.contains("confirming-delete"))).toBe(
-        true,
-      );
+        const rowsAfter = document.querySelectorAll("#filter-rules-list .filter-rule-row");
+        expect(rowsAfter).toHaveLength(2);
+        expect(Array.from(rowsAfter).every((r) => !r.classList.contains("confirming-delete"))).toBe(
+          true,
+        );
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     it("clears confirmation state when renderRuleRows is triggered externally", async () => {
