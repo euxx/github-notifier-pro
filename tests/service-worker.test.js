@@ -1912,6 +1912,9 @@ describe("comment URL cache session storage persistence", () => {
       vi.useFakeTimers();
       try {
         await callHandler({ action: "setNotificationFilter", filter: rules });
+        // Without advancing timers, the debounced auto-push must not have fired yet.
+        // Catches accidental conversion of pushIfEnabled() to a synchronous push().
+        expect(mockGithub.updateFilterGist).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(2100);
       } finally {
         vi.useRealTimers();
