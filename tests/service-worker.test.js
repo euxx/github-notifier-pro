@@ -1710,6 +1710,12 @@ describe("comment URL cache session storage persistence", () => {
       mockStorage.session = origSession;
     });
   });
+});
+
+describe("handleMessage - filter and sync", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe("handleMessage - GET_NOTIFICATION_FILTER", () => {
     it("should return stored filter rules", async () => {
