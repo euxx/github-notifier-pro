@@ -11,7 +11,6 @@ import {
   MIN_POPUP_WIDTH,
   MAX_POPUP_WIDTH,
   DEFAULT_POPUP_WIDTH,
-  POPUP_WIDTH_STEP,
   TIMING_THRESHOLDS,
 } from "../lib/constants.js";
 import { applyTheme } from "../lib/theme.js";
@@ -21,6 +20,7 @@ import { parseSVG } from "../lib/icons.js";
 import { initRenderer, clearNotificationCache } from "./notification-renderer.js";
 import { createFilter } from "./filter.js";
 import { createSync } from "./sync.js";
+import { createSettings } from "./settings.js";
 
 /**
  * Get auth method labels
@@ -163,7 +163,6 @@ const patLoginBtn = document.getElementById("pat-login-btn");
 const loginErrorEl = document.getElementById("login-error");
 
 // Main view elements
-const settingsIconBtn = document.getElementById("settings-icon-btn");
 const refreshBtn = document.getElementById("refresh-btn");
 const markAllBtn = document.getElementById("mark-all-btn");
 const usernameEl = document.getElementById("username");
@@ -172,29 +171,17 @@ const userProfileLink = document.getElementById("user-profile-link");
 const notificationsList = document.getElementById("notifications-list");
 const emptyState = document.getElementById("empty-state");
 
-// Settings view elements
-const settingsView = document.getElementById("settings-view");
-const settingsBackBtn = document.getElementById("settings-back-btn");
-const themeRadios = document.querySelectorAll('input[name="theme"]');
-const settingsLogoutBtn = document.getElementById("settings-logout-btn");
-const settingsUsernameEl = document.getElementById("settings-username");
-const settingsAvatarEl = document.getElementById("settings-avatar");
+// Settings page is owned by createSettings (./settings.js); the only
+// settings-view DOM popup.js still touches is settingsProfileLink, kept
+// here because updateProfileLinks (header + settings) is the cross-view
+// helper called from login / init / settings.show().
 const settingsProfileLink = document.getElementById("settings-profile-link");
-const settingsAuthMethodEl = document.getElementById("settings-auth-method");
+
 const notificationsContainer = document.getElementById("notifications-container");
 const refreshCountdownEl = document.getElementById("refresh-countdown");
 
 // Filter view is owned by createFilter (./filter.js).
 // Gist sync UI is owned by createSync (./sync.js).
-
-// Popup size controls
-const popupWidthInput = document.getElementById("popup-width-input");
-const widthDecreaseBtn = document.getElementById("width-decrease");
-const widthIncreaseBtn = document.getElementById("width-increase");
-
-// Desktop notification settings
-const desktopNotificationsToggle = document.getElementById("desktop-notifications-toggle");
-const desktopNotificationsHint = document.getElementById("desktop-notifications-hint");
 
 let scrollbarCompensationRaf = null;
 
@@ -257,48 +244,6 @@ if (notificationsList && typeof MutationObserver !== "undefined") {
     scheduleScrollbarCompensation();
   });
   mutationObserver.observe(notificationsList, { childList: true });
-}
-
-/**
- * Check if browser notification permission is granted
- */
-function hasExtensionNotifications() {
-  return (
-    (typeof chrome !== "undefined" && !!chrome.notifications) ||
-    (typeof browser !== "undefined" && !!browser.notifications)
-  );
-}
-
-function checkNotificationPermission() {
-  if (hasExtensionNotifications()) {
-    return "granted";
-  }
-  if (typeof Notification === "undefined") {
-    console.warn("Notification API not available");
-    return "unsupported";
-  }
-  return Notification.permission;
-}
-
-/**
- * Request browser notification permission
- */
-async function requestNotificationPermission() {
-  if (hasExtensionNotifications()) {
-    return "granted";
-  }
-  if (typeof Notification === "undefined") {
-    console.warn("Notification API not available");
-    return "unsupported";
-  }
-
-  try {
-    const permission = await Notification.requestPermission();
-    return permission;
-  } catch (error) {
-    console.error("Failed to request notification permission:", error);
-    return "denied";
-  }
 }
 
 /**
@@ -401,148 +346,17 @@ const sync = createSync({
   onPulledFilter: filter.applyPulledFilter,
 });
 
-/**
- * Show settings view
- */
-async function showSettings() {
-  // Load current theme
-  const theme = (await storage.getTheme()) || "system";
-  themeRadios.forEach((radio) => {
-    radio.checked = radio.value === theme;
-  });
-
-  // Load and display username
-  const username = await storage.getUsername();
-  const authMethod = await storage.getAuthMethod();
-  const { shortLabel, fullLabel } = getAuthMethodLabels(authMethod);
-  if (settingsUsernameEl && username) {
-    settingsUsernameEl.textContent = username;
-  }
-  if (settingsAuthMethodEl) {
-    settingsAuthMethodEl.textContent = shortLabel || "";
-    if (fullLabel) {
-      settingsAuthMethodEl.title = fullLabel;
-    } else {
-      settingsAuthMethodEl.removeAttribute("title");
-    }
-  }
-
-  // Load and display user avatar
-  const userInfo = await storage.getUserInfo();
-  updateProfileLinks(username, userInfo);
-  if (settingsAvatarEl && userInfo?.avatar_url) {
-    settingsAvatarEl.src = userInfo.avatar_url;
-    settingsAvatarEl.alt = userInfo.login || "User";
-    settingsAvatarEl.hidden = false;
-  } else if (settingsAvatarEl) {
-    settingsAvatarEl.hidden = true;
-  }
-
-  // Load popup width setting
-  const width = await storage.getPopupWidth();
-  popupWidthInput.value = width;
-  updateWidthButtons(width);
-
-  // Load desktop notification settings
-  const enableDesktopNotifications = await storage.getEnableDesktopNotifications();
-  desktopNotificationsToggle.checked = enableDesktopNotifications;
-  // Check browser notification permission status
-  const permission = checkNotificationPermission();
-
-  // Update toggle state based on permission
-  if (permission === "denied") {
-    desktopNotificationsToggle.disabled = true;
-    desktopNotificationsToggle.parentElement.title =
-      "Browser notification permission denied. Please enable it in browser settings.";
-    if (desktopNotificationsHint) {
-      desktopNotificationsHint.textContent =
-        "Permission denied. Please enable notifications in browser settings.";
-      desktopNotificationsHint.hidden = false;
-    }
-  } else if (permission === "unsupported") {
-    desktopNotificationsToggle.disabled = true;
-    desktopNotificationsToggle.parentElement.title = "Browser notifications not supported.";
-    if (desktopNotificationsHint) {
-      desktopNotificationsHint.textContent = "Browser notifications are not supported.";
-      desktopNotificationsHint.hidden = false;
-    }
-  }
-  sync.init();
-  toggleOverlayView(true);
-  settingsView.hidden = false;
-}
-
-/**
- * Hide settings view
- */
-function hideSettings() {
-  toggleOverlayView(false);
-  settingsView.hidden = true;
-}
-
-/**
- * Handle theme change
- */
-async function handleThemeChange() {
-  const selectedTheme = document.querySelector('input[name="theme"]:checked');
-  const theme = selectedTheme ? selectedTheme.value : "system";
-
-  // Save to storage and cache for instant apply on next open
-  try {
-    await storage.setTheme(theme);
-  } catch (error) {
-    console.error("Failed to save theme:", error);
-  }
-  setCachedTheme(theme);
-
-  // Apply theme immediately
-  applyTheme(theme);
-}
-
-/**
- * Handle popup width change
- */
-async function handleWidthChange() {
-  const parsed = parseInt(popupWidthInput.value, 10);
-  const width = clampPopupWidth(isNaN(parsed) ? MIN_POPUP_WIDTH : parsed);
-
-  popupWidthInput.value = width;
-  document.body.style.width = `${width}px`;
-  updateScrollbarCompensation();
-  setCachedPopupWidth(width);
-  updateWidthButtons(width);
-
-  // Save to storage
-  try {
-    await storage.setPopupWidth(width);
-  } catch (error) {
-    console.error("Failed to save popup width:", error);
-  }
-}
-
-/**
- * Decrease width
- */
-async function decreaseWidth() {
-  const currentWidth = parseInt(popupWidthInput.value, 10);
-  popupWidthInput.value = clampPopupWidth(currentWidth - POPUP_WIDTH_STEP);
-  await handleWidthChange();
-}
-
-/**
- * Increase width
- */
-async function increaseWidth() {
-  const currentWidth = parseInt(popupWidthInput.value, 10);
-  popupWidthInput.value = clampPopupWidth(currentWidth + POPUP_WIDTH_STEP);
-  await handleWidthChange();
-}
-
-function updateWidthButtons(width) {
-  if (!widthDecreaseBtn || !widthIncreaseBtn) return;
-  widthDecreaseBtn.disabled = width <= MIN_POPUP_WIDTH;
-  widthIncreaseBtn.disabled = width >= MAX_POPUP_WIDTH;
-}
+const settings = createSettings({
+  storage,
+  toggleOverlayView,
+  setCachedTheme,
+  setCachedPopupWidth,
+  updateScrollbarCompensation,
+  getAuthMethodLabels,
+  updateProfileLinks,
+  onLogout: logout,
+  sync,
+});
 
 /**
  * Send message to background script.
@@ -803,11 +617,16 @@ async function handleOAuthLogin() {
 
 /**
  * Logout
+ *
+ * Called by settings.handleLogout BEFORE the panel hides, so a failure
+ * here (MV3 background reconnecting, sendMessage rejection) leaves the
+ * settings view open and the user sees the error in context. On success
+ * showView('login') tears down the entire main view and the panel along
+ * with it; settings then calls hide() as a no-op cleanup.
  */
 async function logout() {
   stopCountdown();
   await sendMessage(MESSAGE_TYPES.LOGOUT);
-  hideSettings();
   await showView("login");
 }
 
@@ -963,13 +782,8 @@ async function init() {
     onMarkAsReadSuccess: filter.refreshFilteredBadge,
   });
 
-  // Listen for system theme changes
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", async () => {
-    const currentTheme = await storage.getTheme();
-    if (currentTheme === "system") {
-      applyTheme("system");
-    }
-  });
+  // Settings module owns the system-theme media listener.
+  settings.init();
 
   const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
 
@@ -1018,61 +832,11 @@ patInput.addEventListener("input", () => {
   }
 });
 
-// Settings
-settingsIconBtn.addEventListener("click", showSettings);
-settingsBackBtn.addEventListener("click", hideSettings);
-themeRadios.forEach((radio) => {
-  radio.addEventListener("change", handleThemeChange);
-});
-popupWidthInput.addEventListener("change", handleWidthChange);
-popupWidthInput.addEventListener("blur", handleWidthChange);
-widthDecreaseBtn.addEventListener("click", decreaseWidth);
-widthIncreaseBtn.addEventListener("click", increaseWidth);
-
+// Settings page (theme / width / desktop notifications / sign-out) is wired
+// up inside createSettings (./settings.js).
 // Filter page is wired up inside createFilter (./filter.js).
 // Gist sync is wired up inside createSync (./sync.js).
 
-// Desktop notification settings
-desktopNotificationsToggle.addEventListener("change", async () => {
-  const enabled = desktopNotificationsToggle.checked;
-
-  if (desktopNotificationsHint) desktopNotificationsHint.hidden = true;
-
-  if (enabled) {
-    // Check current permission
-    let permission = checkNotificationPermission();
-
-    // Request permission if not granted
-    if (permission === "default" || permission === "prompt") {
-      permission = await requestNotificationPermission();
-    }
-
-    // Only enable if permission granted
-    if (permission === "granted") {
-      await storage.setEnableDesktopNotifications(true);
-    } else {
-      // Permission denied or unavailable
-      desktopNotificationsToggle.checked = false;
-      await storage.setEnableDesktopNotifications(false);
-
-      if (desktopNotificationsHint) {
-        if (permission === "denied") {
-          desktopNotificationsHint.textContent =
-            "Permission denied. Please enable notifications in browser settings.";
-        } else if (permission === "unsupported") {
-          desktopNotificationsHint.textContent = "Browser notifications are not supported.";
-        }
-        desktopNotificationsHint.hidden = false;
-      }
-    }
-  } else {
-    // User disabled the toggle
-    await storage.setEnableDesktopNotifications(false);
-  }
-});
-
-// User menu
-settingsLogoutBtn.addEventListener("click", logout);
 refreshBtn.addEventListener("click", refresh);
 markAllBtn.addEventListener("click", markAllAsRead);
 
