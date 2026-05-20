@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0] - 2026-05-20
+
+### Added
+
+- Cache author avatar bytes locally as base64 data URLs so the popup renders avatars with no network or flicker on browsers that bypass HTTP caching for cross-origin extension requests (e.g. Brave Shields)
+
+### Fixed
+
+- Adaptive poll interval signalled by GitHub's `X-Poll-Interval` header no longer dropped when a later storage write in the same fetch cycle fails
+
+### Changed
+
+- Bump minimum Chrome to 114 to use the 10 MB `chrome.storage.local` quota (Chrome 99–113 capped at 5 MB)
+
 ## [1.3.1] - 2026-05-15
 
 ### Fixed
