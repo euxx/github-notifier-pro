@@ -28,6 +28,7 @@ import {
 } from "../lib/constants.js";
 import { LRUCache, DEFAULT_LRU_CACHE_SIZE } from "../lib/lru-cache.js";
 import { applyRulesWithStats, isVisible } from "../lib/filter-rules.js";
+import { ensureAvatarsCached } from "../lib/avatar-cache.js";
 import { showDesktopNotificationsForNew } from "./desktop-notifications.js";
 
 const SESSION_KEY_COMMENT_CACHE = "latestCommentUrlCache";
@@ -206,6 +207,19 @@ export function createNotificationFetcher(deps) {
       }
     } catch (error) {
       console.error("Failed to initialize author cache:", error);
+    }
+  }
+
+  // ─── Avatar bytes warmup ──────────────────────────────────────────────
+  // Fire-and-forget — the avatar-cache module skips entries within its TTL,
+  // deduplicates by login, and bounds concurrency internally.
+  function warmAuthorAvatars(notifications) {
+    const authors = [];
+    for (const n of notifications) {
+      if (n?.author?.login && n.author.avatar_url) authors.push(n.author);
+    }
+    if (authors.length > 0) {
+      ensureAvatarsCached(authors).catch(() => {});
     }
   }
 
@@ -461,6 +475,7 @@ export function createNotificationFetcher(deps) {
         console.log(
           `Fetch #${currentFetchVersion} saved ${priorityNotifications.length} priority notifications`,
         );
+        warmAuthorAvatars(detailedNotifications);
       }
     }
 
@@ -502,6 +517,7 @@ export function createNotificationFetcher(deps) {
             console.log(
               `Fetch #${currentFetchVersion} updated storage with detailed notifications`,
             );
+            warmAuthorAvatars(detailedNotifications);
             prefetchLatestCommentUrls(detailedNotifications).catch((error) => {
               console.error("Error prefetching latest comment URLs:", error);
             });

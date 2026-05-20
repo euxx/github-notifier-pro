@@ -16,6 +16,15 @@ vi.mock("../src/background/desktop-notifications.js", () => ({
   showDesktopNotificationsForNew: mockShowDesktopNotificationsForNew,
 }));
 
+// Avatar cache is fire-and-forget from runFetch. With no chrome.storage.local
+// in this test, the real module's queueWrite catch logs an "Avatar cache write
+// failed" warning on every fetcher run, drowning out real warnings during CI.
+vi.mock("../src/lib/avatar-cache.js", () => ({
+  ensureAvatarsCached: vi.fn().mockResolvedValue(undefined),
+  setActive: vi.fn(),
+  getAvatarSrc: vi.fn(),
+}));
+
 const { createNotificationFetcher, getIconForType, updateNotificationDetails, copyCachedDetails } =
   await import("../src/background/notification-fetcher.js");
 

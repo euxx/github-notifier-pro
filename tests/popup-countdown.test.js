@@ -33,6 +33,7 @@ vi.mock("../src/lib/storage.js", () => ({
   getEnableDesktopNotifications: vi.fn().mockResolvedValue(false),
   setEnableDesktopNotifications: vi.fn().mockResolvedValue(undefined),
   getMaxDesktopNotifications: vi.fn().mockResolvedValue(5),
+  getAvatarDataCache: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("../src/lib/theme.js", () => ({

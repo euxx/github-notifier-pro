@@ -28,6 +28,11 @@ vi.mock("../src/lib/icons.js", () => ({
   }),
 }));
 
+vi.mock("../src/lib/avatar-cache.js", () => ({
+  getAvatarSrc: vi.fn((person) => person?.avatar_url ?? null),
+  ensureAvatarsCached: vi.fn(),
+}));
+
 const sendMessage = vi.fn();
 
 const { initRenderer, renderNotifications, clearNotificationCache } =

@@ -13,6 +13,7 @@ import {
 } from "../lib/constants.js";
 import { classifyError } from "../lib/http.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
+import { ensureAvatarsCached, setActive as setAvatarCacheActive } from "../lib/avatar-cache.js";
 import {
   applyRulesWithStats,
   isVisible,
@@ -121,6 +122,7 @@ async function doInitialize() {
   const token = await storage.getToken();
   if (token) {
     github.token = token;
+    setAvatarCacheActive(true);
     const username = await storage.getUsername();
     if (username) {
       github.username = username;
@@ -131,9 +133,30 @@ async function doInitialize() {
     // recycling). No-op on Firefox or when session storage has no saved data.
     await fetcher.restoreCommentCache();
 
+    // Warm the avatar data-URL cache for the signed-in user and any
+    // notification authors already on disk. Fire-and-forget; the cache
+    // module skips entries that are still TTL-fresh. Covers the case
+    // where notifications survived a SW restart but the avatar cache
+    // was evicted/cleared — runFetch only warms when detail fetches
+    // run, so steady state with no updated_at changes would otherwise
+    // leave authors uncached.
+    Promise.all([storage.getUserInfo(), storage.getNotifications()])
+      .then(([userInfo, notifs]) => {
+        const people = [];
+        if (userInfo) people.push({ login: userInfo.login, avatar_url: userInfo.avatar_url });
+        for (const n of notifs || []) {
+          if (n?.author) people.push(n.author);
+        }
+        return ensureAvatarsCached(people);
+      })
+      .catch((err) => {
+        console.warn("Avatar cache warmup failed", err);
+      });
+
     await startPolling();
     await checkNotifications();
   } else {
+    setAvatarCacheActive(false);
     fetcher.resetHasMore();
     await updateBadge(null);
   }
@@ -413,6 +436,16 @@ async function handleLogin(authMethod = "oauth", token = null) {
     await storage.setUserInfo(github.userInfo);
     await storage.setAuthMethod(authMethod);
 
+    setAvatarCacheActive(true);
+    // Warm the avatar data-URL cache so the popup never has to refetch the
+    // image — Brave's Shields bypass HTTP caching for cross-origin requests
+    // and would otherwise reload the avatar on every popup open.
+    ensureAvatarsCached([
+      { login: github.userInfo?.login, avatar_url: github.userInfo?.avatar_url },
+    ]).catch((err) => {
+      console.warn("Avatar cache warmup failed", err);
+    });
+
     await startPolling();
     await checkNotifications();
 
@@ -426,6 +459,11 @@ async function handleLogin(authMethod = "oauth", token = null) {
 }
 
 async function handleLogout() {
+  // Gate the avatar cache BEFORE clearing storage. clearAuthData() bypasses
+  // the avatar-cache writeQueue, so a later ensureAvatarsCached() — queued
+  // from an in-flight runFetch — would otherwise repopulate the cache with
+  // the previous user's avatars after the wipe.
+  setAvatarCacheActive(false);
   github.logout();
   fetcher.resetHasMore();
   await fetcher.clearCommentCache();

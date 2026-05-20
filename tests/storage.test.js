@@ -137,6 +137,7 @@ describe("Storage", () => {
         "notifications",
         "lastCheck",
         "notificationFilterStats",
+        "avatarDataCache",
       ]);
     });
 

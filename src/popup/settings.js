@@ -18,6 +18,7 @@
 
 import { MIN_POPUP_WIDTH, MAX_POPUP_WIDTH, POPUP_WIDTH_STEP } from "../lib/constants.js";
 import { applyTheme } from "../lib/theme.js";
+import { getAvatarSrc } from "../lib/avatar-cache.js";
 
 function clampPopupWidth(width) {
   return Math.min(MAX_POPUP_WIDTH, Math.max(MIN_POPUP_WIDTH, width));
@@ -118,8 +119,9 @@ export function createSettings(deps) {
 
     const userInfo = await storage.getUserInfo();
     updateProfileLinks(username, userInfo);
-    if (settingsAvatarEl && userInfo?.avatar_url) {
-      settingsAvatarEl.src = userInfo.avatar_url;
+    const cachedAvatarSrc = getAvatarSrc(userInfo);
+    if (settingsAvatarEl && cachedAvatarSrc) {
+      settingsAvatarEl.src = cachedAvatarSrc;
       settingsAvatarEl.alt = userInfo.login || "User";
       settingsAvatarEl.hidden = false;
     } else if (settingsAvatarEl) {

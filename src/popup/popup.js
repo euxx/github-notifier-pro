@@ -17,6 +17,7 @@ import { applyTheme } from "../lib/theme.js";
 import { buildProfileUrl } from "../lib/url-builder.js";
 import { classifyError } from "../lib/http.js";
 import { parseSVG } from "../lib/icons.js";
+import { getAvatarSrc, loadSnapshot as loadAvatarSnapshot } from "../lib/avatar-cache.js";
 import { initRenderer, clearNotificationCache } from "./notification-renderer.js";
 import { createFilter } from "./filter.js";
 import { createSync } from "./sync.js";
@@ -516,8 +517,9 @@ async function refresh() {
  * @param {Object} userInfo - User info object with avatar_url
  */
 function setUserAvatar(userInfo) {
-  if (userInfo?.avatar_url) {
-    avatarEl.src = userInfo.avatar_url;
+  const src = getAvatarSrc(userInfo);
+  if (src) {
+    avatarEl.src = src;
     avatarEl.hidden = false;
   } else {
     avatarEl.hidden = true;
@@ -768,6 +770,8 @@ async function preloadTheme() {
  * Initialize popup
  */
 async function init() {
+  await loadAvatarSnapshot();
+
   // Initialize the notification renderer
   initRenderer({
     notificationsList,

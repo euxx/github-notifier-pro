@@ -1,10 +1,11 @@
 /**
  * Browser API helpers with Promise wrappers
- * Cross-browser compatible (Chrome 99+ & Firefox 110+)
+ * Cross-browser compatible (Chrome 114+ & Firefox 110+)
  *
- * Requires Chrome 99+ because runtime.sendMessage() only returns a Promise
- * from Chrome 99 onward. All other storage/alarms/action APIs return Promises
- * from Chrome 88+. Firefox 110+ supports Promise-based APIs throughout.
+ * Requires Chrome 114+ for the 10 MB chrome.storage.local quota (Chrome <114
+ * caps at 5 MB). runtime.sendMessage() returns a Promise from Chrome 99+;
+ * other storage/alarms/action APIs from Chrome 88+.
+ * Firefox 110+ supports Promise-based APIs throughout.
  *
  * We call the native APIs directly rather than wrapping them in callback-based
  * Promises, which avoids callbacks being silently ignored by the browser.

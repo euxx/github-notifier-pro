@@ -1,6 +1,6 @@
 /**
  * Storage utility for browser extensions
- * Cross-browser compatible (Chrome 99+ & Firefox 110+)
+ * Cross-browser compatible (Chrome 114+ & Firefox 110+)
  *
  * Both Chrome 88+ and Firefox return Promises from storage APIs.
  * We use them directly instead of callback-based wrappers.
@@ -32,6 +32,10 @@ const STORAGE_KEYS = {
   SYNC_GIST_ID: "syncGistId", // string — gist ID for filter sync
   SYNC_LAST_PUSH: "syncLastPush", // ISO timestamp of last successful push
   SYNC_LAST_PUSHED_FILTER: "syncLastPushedFilter", // JSON snapshot of filter at last push
+  // Avatar image bytes cache.
+  // Map<login, { url, dataUrl, lastModified?, cachedAt, lastSeenAt }>.
+  // Single writer (background); popup is read-only. LRU-bounded.
+  AVATAR_DATA_CACHE: "avatarDataCache",
 };
 
 /**
@@ -89,6 +93,7 @@ export async function clearAuthData() {
     STORAGE_KEYS.NOTIFICATIONS,
     STORAGE_KEYS.LAST_CHECK,
     STORAGE_KEYS.NOTIFICATION_FILTER_STATS,
+    STORAGE_KEYS.AVATAR_DATA_CACHE,
   ]);
 }
 
@@ -226,6 +231,15 @@ export async function getSyncLastPushedFilter() {
 
 export async function setSyncLastPushedFilter(filter) {
   return set(STORAGE_KEYS.SYNC_LAST_PUSHED_FILTER, filter === null ? null : JSON.stringify(filter));
+}
+
+// Avatar bytes cache
+export async function getAvatarDataCache() {
+  return get(STORAGE_KEYS.AVATAR_DATA_CACHE, {});
+}
+
+export async function setAvatarDataCache(cache) {
+  return set(STORAGE_KEYS.AVATAR_DATA_CACHE, cache);
 }
 
 export { STORAGE_KEYS };

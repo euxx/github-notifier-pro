@@ -11,6 +11,7 @@ import {
 import { getNotificationStatus, getReasonPriority } from "../lib/format-utils.js";
 import { getIconSVGElement } from "../lib/icons.js";
 import { buildProfileUrl, buildRepoNotificationsUrl } from "../lib/url-builder.js";
+import { getAvatarSrc } from "../lib/avatar-cache.js";
 
 /**
  * Build icon class with state information
@@ -281,7 +282,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     authorLink.rel = "noopener noreferrer";
 
     const authorImg = document.createElement("img");
-    authorImg.src = notif.author.avatar_url;
+    const avatarSrc = getAvatarSrc(notif.author);
+    if (avatarSrc) authorImg.src = avatarSrc;
     authorImg.className = "author-avatar";
     authorImg.alt = notif.author.login;
     authorImg.title = notif.author.login;
