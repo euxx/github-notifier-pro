@@ -19,7 +19,7 @@ const ENABLE_TIMEOUT_MS = 30000;
  * @param {Object} deps
  * @param {Function} deps.sendMessage - send message to background worker
  * @param {Object} deps.storage - storage module (getAuthMethod)
- * @param {(rules: Array) => void} deps.onPulledFilter - apply pulled rules to filter view
+ * @param {(rules: Array) => void | Promise<void>} deps.onPulledFilter - apply pulled rules to filter view
  * @returns {{ init: Function, silentPull: Function }}
  */
 export function createSync(deps) {
@@ -110,7 +110,7 @@ export function createSync(deps) {
         return;
       }
       if (result.success && !result.skipped) {
-        onPulledFilter(result.filter);
+        await onPulledFilter(result.filter);
       }
     } catch {}
   }
@@ -198,7 +198,7 @@ export function createSync(deps) {
       if (result.skipped) {
         showSyncStatus("Already in sync.");
       } else {
-        onPulledFilter(result.filter);
+        await onPulledFilter(result.filter);
         updateSyncLastPush(new Date().toISOString());
         showSyncStatus("Pulled.");
       }
@@ -243,7 +243,7 @@ export function createSync(deps) {
         return;
       }
       if (choice === "remote") {
-        onPulledFilter(result.filter);
+        await onPulledFilter(result.filter);
       }
       hideSyncConflict();
       updateSyncLastPush(new Date().toISOString());

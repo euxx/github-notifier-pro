@@ -157,3 +157,19 @@ export function applyRulesWithStats(notifications, rules) {
   });
   return { notifications: annotated, stats };
 }
+
+/**
+ * Whether any rule's stats entry has at least one matched repo or keyword.
+ * Used by the popup to decide whether to show the filter-active indicator.
+ *
+ * @param {Array<{ repos: Object, keywords: Object }>} stats
+ */
+export function statsHaveMatches(stats) {
+  if (!Array.isArray(stats)) return false;
+  return stats.some((entry) => {
+    if (!entry) return false;
+    const repos = entry.repos ? Object.keys(entry.repos).length : 0;
+    const keywords = entry.keywords ? Object.keys(entry.keywords).length : 0;
+    return repos > 0 || keywords > 0;
+  });
+}

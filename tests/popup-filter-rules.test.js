@@ -123,13 +123,12 @@ async function flushTasks() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-async function loadPopup() {
+async function loadPopup({ isAuthenticated = false } = {}) {
   const { runtime } = await import("../src/lib/chrome-api.js");
-  const storage = await import("../src/lib/storage.js");
 
   runtime.sendMessage.mockImplementation(({ action }) => {
     if (action === "getState") {
-      return Promise.resolve({ isAuthenticated: false });
+      return Promise.resolve({ isAuthenticated, notifications: [] });
     }
     if (action === "getNotificationFilter") {
       return Promise.resolve({ filter: RULES });
@@ -139,7 +138,6 @@ async function loadPopup() {
     }
     return Promise.resolve({});
   });
-  storage.getNotificationFilterStats.mockResolvedValue([]);
 
   await import("../src/popup/popup.js");
   await flushTasks();
@@ -540,6 +538,73 @@ describe("popup filter rules", () => {
 
     expect(mainView.classList.contains("filter-active")).toBe(false);
     expect(mainView.style.getPropertyValue("--filter-overlay-height")).toBe("");
+  });
+
+  describe("filter icon indicator", () => {
+    it("does not show the indicator when no rule has matched any unread notification", async () => {
+      const storage = await import("../src/lib/storage.js");
+      storage.getNotificationFilterStats.mockResolvedValue([
+        { repos: {}, keywords: {} },
+        { repos: {}, keywords: {} },
+      ]);
+      await loadPopup({ isAuthenticated: true });
+
+      expect(document.getElementById("filter-icon-btn").classList.contains("filter-active")).toBe(
+        false,
+      );
+    });
+
+    it("shows the indicator when a rule has matched at least one unread notification", async () => {
+      const storage = await import("../src/lib/storage.js");
+      storage.getNotificationFilterStats.mockResolvedValue([
+        { repos: { "owner/alpha": 2 }, keywords: { bug: 2 } },
+        { repos: {}, keywords: {} },
+      ]);
+      await loadPopup({ isAuthenticated: true });
+
+      expect(document.getElementById("filter-icon-btn").classList.contains("filter-active")).toBe(
+        true,
+      );
+    });
+
+    it("removes the indicator after a storage update reports zero matches", async () => {
+      const { storage: browserStorage } = await import("../src/lib/chrome-api.js");
+      const storage = await import("../src/lib/storage.js");
+      storage.getNotificationFilterStats.mockResolvedValue([
+        { repos: { "owner/alpha": 1 }, keywords: {} },
+      ]);
+      await loadPopup({ isAuthenticated: true });
+
+      const filterIconBtn = document.getElementById("filter-icon-btn");
+      expect(filterIconBtn.classList.contains("filter-active")).toBe(true);
+
+      expect(browserStorage.onChanged.addListener).toHaveBeenCalledTimes(1);
+      const listener = browserStorage.onChanged.addListener.mock.calls[0][0];
+      listener({ notificationFilterStats: { newValue: [{ repos: {}, keywords: {} }] } }, "local");
+
+      expect(filterIconBtn.classList.contains("filter-active")).toBe(false);
+    });
+
+    it("adds the indicator when stats arrive after the popup opens (filter view still hidden)", async () => {
+      const { storage: browserStorage } = await import("../src/lib/chrome-api.js");
+      await loadPopup();
+
+      const filterIconBtn = document.getElementById("filter-icon-btn");
+      expect(filterIconBtn.classList.contains("filter-active")).toBe(false);
+
+      expect(browserStorage.onChanged.addListener).toHaveBeenCalledTimes(1);
+      const listener = browserStorage.onChanged.addListener.mock.calls[0][0];
+      listener(
+        {
+          notificationFilterStats: {
+            newValue: [{ repos: {}, keywords: { bug: 3 } }],
+          },
+        },
+        "local",
+      );
+
+      expect(filterIconBtn.classList.contains("filter-active")).toBe(true);
+    });
   });
 
   describe("delete confirmation", () => {

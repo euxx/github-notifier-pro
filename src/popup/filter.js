@@ -11,7 +11,7 @@
  */
 
 import { MESSAGE_TYPES } from "../lib/constants.js";
-import { isVisible } from "../lib/filter-rules.js";
+import { isVisible, statsHaveMatches } from "../lib/filter-rules.js";
 import { parseSVG } from "../lib/icons.js";
 import { buildRepoNotificationsUrl, buildKeywordNotificationsUrl } from "../lib/url-builder.js";
 import {
@@ -255,7 +255,7 @@ export function createFilter(deps) {
     }
     currentFilterStats = await storage.getNotificationFilterStats();
     renderRuleRows(currentFilterRules, currentFilterStats);
-    updateFilterIndicator(currentFilterRules);
+    updateFilterIndicator(currentFilterStats);
   }
 
   function renderRuleRows(rules, stats = []) {
@@ -542,7 +542,7 @@ export function createFilter(deps) {
     currentFilterRules = updated;
     currentFilterStats = await storage.getNotificationFilterStats();
     hideCreator();
-    updateFilterIndicator(currentFilterRules);
+    updateFilterIndicator(currentFilterStats);
   }
 
   // ─── Filter persistence + indicators ──────────────────────────────────
@@ -565,10 +565,9 @@ export function createFilter(deps) {
     }
   }
 
-  function updateFilterIndicator(rules) {
+  function updateFilterIndicator(stats) {
     if (!filterIconBtn) return;
-    const isActive = rules.some((r) => r.repos.length > 0 || r.keywords.length > 0);
-    filterIconBtn.classList.toggle("filter-active", isActive);
+    filterIconBtn.classList.toggle("filter-active", statsHaveMatches(stats));
   }
 
   function updateFilteredBadge(count) {
@@ -685,13 +684,10 @@ export function createFilter(deps) {
 
   // ─── Storage change wiring (filter stats live update) ─────────────────
   function handleStorageChange(changes, areaName) {
-    if (
-      areaName === "local" &&
-      changes.notificationFilterStats &&
-      filterView &&
-      !filterView.hidden
-    ) {
-      currentFilterStats = changes.notificationFilterStats.newValue || [];
+    if (areaName !== "local" || !changes.notificationFilterStats) return;
+    currentFilterStats = changes.notificationFilterStats.newValue || [];
+    updateFilterIndicator(currentFilterStats);
+    if (filterView && !filterView.hidden) {
       renderRuleRows(currentFilterRules, currentFilterStats);
     }
   }
@@ -732,11 +728,15 @@ export function createFilter(deps) {
     updateFilterIndicator,
     handleStorageChange,
     clearFilteredAfterMarkAll,
-    applyPulledFilter(rules) {
+    async applyPulledFilter(rules) {
       currentFilterRules = rules;
-      currentFilterStats = [];
+      try {
+        currentFilterStats = await storage.getNotificationFilterStats();
+      } catch {
+        currentFilterStats = [];
+      }
       renderRuleRows(currentFilterRules, currentFilterStats);
-      updateFilterIndicator(currentFilterRules);
+      updateFilterIndicator(currentFilterStats);
     },
     isShowingFiltered() {
       return showingFiltered;

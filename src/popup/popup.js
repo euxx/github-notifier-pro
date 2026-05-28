@@ -806,10 +806,10 @@ async function init() {
     // Start countdown timer for next refresh
     startCountdown();
 
-    // Show filter indicator if rules are already configured (non-critical, ignore errors)
+    // Show filter indicator if any rule is currently matching unread notifications (non-critical)
     try {
-      const filterResult = await sendMessage(MESSAGE_TYPES.GET_NOTIFICATION_FILTER);
-      filter.updateFilterIndicator(Array.isArray(filterResult?.filter) ? filterResult.filter : []);
+      const stats = await storage.getNotificationFilterStats();
+      filter.updateFilterIndicator(stats);
     } catch {
       // Non-critical: indicator defaults to inactive
     }

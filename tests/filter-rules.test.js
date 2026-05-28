@@ -7,6 +7,7 @@ import {
   canonicalizeRules,
   canonicalizeStoredRules,
   isVisible,
+  statsHaveMatches,
 } from "../src/lib/filter-rules.js";
 import { makeNotif } from "./fixtures/filter.js";
 
@@ -292,5 +293,44 @@ describe("canonicalizeStoredRules", () => {
     expect(canonicalizeStoredRules(raw)).toBe(
       canonicalizeRules([{ repos: ["a/b"], keywords: ["beta"] }]),
     );
+  });
+});
+
+describe("statsHaveMatches", () => {
+  it("returns false for an empty array", () => {
+    expect(statsHaveMatches([])).toBe(false);
+  });
+
+  it("returns false when all entries have empty repos and keywords maps", () => {
+    expect(
+      statsHaveMatches([
+        { repos: {}, keywords: {} },
+        { repos: {}, keywords: {} },
+      ]),
+    ).toBe(false);
+  });
+
+  it("returns true when any entry has a matched repo", () => {
+    expect(
+      statsHaveMatches([
+        { repos: {}, keywords: {} },
+        { repos: { "owner/repo": 3 }, keywords: {} },
+      ]),
+    ).toBe(true);
+  });
+
+  it("returns true when any entry has a matched keyword", () => {
+    expect(statsHaveMatches([{ repos: {}, keywords: { bug: 1 } }])).toBe(true);
+  });
+
+  it("returns false for non-array inputs", () => {
+    expect(statsHaveMatches(null)).toBe(false);
+    expect(statsHaveMatches(undefined)).toBe(false);
+  });
+
+  it("tolerates missing repos / keywords fields on an entry", () => {
+    expect(statsHaveMatches([{}])).toBe(false);
+    expect(statsHaveMatches([{ repos: { "x/y": 1 } }])).toBe(true);
+    expect(statsHaveMatches([{ keywords: { bug: 1 } }])).toBe(true);
   });
 });
