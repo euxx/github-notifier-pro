@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.1] - 2026-05-30
+
+### Changed
+
+- Filter icon dot now lights only when at least one rule is currently matching an unread notification, instead of whenever any rule is configured
+
 ## [1.4.0] - 2026-05-20
 
 ### Added

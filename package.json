@@ -1,6 +1,6 @@
 {
   "name": "github-notifier-pro",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "GitHub notifications in the browser toolbar",
   "keywords": [
     "chrome-extension",
