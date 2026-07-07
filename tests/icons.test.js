@@ -40,6 +40,13 @@ describe("getIconSVG", () => {
     ])('should return correct icon for conclusion "%s"', (conclusion, expectedKey) => {
       expect(getIconSVG("actions", null, null, conclusion)).toBe(ICON_SVGS[expectedKey]);
     });
+
+    it("should use GitHub stop octicon for cancelled workflow runs", () => {
+      const svg = getIconSVG("actions", null, null, "cancelled");
+
+      expect(svg).toContain("octicon-stop");
+      expect(svg).toContain("M4.47.22A.749.749 0 0 1 5 0h6");
+    });
   });
 
   describe("direct icon types", () => {
