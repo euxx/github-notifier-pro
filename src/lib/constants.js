@@ -81,6 +81,7 @@ export const MESSAGE_TYPES = {
   MARK_AS_READ: "markAsRead",
   MARK_AS_DONE: "markAsDone",
   MARK_ALL_AS_READ: "markAllAsRead",
+  MARK_ALL_AS_DONE: "markAllAsDone",
   MARK_REPO_AS_READ: "markRepoAsRead",
   MARK_REPO_AS_DONE: "markRepoAsDone",
   REFRESH: "refresh",

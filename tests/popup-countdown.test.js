@@ -42,8 +42,12 @@ vi.mock("../src/lib/theme.js", () => ({
 
 vi.mock("../src/popup/notification-renderer.js", () => ({
   initRenderer: vi.fn(),
-  setRepoBusy: vi.fn(() => true),
-  setRepoHidden: vi.fn(),
+  setBulkBusy: vi.fn(() => true),
+  hideBulkRows: vi.fn(),
+  getBulkElements: (repo) => [
+    ...document.querySelectorAll(repo === null ? "[data-repo]" : `[data-repo="${repo}"]`),
+  ],
+  updateMarkAllButtons: vi.fn(),
   renderNotifications: vi.fn(),
   renderNotificationsInto: vi.fn(),
   groupByRepo: vi.fn().mockReturnValue({}),
@@ -111,6 +115,7 @@ document.body.innerHTML = `
   <button id="settings-logout-btn"></button>
   <button id="refresh-btn"></button>
   <button id="mark-all-btn"></button>
+    <button id="mark-all-done-btn"></button>
   <span id="refresh-countdown"></span>
   <div id="login-view" hidden></div>
   <div id="main-view" hidden></div>

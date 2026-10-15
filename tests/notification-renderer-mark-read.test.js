@@ -40,7 +40,7 @@ vi.mock("../src/lib/avatar-cache.js", () => ({
 const sendMessage = vi.fn();
 const onMarkSuccess = vi.fn();
 
-const { initRenderer, renderNotifications, clearNotificationCache, setRepoBusy, setRepoHidden } =
+const { initRenderer, renderNotifications, clearNotificationCache, setBulkBusy, hideBulkRows } =
   await import("../src/popup/notification-renderer.js");
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -188,8 +188,8 @@ describe("mark single notification as read — repo header count", () => {
     const button = notificationsList.querySelector('[data-id="1"] .btn-mark-read');
     button.focus();
     button.click();
-    setRepoBusy("owner/hidden", true);
-    setRepoHidden("owner/hidden", true);
+    setBulkBusy("owner/hidden", true);
+    hideBulkRows("owner/hidden");
     try {
       resolveMutation({ success: true });
       await vi.waitFor(() => expect(notificationsList.querySelector('[data-id="1"]')).toBeNull());
@@ -197,7 +197,7 @@ describe("mark single notification as read — repo header count", () => {
         notificationsList.querySelector('[data-id="3"] .notification-open-target'),
       );
     } finally {
-      setRepoBusy("owner/hidden", false);
+      setBulkBusy("owner/hidden", false);
     }
   });
 

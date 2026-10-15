@@ -16,13 +16,14 @@ import {
 import { applyTheme } from "../lib/theme.js";
 import { buildProfileUrl } from "../lib/url-builder.js";
 import { classifyError } from "../lib/http.js";
-import { parseSVG } from "../lib/icons.js";
+import { getIconSVGElement, parseSVG } from "../lib/icons.js";
 import { getAvatarSrc, loadSnapshot as loadAvatarSnapshot } from "../lib/avatar-cache.js";
 import {
   initRenderer,
   clearNotificationCache,
-  setRepoBusy,
-  setRepoHidden,
+  setBulkBusy,
+  hideBulkRows,
+  getBulkElements,
 } from "./notification-renderer.js";
 import { createFilter } from "./filter.js";
 import { createSync } from "./sync.js";
@@ -171,6 +172,8 @@ const loginErrorEl = document.getElementById("login-error");
 // Main view elements
 const refreshBtn = document.getElementById("refresh-btn");
 const markAllBtn = document.getElementById("mark-all-btn");
+const markAllDoneBtn = document.getElementById("mark-all-done-btn");
+markAllDoneBtn.appendChild(getIconSVGElement("done"));
 const usernameEl = document.getElementById("username");
 const avatarEl = document.getElementById("user-avatar");
 const userProfileLink = document.getElementById("user-profile-link");
@@ -411,49 +414,6 @@ async function showView(view) {
   }
 
   document.body.classList.add("popup-ready");
-}
-
-/**
- * Mark all as read
- */
-async function markAllAsRead() {
-  // Immediate visual feedback
-  const originalNodes = Array.from(markAllBtn.childNodes).map((n) => n.cloneNode(true));
-  markAllBtn.disabled = true;
-  const spinner = parseSVG(
-    '<svg viewBox="0 0 16 16" width="16" height="16" class="spinner-icon"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30" stroke-dashoffset="0"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>',
-  );
-  markAllBtn.replaceChildren(spinner);
-
-  // Immediate visual feedback: start overlay animation with stagger
-  const items = [...notificationsList.querySelectorAll(".repo-group-header, .notification-item")];
-  const anim = beginStaggerAnimation(items);
-
-  function rollback() {
-    anim.rollback();
-    markAllBtn.disabled = false;
-    markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
-  }
-
-  try {
-    const result = await sendMessage(MESSAGE_TYPES.MARK_ALL_AS_READ);
-    if (result.success) {
-      // Wait for stagger animation to finish before clearing DOM
-      await anim.waitForCompletion();
-      clearNotificationCache();
-      notificationsList.replaceChildren();
-      emptyState.hidden = false;
-      markAllBtn.disabled = true;
-      markAllBtn.replaceChildren(...originalNodes.map((n) => n.cloneNode(true)));
-      filter.clearFilteredAfterMarkAll();
-    } else {
-      rollback();
-      console.error("Failed to mark all as read:", result.error);
-    }
-  } catch (error) {
-    rollback();
-    console.error("Failed to mark all as read:", error);
-  }
 }
 
 /**
@@ -734,25 +694,33 @@ function showMutationError(message) {
   setTimeout(() => error.remove(), 5000);
 }
 
-/** Mark a repository as read or its loaded unread notifications as done. */
-async function handleMarkRepo(repoFullName, messageType) {
-  if (!setRepoBusy(repoFullName, true)) return;
-  const [owner, repo] = repoFullName.split("/");
-  const isDone = messageType === MESSAGE_TYPES.MARK_REPO_AS_DONE;
-  const escapedRepo = CSS.escape(repoFullName);
-  const repoHeader = document.querySelector(`.repo-group-header[data-repo="${escapedRepo}"]`);
-  const items = [...document.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`)];
-  const allElements = repoHeader ? [repoHeader, ...items] : items;
-  const anim = beginStaggerAnimation(allElements);
+/** Apply Read or Done to a repository, or all loaded notifications for a null scope. */
+async function handleBulkAction(repoFullName, messageType) {
+  if (!setBulkBusy(repoFullName, true)) return;
+  const [owner, repo] = repoFullName?.split("/") || [];
+  const isDone = [MESSAGE_TYPES.MARK_REPO_AS_DONE, MESSAGE_TYPES.MARK_ALL_AS_DONE].includes(
+    messageType,
+  );
+  const globalButton = repoFullName === null ? (isDone ? markAllDoneBtn : markAllBtn) : null;
+  const originalNodes = globalButton ? [...globalButton.childNodes] : [];
+  if (globalButton) {
+    globalButton.setAttribute("aria-busy", "true");
+    globalButton.replaceChildren(
+      parseSVG(
+        '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="30"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite"/></circle></svg>',
+      ),
+    );
+  }
+  const anim = beginStaggerAnimation(getBulkElements(repoFullName));
   let cancelled = false;
   const removal = anim.waitForCompletion().then(() => {
-    if (!cancelled) setRepoHidden(repoFullName, true);
+    if (!cancelled) hideBulkRows(repoFullName);
   });
 
   try {
     let response;
     try {
-      response = await sendMessage(messageType, { owner, repo });
+      response = await sendMessage(messageType, repoFullName === null ? {} : { owner, repo });
     } catch (error) {
       response = { success: false, error: error.message };
     }
@@ -775,22 +743,27 @@ async function handleMarkRepo(repoFullName, messageType) {
       filter.renderWithFiltered(nextNotifications, false);
       if (filter.isShowingFiltered()) await filter.renderFilteredInFilterView();
     }
-    setRepoHidden(repoFullName, false);
 
     if (!response.success) {
       const summary =
         isDone && response.totalCount > 0
           ? `Marked ${response.completedCount ?? 0} of ${response.totalCount} notifications as done; ${response.failedCount} not completed. `
           : "";
-      showMutationError(summary + (response.error || "Failed to update repository notifications"));
+      showMutationError(summary + (response.error || "Failed to update notifications"));
     }
   } catch (error) {
     cancelled = true;
     anim.rollback();
-    showMutationError(error.message || "Failed to update repository notifications");
+    showMutationError(error.message || "Failed to update notifications");
   } finally {
     cancelled = true;
-    setRepoBusy(repoFullName, false);
+    // Closed filtered lists retain their rows, so clear their animation markers too.
+    anim.rollback();
+    setBulkBusy(repoFullName, false);
+    if (globalButton) {
+      globalButton.replaceChildren(...originalNodes);
+      globalButton.removeAttribute("aria-busy");
+    }
     const visibleList = getNotificationFeedbackContainer();
     const visibleRepoLinks = [...visibleList.querySelectorAll(".repo-home-link")].filter(
       (link) => !link.closest("[hidden]"),
@@ -827,13 +800,14 @@ async function init() {
     notificationsList,
     emptyState,
     markAllBtn,
+    markAllDoneBtn,
     sendMessage,
     onUserAction: (duration) => {
       lastAnimationDuration = duration;
       lastUserActionTime = Date.now();
     },
-    onMarkRepoAsRead: (repo) => handleMarkRepo(repo, MESSAGE_TYPES.MARK_REPO_AS_READ),
-    onMarkRepoAsDone: (repo) => handleMarkRepo(repo, MESSAGE_TYPES.MARK_REPO_AS_DONE),
+    onMarkRepoAsRead: (repo) => handleBulkAction(repo, MESSAGE_TYPES.MARK_REPO_AS_READ),
+    onMarkRepoAsDone: (repo) => handleBulkAction(repo, MESSAGE_TYPES.MARK_REPO_AS_DONE),
     onMarkSuccess: filter.refreshFilteredBadge,
     onMutationError: showMutationError,
   });
@@ -894,7 +868,10 @@ patInput.addEventListener("input", () => {
 // Gist sync is wired up inside createSync (./sync.js).
 
 refreshBtn.addEventListener("click", refresh);
-markAllBtn.addEventListener("click", markAllAsRead);
+markAllBtn.addEventListener("click", () => handleBulkAction(null, MESSAGE_TYPES.MARK_ALL_AS_READ));
+markAllDoneBtn.addEventListener("click", () =>
+  handleBulkAction(null, MESSAGE_TYPES.MARK_ALL_AS_DONE),
+);
 
 // Open GitHub Notifications via tabs.create for consistent tab placement
 // Intercept all external links to open at the end of the tab strip

@@ -40,8 +40,12 @@ vi.mock("../src/lib/theme.js", () => ({
 
 vi.mock("../src/popup/notification-renderer.js", () => ({
   initRenderer: vi.fn(),
-  setRepoBusy: vi.fn(() => true),
-  setRepoHidden: vi.fn(),
+  setBulkBusy: vi.fn(() => true),
+  hideBulkRows: vi.fn(),
+  getBulkElements: (repo) => [
+    ...document.querySelectorAll(repo === null ? "[data-repo]" : `[data-repo="${repo}"]`),
+  ],
+  updateMarkAllButtons: vi.fn(),
   renderNotifications: vi.fn(),
   renderNotificationsInto: vi.fn(),
   groupByRepo: vi.fn().mockReturnValue({}),
@@ -107,6 +111,7 @@ function setupDOM() {
     <button id="settings-logout-btn"></button>
     <button id="refresh-btn"></button>
     <button id="mark-all-btn"></button>
+    <button id="mark-all-done-btn"></button>
     <span id="refresh-countdown"></span>
     <div id="username"></div>
     <img id="user-avatar" hidden />
@@ -165,6 +170,77 @@ describe("popup filter rules", () => {
     vi.useRealTimers();
   });
 
+  it.each([
+    ["mark-all-btn", "markAllAsRead"],
+    ["mark-all-done-btn", "markAllAsDone"],
+  ])(
+    "runs %s through the shared animation and refreshes actual results",
+    async (buttonId, action) => {
+      await loadPopup({ isAuthenticated: true });
+      const { runtime } = await import("../src/lib/chrome-api.js");
+      const { renderNotifications, setBulkBusy, hideBulkRows } =
+        await import("../src/popup/notification-renderer.js");
+      document.getElementById("notifications-list").innerHTML = `
+      <li class="repo-group-header" data-repo="owner/repo"></li>
+      <li class="notification-item" data-repo="owner/repo"></li>`;
+      let resolveMutation;
+      const remaining = [{ id: "new", title: "Arrived during the operation" }];
+      runtime.sendMessage.mockImplementation(({ action: message }) =>
+        message === action
+          ? new Promise((resolve) => {
+              resolveMutation = resolve;
+            })
+          : Promise.resolve({ notifications: remaining }),
+      );
+      renderNotifications.mockClear();
+      vi.useFakeTimers();
+      document.getElementById(buttonId).click();
+      expect(runtime.sendMessage).toHaveBeenCalledWith({ action });
+      expect(setBulkBusy).toHaveBeenCalledWith(null, true);
+      await vi.advanceTimersByTimeAsync(250);
+      expect(hideBulkRows).toHaveBeenCalledWith(null);
+      expect(renderNotifications).not.toHaveBeenCalled();
+      resolveMutation({ success: true, notifications: [] });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
+      expect(setBulkBusy).toHaveBeenLastCalledWith(null, false);
+    },
+  );
+
+  it("restores incomplete notifications and reports a partial global Done failure", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { renderNotifications, hideBulkRows, setBulkBusy } =
+      await import("../src/popup/notification-renderer.js");
+    const remaining = [{ id: "failed", title: "Incomplete notification" }];
+    let resolveMutation;
+    runtime.sendMessage.mockImplementation(({ action }) =>
+      action === "markAllAsDone"
+        ? new Promise((resolve) => {
+            resolveMutation = resolve;
+          })
+        : Promise.resolve({ notifications: remaining }),
+    );
+    vi.useFakeTimers();
+    document.getElementById("mark-all-done-btn").click();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(hideBulkRows).toHaveBeenCalledWith(null);
+    resolveMutation({
+      success: false,
+      completedCount: 2,
+      totalCount: 3,
+      failedCount: 1,
+      error: "HTTP 403",
+      notifications: remaining,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
+    expect(setBulkBusy).toHaveBeenLastCalledWith(null, false);
+    expect(document.querySelector('[role="alert"]').textContent).toContain(
+      "Marked 2 of 3 notifications as done; 1 not completed.",
+    );
+  });
+
   it("shows notification mutation errors in the main list when the filter drawer is closed", async () => {
     await loadPopup({ isAuthenticated: true });
     const { initRenderer } = await import("../src/popup/notification-renderer.js");
@@ -213,7 +289,7 @@ describe("popup filter rules", () => {
     async (callback, action) => {
       await loadPopup({ isAuthenticated: true });
       const { runtime } = await import("../src/lib/chrome-api.js");
-      const { initRenderer, renderNotifications, setRepoHidden, setRepoBusy } =
+      const { initRenderer, renderNotifications, hideBulkRows, setBulkBusy } =
         await import("../src/popup/notification-renderer.js");
       document.getElementById("notifications-list").innerHTML = `
       <li class="repo-group-header" data-repo="owner/repo"></li>
@@ -245,21 +321,92 @@ describe("popup filter rules", () => {
       expect(items[2].classList.contains("fade-out")).toBe(false);
       expect(renderNotifications).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(250);
-      expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
-      expect(setRepoBusy).not.toHaveBeenCalledWith("owner/repo", false);
+      expect(hideBulkRows).toHaveBeenCalledWith("owner/repo");
+      expect(setBulkBusy).not.toHaveBeenCalledWith("owner/repo", false);
       expect(renderNotifications).not.toHaveBeenCalled();
       resolveMutation({ success: true, notifications: [] });
       await operation;
       expect(renderNotifications).toHaveBeenCalledWith([], false);
-      expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
-      expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+      expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    },
+  );
+
+  it.each([
+    ["onMarkRepoAsRead", null],
+    ["onMarkRepoAsDone", null],
+    [null, "mark-all-btn"],
+    [null, "mark-all-done-btn"],
+  ])(
+    "releases global actions after %s/%s succeeds with a closed filtered list",
+    async (callback, buttonId) => {
+      const renderer = await import("../src/popup/notification-renderer.js");
+      const actual = await vi.importActual("../src/popup/notification-renderer.js");
+      const restorers = [];
+      for (const name of [
+        "initRenderer",
+        "renderNotifications",
+        "renderNotificationsInto",
+        "groupByRepo",
+        "clearNotificationCache",
+        "setBulkBusy",
+        "hideBulkRows",
+        "updateMarkAllButtons",
+      ]) {
+        const previous = renderer[name].getMockImplementation();
+        renderer[name].mockImplementation(actual[name]);
+        restorers.push(() => renderer[name].mockImplementation(previous));
+      }
+      try {
+        await loadPopup({ isAuthenticated: true });
+        const { runtime } = await import("../src/lib/chrome-api.js");
+        const makeNotification = (id, repo) => ({
+          id,
+          title: `Notification ${id}`,
+          unread: true,
+          type: "Issue",
+          icon: "issue",
+          reason: "mention",
+          updated_at: "2026-10-15T00:00:00Z",
+          repository: { full_name: repo },
+        });
+        const visible = makeNotification("1", "owner/repo");
+        const filtered = { ...makeNotification("2", "owner/repo"), matchedRules: [0] };
+        const remaining = makeNotification("3", "owner/other");
+        const loaded = callback ? [visible, remaining] : [visible];
+        actual.renderNotifications(loaded);
+        actual.renderNotificationsInto(
+          document.getElementById("notifications-list-filtered"),
+          actual.groupByRepo([filtered]),
+        );
+        actual.updateMarkAllButtons([...loaded, filtered]);
+        const oldFilteredRows = [
+          ...document.querySelectorAll("#notifications-list-filtered [data-repo]"),
+        ];
+        expect(oldFilteredRows[0].closest("[hidden]")).not.toBeNull();
+        runtime.sendMessage.mockResolvedValue({ success: true, notifications: [remaining] });
+        vi.useFakeTimers();
+        const operation = callback
+          ? renderer.initRenderer.mock.calls[0][0][callback]("owner/repo")
+          : document.getElementById(buttonId).click();
+        expect(oldFilteredRows.every((row) => row.classList.contains("marking-read"))).toBe(true);
+        await vi.advanceTimersByTimeAsync(500);
+        await operation;
+        expect(document.getElementById("mark-all-btn").disabled).toBe(false);
+        expect(document.getElementById("mark-all-done-btn").disabled).toBe(false);
+        expect(document.querySelector(".marking-read, .fade-out")).toBeNull();
+        expect(actual.setBulkBusy(null, true)).toBe(true);
+      } finally {
+        actual.setBulkBusy("owner/repo", false);
+        actual.setBulkBusy(null, false);
+        restorers.forEach((restore) => restore());
+      }
     },
   );
 
   it("finishes the animation before refreshing when repository Done succeeds immediately", async () => {
     await loadPopup({ isAuthenticated: true });
     const { runtime } = await import("../src/lib/chrome-api.js");
-    const { initRenderer, renderNotifications, setRepoHidden } =
+    const { initRenderer, renderNotifications, hideBulkRows, setBulkBusy } =
       await import("../src/popup/notification-renderer.js");
     document.getElementById("notifications-list").innerHTML =
       '<li class="repo-group-header" data-repo="owner/repo"></li>';
@@ -269,12 +416,12 @@ describe("popup filter rules", () => {
 
     const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
     await vi.advanceTimersByTimeAsync(199);
-    expect(setRepoHidden).not.toHaveBeenCalled();
+    expect(hideBulkRows).not.toHaveBeenCalled();
     expect(renderNotifications).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     await operation;
-    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
-    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(hideBulkRows).toHaveBeenCalledWith("owner/repo");
+    expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
     expect(renderNotifications).toHaveBeenCalledWith([], false);
   });
 
@@ -305,7 +452,7 @@ describe("popup filter rules", () => {
   it("restores the incomplete result after a slow repository Done partially fails", async () => {
     await loadPopup({ isAuthenticated: true });
     const { runtime } = await import("../src/lib/chrome-api.js");
-    const { initRenderer, renderNotifications, setRepoHidden } =
+    const { initRenderer, renderNotifications, hideBulkRows, setBulkBusy } =
       await import("../src/popup/notification-renderer.js");
     const remaining = [{ id: "2", title: "Incomplete notification" }];
     let resolveMutation;
@@ -321,7 +468,7 @@ describe("popup filter rules", () => {
 
     const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
     await vi.advanceTimersByTimeAsync(500);
-    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+    expect(hideBulkRows).toHaveBeenCalledWith("owner/repo");
     expect(renderNotifications).not.toHaveBeenCalled();
     resolveMutation({
       success: false,
@@ -332,7 +479,7 @@ describe("popup filter rules", () => {
       error: "HTTP 403",
     });
     await operation;
-    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
     expect(renderNotifications).toHaveBeenCalledWith(remaining, false);
     expect(document.querySelector('[role="alert"]').textContent).toContain("1 not completed");
     await vi.advanceTimersByTimeAsync(5000);
@@ -342,7 +489,7 @@ describe("popup filter rules", () => {
     await loadPopup({ isAuthenticated: true });
     const { runtime } = await import("../src/lib/chrome-api.js");
     const storage = await import("../src/lib/storage.js");
-    const { initRenderer, renderNotifications, setRepoHidden, setRepoBusy } =
+    const { initRenderer, renderNotifications, hideBulkRows, setBulkBusy } =
       await import("../src/popup/notification-renderer.js");
     const remaining = [{ id: "2", title: "Still unread locally" }];
     storage.getNotifications.mockResolvedValueOnce(remaining);
@@ -358,12 +505,11 @@ describe("popup filter rules", () => {
 
     const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
     await vi.advanceTimersByTimeAsync(500);
-    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+    expect(hideBulkRows).toHaveBeenCalledWith("owner/repo");
     rejectMutation(new Error("Worker disconnected"));
     await operation;
     expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
-    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
-    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
     expect(document.querySelector('[role="alert"]').textContent).toBe("Worker disconnected");
     await vi.advanceTimersByTimeAsync(5000);
   });
@@ -371,7 +517,7 @@ describe("popup filter rules", () => {
   it("renders the latest state and reports only the incomplete part of repository Done", async () => {
     await loadPopup({ isAuthenticated: true });
     const { runtime } = await import("../src/lib/chrome-api.js");
-    const { initRenderer, renderNotifications, setRepoBusy, setRepoHidden } =
+    const { initRenderer, renderNotifications, setBulkBusy, hideBulkRows } =
       await import("../src/popup/notification-renderer.js");
     const { onMarkRepoAsDone } = initRenderer.mock.calls[0][0];
     const remaining = [{ id: "2", title: "Failed notification" }];
@@ -403,8 +549,8 @@ describe("popup filter rules", () => {
       repo: "repo",
     });
     expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
-    expect(setRepoBusy).toHaveBeenCalledWith("owner/repo", true);
-    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(setBulkBusy).toHaveBeenCalledWith("owner/repo", true);
+    expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
     expect(document.activeElement).toBe(document.querySelector(".repo-home-link"));
     expect(document.querySelector(".marking-read, .fade-out")).toBeNull();
     expect(document.querySelector('[role="alert"]').textContent).toContain(
@@ -413,7 +559,7 @@ describe("popup filter rules", () => {
     expect(document.querySelector('[role="alert"]').textContent).toContain("403");
     await vi.advanceTimersByTimeAsync(5000);
     expect(document.querySelector(".marking-read, .fade-out")).toBeNull();
-    expect(setRepoHidden).not.toHaveBeenCalledWith("owner/repo", true);
+    expect(hideBulkRows).not.toHaveBeenCalled();
   });
 
   it("keeps repository errors visible if the filtered drawer becomes empty", async () => {
@@ -456,14 +602,14 @@ describe("popup filter rules", () => {
   it("unlocks a repository when the worker cannot be reached", async () => {
     await loadPopup({ isAuthenticated: true });
     const { runtime } = await import("../src/lib/chrome-api.js");
-    const { initRenderer, setRepoBusy } = await import("../src/popup/notification-renderer.js");
+    const { initRenderer, setBulkBusy } = await import("../src/popup/notification-renderer.js");
     const { onMarkRepoAsDone } = initRenderer.mock.calls[0][0];
     runtime.sendMessage.mockRejectedValueOnce(new Error("Worker disconnected"));
     vi.useFakeTimers();
 
     await onMarkRepoAsDone("owner/repo");
 
-    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(setBulkBusy).toHaveBeenLastCalledWith("owner/repo", false);
     expect(document.querySelector('[role="alert"]').textContent).toBe("Worker disconnected");
     vi.advanceTimersByTime(5000);
   });

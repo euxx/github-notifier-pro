@@ -397,7 +397,7 @@ body.dark-theme .pat-input.input-error {
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  padding-right: calc(16px + var(--scrollbar-compensation, 0px));
+  padding-right: calc(10px + var(--scrollbar-compensation, 0px));
   border-bottom: 1px solid var(--list-divider);
 }
 
@@ -471,7 +471,7 @@ body.dark-theme .pat-input.input-error {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .refresh-countdown {
@@ -481,9 +481,10 @@ body.dark-theme .pat-input.input-error {
   white-space: nowrap;
 }
 
-#mark-all-btn {
-  margin-right: -1px;
-  margin-bottom: 1px;
+#mark-all-btn,
+#mark-all-done-btn {
+  width: 28px;
+  flex-shrink: 0;
 }
 
 /* Notifications */
@@ -593,7 +594,7 @@ body.dark-theme .pat-input.input-error {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
   min-width: 60px;
   height: 24px;
 }
@@ -873,7 +874,7 @@ body.dark-theme .pat-input.input-error {
   text-decoration: none;
   align-items: center;
   border-radius: 999px;
-  margin-right: auto;
+  margin-right: -4px;
 }
 
 .author-profile-link:focus-visible {
@@ -937,7 +938,7 @@ button.notification-comments--link:focus-visible {
 
   /* Keep the avatar clear of both actions even while the time is hidden. */
   .notification-meta:has(.author-profile-link) {
-    min-width: 84px;
+    min-width: 80px;
   }
 }
 
@@ -963,7 +964,7 @@ button.notification-comments--link:focus-visible {
     }
 
     .notification-meta:has(.author-profile-link) {
-      min-width: 84px;
+      min-width: 80px;
     }
   }
 
@@ -989,7 +990,7 @@ button.notification-comments--link:focus-visible {
 .notification-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   position: absolute;
   right: 10px;
   z-index: 2;

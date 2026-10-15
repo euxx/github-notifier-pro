@@ -146,6 +146,7 @@ vi.mock("../src/lib/constants.js", () => ({
     MARK_AS_READ: "markAsRead",
     MARK_AS_DONE: "markAsDone",
     MARK_ALL_AS_READ: "markAllAsRead",
+    MARK_ALL_AS_DONE: "markAllAsDone",
     MARK_REPO_AS_READ: "markRepoAsRead",
     MARK_REPO_AS_DONE: "markRepoAsDone",
     REFRESH: "refresh",
@@ -927,6 +928,364 @@ describe("service-worker", () => {
     });
   });
 
+  describe("handleMessage - MARK_ALL_AS_DONE", () => {
+    let stored;
+    const request = { action: "markAllAsDone" };
+
+    beforeEach(() => {
+      mockGithub.token = "original-token";
+      mockGithub.isAuthenticated = true;
+      stored = ["1", "2", "3", "4", "5"].map((id, index) => ({
+        id,
+        unread: true,
+        repository: { full_name: index < 3 ? "owner/repo" : "other/repo" },
+      }));
+      stored[1].matchedRules = [0];
+      mockStorageFunctions.getNotifications.mockImplementation(async () => structuredClone(stored));
+      mockStorageFunctions.setNotifications.mockImplementation(async (next) => {
+        stored = structuredClone(next);
+      });
+      mockGithub.markAsDone.mockResolvedValue(true);
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.markAllAsRead.mockResolvedValue(true);
+      mockGithub.markRepoAsRead.mockResolvedValue(true);
+    });
+
+    it("completes one loaded unread snapshot across repositories with a total of three in flight", async () => {
+      stored.push({ id: "read", unread: false, repository: { full_name: "owner/repo" } });
+      const resolvers = [];
+      mockGithub.markAsDone.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve)),
+      );
+      const operation = callHandler(request);
+      await vi.waitFor(() => expect(resolvers).toHaveLength(3));
+      stored.push({ id: "new", unread: true, repository: { full_name: "owner/repo" } });
+      resolvers.slice(0, 3).forEach((resolve) => resolve(true));
+      await vi.waitFor(() => expect(resolvers).toHaveLength(5));
+      expect(stored.map((n) => n.id)).toEqual(["4", "5", "read", "new"]);
+      resolvers.slice(3).forEach((resolve) => resolve(true));
+      expect(await operation).toEqual({
+        success: true,
+        notifications: stored,
+        completedCount: 5,
+        totalCount: 5,
+        failedCount: 0,
+      });
+      expect(stored.map((n) => n.id)).toEqual(["read", "new"]);
+      expect(mockGithub.markAsDone.mock.calls.map(([id]) => id)).toEqual(["1", "2", "3", "4", "5"]);
+      expect(mockGithub.getNotifications).not.toHaveBeenCalled();
+    });
+
+    it("reports partial completion and releases the global action after failure", async () => {
+      mockGithub.markAsDone.mockImplementation(async (id) => {
+        if (id === "2") throw new Error("Request timeout");
+        return true;
+      });
+      expect(await callHandler(request)).toMatchObject({
+        success: false,
+        completedCount: 4,
+        failedCount: 1,
+      });
+      expect(stored.map((n) => n.id)).toEqual(["2"]);
+      expect(await callHandler({ action: "markAsRead", notificationId: "2" })).toEqual({
+        success: true,
+      });
+    });
+
+    it("does nothing for an empty unread snapshot", async () => {
+      stored = [{ id: "read", unread: false }];
+      expect(await callHandler(request)).toMatchObject({
+        success: true,
+        completedCount: 0,
+        totalCount: 0,
+        failedCount: 0,
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
+    });
+
+    it("shares repeated global requests without running the snapshot twice", async () => {
+      let finishReading;
+      mockStorageFunctions.getNotifications.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishReading = resolve;
+          }),
+      );
+      const first = callHandler(request);
+      const second = callHandler(request);
+      finishReading(stored);
+      expect(await first).toEqual(await second);
+      expect(mockGithub.markAsDone).toHaveBeenCalledTimes(5);
+    });
+
+    const conflictingActions = [
+      { action: "markAsRead", notificationId: "1" },
+      { action: "markAsDone", notificationId: "1" },
+      { action: "markAllAsRead" },
+      { action: "markRepoAsRead", owner: "owner", repo: "repo" },
+      { action: "markRepoAsDone", owner: "owner", repo: "repo" },
+    ];
+    const navigationActions = [
+      { action: "openNotification", notificationId: "1" },
+      { action: "openLatestComment", notificationId: "1" },
+    ];
+
+    it.each(conflictingActions)("rejects $action while global Done is active", async (action) => {
+      stored = stored.slice(0, 1);
+      let finish;
+      mockGithub.markAsDone.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const operation = callHandler(request);
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      expect(await callHandler(action)).toMatchObject({
+        success: false,
+        error: expect.stringContaining("in progress"),
+      });
+      expect(mockGithub.markAsDone).toHaveBeenCalledTimes(1);
+      expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+      expect(mockGithub.markAllAsRead).not.toHaveBeenCalled();
+      expect(mockGithub.markRepoAsRead).not.toHaveBeenCalled();
+      expect(mockTabs.create).not.toHaveBeenCalled();
+      finish(true);
+      expect(await operation).toMatchObject({ success: true });
+    });
+
+    it.each([...conflictingActions, ...navigationActions])(
+      "rejects global Done while $action is active",
+      async (action) => {
+        stored = stored.slice(0, 1);
+        let finish;
+        const pending = () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          });
+        mockGithub.markAsDone.mockImplementation(pending);
+        mockGithub.markAsRead.mockImplementation(pending);
+        mockGithub.markAllAsRead.mockImplementation(pending);
+        mockGithub.markRepoAsRead.mockImplementation(pending);
+        const operation = callHandler(action);
+        await vi.waitFor(() => expect(finish).toBeDefined());
+        expect(await callHandler(request)).toMatchObject({
+          success: false,
+          error: expect.stringContaining("in progress"),
+        });
+        finish(true);
+        expect(await operation).toMatchObject({ success: true });
+      },
+    );
+
+    it.each(navigationActions)(
+      "allows $action during global Done without marking read",
+      async (action) => {
+        stored = stored.slice(0, 1);
+        let finish;
+        mockGithub.markAsDone.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+        );
+        const operation = callHandler(request);
+        await vi.waitFor(() => expect(finish).toBeDefined());
+        expect(await callHandler(action)).toMatchObject({ success: true });
+        expect(mockTabs.create).toHaveBeenCalledTimes(1);
+        expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+        expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+        finish(true);
+        await operation;
+      },
+    );
+
+    it.each(navigationActions)(
+      "does not reserve the mutation lock while $action waits for stored data",
+      async (action) => {
+        stored = stored.slice(0, 1);
+        let finishReading;
+        mockStorageFunctions.getNotifications.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishReading = resolve;
+            }),
+        );
+        const navigation = callHandler(action);
+        let finishDone;
+        mockGithub.markAsDone.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishDone = resolve;
+            }),
+        );
+        const operation = callHandler(request);
+        await vi.waitFor(() => expect(finishDone).toBeDefined());
+        finishReading(structuredClone(stored));
+        expect(await navigation).toMatchObject({ success: true });
+        expect(mockTabs.create).toHaveBeenCalledTimes(1);
+        expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+        finishDone(true);
+        expect(await operation).toMatchObject({ success: true });
+      },
+    );
+
+    it("does not reserve the mutation lock while the latest comment URL is loading", async () => {
+      stored = stored.slice(0, 1);
+      let finishComment;
+      mockGithub.getLatestCommentUrl.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishComment = resolve;
+          }),
+      );
+      const navigation = callHandler({ action: "openLatestComment", notificationId: "1" });
+      await vi.waitFor(() => expect(finishComment).toBeDefined());
+      let finishDone;
+      mockGithub.markAsDone.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishDone = resolve;
+          }),
+      );
+      const operation = callHandler(request);
+      await vi.waitFor(() => expect(finishDone).toBeDefined());
+      finishComment("https://github.com/owner/repo/issues/1#issuecomment-123");
+      expect(await navigation).toMatchObject({ success: true });
+      expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+      finishDone(true);
+      expect(await operation).toMatchObject({ success: true });
+    });
+
+    it("opens desktop notifications during global Done without overlapping mutations", async () => {
+      stored = stored.slice(0, 1);
+      let finish;
+      mockGithub.markAsDone.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const operation = callHandler(request);
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      await notificationClickHandler(`${NOTIFICATION_ID_PREFIX}1`);
+      expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+      expect(mockTabs.create).toHaveBeenCalledTimes(1);
+      expect(mockNotifications.clear).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}1`);
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+      expect(stored.map((n) => n.id)).toEqual(["1"]);
+      finish(true);
+      await operation;
+    });
+
+    it("does not share an old session's global request or let its completion unlock the new request", async () => {
+      stored = stored.slice(0, 1);
+      const resolvers = [];
+      mockGithub.markAsDone.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve)),
+      );
+      const oldOperation = callHandler(request);
+      await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+      await callHandler({ action: "logout" });
+      mockGithub.token = "original-token";
+      const newOperation = callHandler(request);
+      await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+      resolvers[0](true);
+      expect(await oldOperation).toMatchObject({
+        success: false,
+        error: expect.stringContaining("Authentication changed"),
+      });
+      expect(await callHandler({ action: "markAsRead", notificationId: "1" })).toMatchObject({
+        success: false,
+        error: expect.stringContaining("in progress"),
+      });
+      resolvers[1](true);
+      expect(await newOperation).toMatchObject({ success: true, completedCount: 1 });
+    });
+
+    it("ignores old session mutations when starting global Done and keeps the new request locked", async () => {
+      stored = stored.slice(0, 1);
+      let rejectOld;
+      mockGithub.markAsRead.mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOld = reject;
+          }),
+      );
+      const oldOperation = callHandler({ action: "markAsRead", notificationId: "1" });
+      await vi.waitFor(() => expect(rejectOld).toBeDefined());
+      await callHandler({ action: "logout" });
+      mockGithub.token = "original-token";
+      let finishNew;
+      mockGithub.markAsDone.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNew = resolve;
+          }),
+      );
+      const newOperation = callHandler(request);
+      await vi.waitFor(() => expect(finishNew).toBeDefined());
+      rejectOld(new Error("Authentication changed"));
+      expect(await oldOperation).toMatchObject({ success: false });
+      expect(await callHandler({ action: "markAsRead", notificationId: "1" })).toMatchObject({
+        success: false,
+        error: expect.stringContaining("in progress"),
+      });
+      finishNew(true);
+      expect(await newOperation).toMatchObject({ success: true });
+    });
+
+    it("does not decrement a new session's active mutation count when an old mutation finishes", async () => {
+      stored = stored.slice(0, 1);
+      let rejectOld;
+      let finishNew;
+      mockGithub.markAsRead
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectOld = reject;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishNew = resolve;
+            }),
+        );
+      const oldOperation = callHandler({ action: "markAsRead", notificationId: "1" });
+      await vi.waitFor(() => expect(rejectOld).toBeDefined());
+      await callHandler({ action: "logout" });
+      mockGithub.token = "original-token";
+      const newOperation = callHandler({ action: "markAsRead", notificationId: "1" });
+      await vi.waitFor(() => expect(finishNew).toBeDefined());
+      rejectOld(new Error("Authentication changed"));
+      await oldOperation;
+      expect(await callHandler(request)).toMatchObject({
+        success: false,
+        error: expect.stringContaining("in progress"),
+      });
+      finishNew(true);
+      expect(await newOperation).toEqual({ success: true });
+      expect(await callHandler(request)).toMatchObject({ success: true });
+    });
+
+    it("preserves concurrent Done operations for different repositories", async () => {
+      stored = [stored[0], stored[3]];
+      const resolvers = [];
+      mockGithub.markAsDone.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve)),
+      );
+      const first = callHandler({ action: "markRepoAsDone", owner: "owner", repo: "repo" });
+      const second = callHandler({ action: "markRepoAsDone", owner: "other", repo: "repo" });
+      await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+      expect(await callHandler(request)).toMatchObject({ success: false });
+      resolvers.forEach((resolve) => resolve(true));
+      expect(await first).toMatchObject({ success: true });
+      expect(await second).toMatchObject({ success: true });
+      expect(stored).toEqual([]);
+    });
+  });
+
   describe("handleMessage - MARK_REPO_AS_READ", () => {
     it("should mark repository notifications as read", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
@@ -1177,35 +1536,41 @@ describe("service-worker helper functions", () => {
       expect(mockTabs.create).toHaveBeenCalledWith({ url: GITHUB_NOTIFICATIONS_URL });
     });
 
-    it("should handle individual notification click", async () => {
-      const testNotification = {
-        id: "123",
-        subject: {
-          title: "Test PR",
-          url: "https://api.github.com/repos/owner/repo/pulls/456",
-          type: "PullRequest",
-        },
-        repository: { full_name: "owner/repo", html_url: "https://github.com/owner/repo" },
-      };
+    it.each([false, true])(
+      "handles individual navigation and removes locally before the Read API (failure: %s)",
+      async (fails) => {
+        const testNotification = {
+          id: "123",
+          subject: {
+            title: "Test PR",
+            url: "https://api.github.com/repos/owner/repo/pulls/456",
+            type: "PullRequest",
+          },
+          repository: { full_name: "owner/repo", html_url: "https://github.com/owner/repo" },
+        };
 
-      mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
-      mockGithub.markAsRead.mockResolvedValue(undefined);
+        mockStorageFunctions.getNotifications.mockResolvedValue([testNotification]);
+        mockGithub.markAsRead.mockImplementationOnce(async () => {
+          expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
+          if (fails) throw new Error("Request failed");
+        });
 
-      // Click the individual notification
-      await clickNotification(`${NOTIFICATION_ID_PREFIX}123`);
+        // Click the individual notification
+        await clickNotification(`${NOTIFICATION_ID_PREFIX}123`);
 
-      // Should clear the notification
-      expect(mockNotifications.clear).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}123`);
+        // Should clear the notification
+        expect(mockNotifications.clear).toHaveBeenCalledWith(`${NOTIFICATION_ID_PREFIX}123`);
 
-      // Should open the repository URL (since subject.url is an API URL, it falls back to repo URL)
-      expect(mockTabs.create).toHaveBeenCalledWith({ url: "https://github.com/owner/repo" });
+        // Should open the repository URL (since subject.url is an API URL, it falls back to repo URL)
+        expect(mockTabs.create).toHaveBeenCalledWith({ url: "https://github.com/owner/repo" });
 
-      // Should mark as read
-      expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
+        // Should mark as read
+        expect(mockGithub.markAsRead).toHaveBeenCalledWith("123");
 
-      // Should remove from storage
-      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
-    });
+        // Should remove from storage
+        expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
+      },
+    );
 
     it("should continue opening tab even if clear fails on aggregated notification", async () => {
       // Make clear fail

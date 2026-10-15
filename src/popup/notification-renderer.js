@@ -57,13 +57,16 @@ export function truncateReleaseBody(body, maxLength = 200) {
 let cachedNotifications = null;
 let cachedNotificationsHash = null;
 let cachedRepoOrder = [];
+// A null scope represents an operation on all loaded notifications.
 const busyRepos = new Map();
+let hasLoadedUnread = false;
 
 // Runtime configuration (set via initRenderer)
 let config = {
   notificationsList: null,
   emptyState: null,
   markAllBtn: null,
+  markAllDoneBtn: null,
   sendMessage: async () => {},
   onUserAction: () => {},
   onMarkRepoAsRead: () => {},
@@ -92,7 +95,8 @@ function createMarkButton({ className, label, icon, title = label }) {
 
 function applyRepoBusy(element, busy) {
   element.classList.toggle("repo-processing", busy);
-  element.hidden = busy && busyRepos.get(element.dataset.repo) === "hidden";
+  element.hidden =
+    busy && (busyRepos.get(null) || busyRepos.get(element.dataset.repo)) === "hidden";
   if (busy) element.setAttribute("aria-busy", "true");
   else element.removeAttribute("aria-busy");
   for (const button of element.querySelectorAll("button")) {
@@ -100,33 +104,51 @@ function applyRepoBusy(element, busy) {
   }
 }
 
-/** Keep a repository locked across main/filtered list re-renders. */
-export function setRepoBusy(repoFullName, busy) {
-  const escaped = CSS.escape(repoFullName);
-  const elements = [...document.querySelectorAll(`[data-repo="${escaped}"]`)];
-  if (
-    busy &&
-    (busyRepos.has(repoFullName) || elements.some((el) => el.classList.contains("marking-read")))
-  ) {
-    return false;
-  }
-  if (busy) busyRepos.set(repoFullName, "animating");
-  else busyRepos.delete(repoFullName);
-  for (const element of elements) applyRepoBusy(element, busy);
+function isBusy(repoFullName) {
+  return busyRepos.has(null) || busyRepos.has(repoFullName);
+}
+
+export function getBulkElements(repoFullName) {
+  return [
+    ...document.querySelectorAll(
+      repoFullName === null ? "[data-repo]" : `[data-repo="${CSS.escape(repoFullName)}"]`,
+    ),
+  ];
+}
+
+/** Refresh global actions using the complete loaded list, including filtered items. */
+export function updateMarkAllButtons(notifications) {
+  if (notifications) hasLoadedUnread = notifications.some((n) => n.unread !== false);
+  const busy = busyRepos.size > 0 || !!document.querySelector(".marking-read");
   if (config.markAllBtn) {
     config.markAllBtn.disabled =
-      busyRepos.size > 0 || !config.notificationsList?.querySelector(".notification-item");
+      busy || !config.notificationsList?.querySelector(".notification-item");
   }
+  if (config.markAllDoneBtn) config.markAllDoneBtn.disabled = busy || !hasLoadedUnread;
+}
+
+/** Keep a repository, or all notifications for a null scope, locked across re-renders. */
+export function setBulkBusy(repoFullName, busy) {
+  const elements = getBulkElements(repoFullName);
+  if (
+    busy &&
+    (isBusy(repoFullName) ||
+      (repoFullName === null && busyRepos.size > 0) ||
+      elements.some((el) => el.classList.contains("marking-read")))
+  )
+    return false;
+  if (busy) busyRepos.set(repoFullName, "animating");
+  else busyRepos.delete(repoFullName);
+  for (const element of elements) applyRepoBusy(element, isBusy(element.dataset.repo));
+  updateMarkAllButtons();
   return true;
 }
 
 /** Keep animated rows collapsed across re-renders until their result is ready. */
-export function setRepoHidden(repoFullName, hidden) {
+export function hideBulkRows(repoFullName) {
   if (!busyRepos.has(repoFullName)) return;
-  busyRepos.set(repoFullName, hidden ? "hidden" : "animating");
-  for (const element of document.querySelectorAll(`[data-repo="${CSS.escape(repoFullName)}"]`)) {
-    applyRepoBusy(element, true);
-  }
+  busyRepos.set(repoFullName, "hidden");
+  for (const element of getBulkElements(repoFullName)) applyRepoBusy(element, true);
 }
 
 /**
@@ -380,7 +402,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     if (
       e.target.closest(".notification-actions") ||
       e.target.closest("a") ||
-      busyRepos.has(repoFullName) ||
+      isBusy(repoFullName) ||
       li.classList.contains("marking-read")
     ) {
       return;
@@ -392,11 +414,12 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   async function markNotification(e, messageType) {
     e.stopPropagation();
 
-    if (li.classList.contains("marking-read") || busyRepos.has(repoFullName)) {
+    if (li.classList.contains("marking-read") || isBusy(repoFullName)) {
       return;
     }
 
     li.classList.add("marking-read");
+    updateMarkAllButtons();
     markReadBtn.disabled = true;
     markDoneBtn.disabled = true;
 
@@ -463,13 +486,15 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     } catch (error) {
       restoreItem();
       config.onMutationError(error.message || "Failed to update notification");
+    } finally {
+      updateMarkAllButtons();
     }
   }
 
   markReadBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_READ));
   markDoneBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_DONE));
 
-  if (busyRepos.has(repoFullName)) applyRepoBusy(li, true);
+  if (isBusy(repoFullName)) applyRepoBusy(li, true);
   return li;
 }
 
@@ -587,7 +612,7 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
       config.onMarkRepoAsDone(repoFullName);
     });
 
-    if (busyRepos.has(repoFullName)) applyRepoBusy(repoHeader, true);
+    if (isBusy(repoFullName)) applyRepoBusy(repoHeader, true);
     container.appendChild(repoHeader);
     for (const notif of group.notifications) {
       const li = createNotificationItem(notif, repoHeader, repoFullName);
@@ -615,7 +640,6 @@ export function renderNotifications(notifications, shouldResort = true) {
   }
 
   emptyState.hidden = true;
-  markAllBtn.disabled = busyRepos.size > 0;
 
   const grouped = groupByRepo(notifications);
 
@@ -636,4 +660,5 @@ export function renderNotifications(notifications, shouldResort = true) {
   }
 
   renderNotificationsInto(notificationsList, grouped, sortedRepos);
+  updateMarkAllButtons();
 }

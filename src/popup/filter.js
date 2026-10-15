@@ -18,6 +18,7 @@ import {
   renderNotifications,
   renderNotificationsInto,
   groupByRepo,
+  updateMarkAllButtons,
 } from "./notification-renderer.js";
 
 const DELETE_CONFIRMATION_TIMEOUT_MS = 5000;
@@ -598,10 +599,12 @@ export function createFilter(deps) {
     }
     renderNotifications(visible, shouldResort);
     updateFilteredBadge(filtered.length);
+    updateMarkAllButtons(notifications);
   }
 
   async function refreshFilteredBadge() {
     const stored = await storage.getNotifications();
+    updateMarkAllButtons(stored);
     const filtered = stored.filter((n) => !isVisible(n));
     updateFilteredBadge(filtered.length);
     return filtered;
@@ -692,11 +695,6 @@ export function createFilter(deps) {
     }
   }
 
-  // ─── Mark-all-as-read cleanup hook ────────────────────────────────────
-  function clearFilteredAfterMarkAll() {
-    updateFilteredBadge(0);
-  }
-
   // ─── Event wiring ─────────────────────────────────────────────────────
   filterIconBtn?.addEventListener("click", show);
   filterCountBadge?.addEventListener("click", toggleFilteredInFilterView);
@@ -727,7 +725,6 @@ export function createFilter(deps) {
     renderFilteredInFilterView,
     updateFilterIndicator,
     handleStorageChange,
-    clearFilteredAfterMarkAll,
     async applyPulledFilter(rules) {
       currentFilterRules = rules;
       try {

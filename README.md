@@ -13,7 +13,7 @@
 - 🔔 Real-time unread count badge and desktop notifications
 - 📋 Issues, PRs, Releases, and all types with rich details
 - ✅ Mark as read per notification, per repository, or all at once
-- ☑️ Mark as done per notification or per repository
+- ☑️ Mark as done per notification, per repository, or all at once
 - 🔐 OAuth Device Flow or Personal Access Token authentication
 - ✨ Clean, minimal UI — feature-rich without the clutter
 - 🎨 Light / Dark / System theme with adjustable popup width
@@ -27,6 +27,8 @@
 
 1. **OAuth (recommended)** — Click "Sign in with GitHub", enter the code on GitHub
 2. **Personal Access Token** — Generate a token with `repo` and `notifications` scopes at [GitHub Settings](https://github.com/settings/tokens)
+
+Use **Mark as done** on a notification, repository, or the toolbar to move notifications to GitHub's Done inbox. Repository and all-at-once Done actions process the unread notifications loaded when the action starts, including those hidden by filters. Failed items remain available for retry.
 
 ## Development
 

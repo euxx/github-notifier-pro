@@ -263,6 +263,9 @@ async function handleMessage(message) {
     case MESSAGE_TYPES.MARK_AS_DONE:
       return await markNotification(message.notificationId, message.action);
 
+    case MESSAGE_TYPES.MARK_ALL_AS_DONE:
+      return await markAllAsDone();
+
     case MESSAGE_TYPES.MARK_ALL_AS_READ:
       return await markAllAsRead();
 
@@ -568,24 +571,52 @@ function removeStoredNotifications(predicate, { all = false, isCurrent = () => t
   return mutation;
 }
 
-async function markNotification(notificationId, action = MESSAGE_TYPES.MARK_AS_READ) {
-  const isDone = action === MESSAGE_TYPES.MARK_AS_DONE;
-  try {
-    if (isDone) {
-      const notification = (await storage.getNotifications()).find((n) => n.id === notificationId);
-      if (!notification) return { success: false, error: "Notification not found" };
-      await github.markAsDone(notificationId);
-      github.lastModified = null;
-      github.lastModifiedAt = null;
-    } else {
-      await github.markAsRead(notificationId);
-    }
-    await removeStoredNotifications((n) => n.id === notificationId);
-    return { success: true };
-  } catch (error) {
-    console.error(`Failed to mark as ${isDone ? "done" : "read"}:`, error);
-    return { success: false, error: error.message };
+let notificationMutationSession = null;
+
+function getNotificationMutationSession() {
+  if (notificationMutationSession?.generation !== authGeneration) {
+    notificationMutationSession = { generation: authGeneration, active: 0, allDone: null };
   }
+  return notificationMutationSession;
+}
+
+function mutationConflict() {
+  return { success: false, error: "Another notification action is in progress. Please try again." };
+}
+
+async function runNotificationMutation(operation) {
+  const session = getNotificationMutationSession();
+  if (session.allDone) return mutationConflict();
+  session.active++;
+  try {
+    return await operation();
+  } finally {
+    session.active--;
+  }
+}
+
+function markNotification(notificationId, action = MESSAGE_TYPES.MARK_AS_READ) {
+  return runNotificationMutation(async () => {
+    const isDone = action === MESSAGE_TYPES.MARK_AS_DONE;
+    try {
+      if (isDone) {
+        const notification = (await storage.getNotifications()).find(
+          (n) => n.id === notificationId,
+        );
+        if (!notification) return { success: false, error: "Notification not found" };
+        await github.markAsDone(notificationId);
+        github.lastModified = null;
+        github.lastModifiedAt = null;
+      } else {
+        await github.markAsRead(notificationId);
+      }
+      await removeStoredNotifications((n) => n.id === notificationId);
+      return { success: true };
+    } catch (error) {
+      console.error(`Failed to mark as ${isDone ? "done" : "read"}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 async function recalcFilterStats(notifs) {
@@ -598,28 +629,32 @@ async function recalcFilterStats(notifs) {
   await storage.setNotificationFilterStats(stats);
 }
 
-async function markAllAsRead() {
-  try {
-    await github.markAllAsRead();
-    await removeStoredNotifications(() => true, { all: true });
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to mark all as read:", error);
-    return { success: false, error: error.message };
-  }
+function markAllAsRead() {
+  return runNotificationMutation(async () => {
+    try {
+      await github.markAllAsRead();
+      await removeStoredNotifications(() => true, { all: true });
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
-async function markRepoAsRead(owner, repo) {
-  try {
-    await github.markRepoAsRead(owner, repo);
-    const { updated } = await removeStoredNotifications(
-      (n) => n.repository.full_name === `${owner}/${repo}`,
-    );
-    return { success: true, notifications: updated };
-  } catch (error) {
-    console.error("Failed to mark repo as read:", error);
-    return { success: false, error: error.message };
-  }
+function markRepoAsRead(owner, repo) {
+  return runNotificationMutation(async () => {
+    try {
+      await github.markRepoAsRead(owner, repo);
+      const { updated } = await removeStoredNotifications(
+        (n) => n.repository.full_name === `${owner}/${repo}`,
+      );
+      return { success: true, notifications: updated };
+    } catch (error) {
+      console.error("Failed to mark repo as read:", error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 // Share an in-flight repository operation to avoid duplicate DELETE requests.
@@ -628,14 +663,28 @@ const repoDoneOperations = new Map();
 function markRepoAsDone(owner, repo) {
   const key = `${authGeneration}:${owner}/${repo}`;
   if (repoDoneOperations.has(key)) return repoDoneOperations.get(key);
-  const operation = completeRepoNotifications(owner, repo).finally(() => {
+  const operation = runNotificationMutation(async () => {
+    if (!owner || !repo) return { success: false, error: "Repository is required" };
+    return await completeLoadedNotifications((n) => n.repository?.full_name === `${owner}/${repo}`);
+  }).finally(() => {
     repoDoneOperations.delete(key);
   });
   repoDoneOperations.set(key, operation);
   return operation;
 }
 
-async function completeRepoNotifications(owner, repo) {
+function markAllAsDone() {
+  const session = getNotificationMutationSession();
+  if (session.allDone) return session.allDone;
+  if (session.active) return Promise.resolve(mutationConflict());
+  const operation = completeLoadedNotifications(() => true).finally(() => {
+    session.allDone = null;
+  });
+  session.allDone = operation;
+  return operation;
+}
+
+async function completeLoadedNotifications(matches) {
   const token = github.token;
   const generation = authGeneration;
   const isCurrent = () => !!token && github.token === token && authGeneration === generation;
@@ -644,15 +693,8 @@ async function completeRepoNotifications(owner, repo) {
   let error;
   try {
     if (!isCurrent()) throw new Error("Not authenticated");
-    if (!owner || !repo) throw new Error("Repository is required");
     const loaded = await storage.getNotifications();
-    ids = [
-      ...new Set(
-        loaded
-          .filter((n) => n.repository?.full_name === `${owner}/${repo}` && n.unread !== false)
-          .map((n) => n.id),
-      ),
-    ];
+    ids = [...new Set(loaded.filter((n) => matches(n) && n.unread !== false).map((n) => n.id))];
     if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
     for (let offset = 0; offset < ids.length; offset += CONCURRENCY.BACKGROUND) {
       if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
@@ -664,7 +706,7 @@ async function completeRepoNotifications(owner, repo) {
         if (result.status === "fulfilled") {
           batchCompleted.push(batch[index]);
         } else {
-          error ||= result.reason?.message || "Failed to mark repository notifications as done";
+          error ||= result.reason?.message || "Failed to mark notifications as done";
           const status = result.reason?.response?.status;
           if ([401, 403, 429].includes(status)) stop = true;
         }
@@ -723,15 +765,15 @@ notifications.onClicked.addListener(async (notificationId) => {
     }
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
 
-    const { removed } = await removeStoredNotifications((n) => n.id === githubNotifId);
-    const notification = removed[0];
-
+    const notification = (await storage.getNotifications()).find((n) => n.id === githubNotifId);
     await safeClearNotification(notificationId);
-
     if (notification) {
       const url = buildNotificationUrl(notification);
       await tabs.create({ url });
-      await github.markAsRead(githubNotifId);
+      await runNotificationMutation(async () => {
+        await removeStoredNotifications((n) => n.id === githubNotifId);
+        await github.markAsRead(githubNotifId);
+      });
     }
   } catch (error) {
     console.error("Failed to handle notification click:", error);
