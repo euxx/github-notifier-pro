@@ -387,6 +387,25 @@ describe("GitHubAPI", () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it("does not retry DELETE with a different account or after the session is invalidated", async () => {
+      vi.useFakeTimers();
+      try {
+        github.token = "test-token";
+        let current = true;
+        mockFetch.mockImplementationOnce(async () => {
+          current = false;
+          return new Response(null, { status: 503 });
+        });
+        const operation = github.markAsDone("12345", () => current);
+        const assertion = expect(operation).rejects.toThrow("Authentication changed");
+        await vi.runAllTimersAsync();
+        await assertion;
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("requires the documented successful status", async () => {
       github.token = "test-token";
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));

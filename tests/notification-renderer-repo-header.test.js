@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../src/lib/constants.js", () => ({
   GITHUB_SITE_BASE: "https://github.com",
@@ -34,9 +34,17 @@ vi.mock("../src/lib/avatar-cache.js", () => ({
 
 const sendMessage = vi.fn();
 const onMarkRepoAsRead = vi.fn();
+const onMarkRepoAsDone = vi.fn();
 
-const { initRenderer, renderNotifications, clearNotificationCache } =
-  await import("../src/popup/notification-renderer.js");
+const {
+  initRenderer,
+  renderNotifications,
+  renderNotificationsInto,
+  groupByRepo,
+  clearNotificationCache,
+  setRepoBusy,
+  setRepoHidden,
+} = await import("../src/popup/notification-renderer.js");
 
 function makeNotif(id) {
   return {
@@ -80,6 +88,7 @@ describe("notification repo header links", () => {
       sendMessage,
       onUserAction: vi.fn(),
       onMarkRepoAsRead,
+      onMarkRepoAsDone,
     });
   });
 
@@ -106,5 +115,75 @@ describe("notification repo header links", () => {
 
     expect(onMarkRepoAsRead).toHaveBeenCalledWith("owner/repo");
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+  afterEach(() => {
+    setRepoBusy("owner/repo", false);
+  });
+
+  it("marks the repository as done independently of its links and Read action", () => {
+    renderNotifications([makeNotif(1)]);
+    notificationsList.querySelector(".repo-mark-done-btn").click();
+    expect(onMarkRepoAsDone).toHaveBeenCalledExactlyOnceWith("owner/repo");
+    expect(onMarkRepoAsRead).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps all repository actions locked across re-renders and restores them afterwards", () => {
+    renderNotifications([makeNotif(1)]);
+    expect(setRepoBusy("owner/repo", true)).toBe(true);
+    expect(setRepoBusy("owner/repo", true)).toBe(false);
+    clearNotificationCache();
+    renderNotifications([makeNotif(1), makeNotif(2)]);
+    const controls = [...notificationsList.querySelectorAll("button")];
+    expect(controls.every((button) => button.disabled)).toBe(true);
+    expect(markAllBtn.disabled).toBe(true);
+    notificationsList.querySelector(".repo-mark-done-btn").click();
+    notificationsList.querySelector(".btn-mark-read").click();
+    expect(onMarkRepoAsDone).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    setRepoBusy("owner/repo", false);
+    expect(controls.every((button) => !button.disabled)).toBe(true);
+    expect(markAllBtn.disabled).toBe(false);
+  });
+
+  it("keeps pending rows collapsed across refreshes and filtered views until the result is ready", () => {
+    const notifications = [
+      makeNotif(1),
+      { ...makeNotif(2), repository: { full_name: "owner/other" } },
+    ];
+    renderNotifications(notifications);
+    setRepoBusy("owner/repo", true);
+    setRepoHidden("owner/repo", true);
+    const repoElements = () => [...document.querySelectorAll('[data-repo="owner/repo"]')];
+    expect(repoElements().every((element) => element.hidden)).toBe(true);
+    expect(markAllBtn.disabled).toBe(true);
+
+    clearNotificationCache();
+    renderNotifications(notifications);
+    const filteredList = document.createElement("ul");
+    document.body.appendChild(filteredList);
+    renderNotificationsInto(filteredList, groupByRepo([notifications[0]]));
+    expect(repoElements().every((element) => element.hidden)).toBe(true);
+    expect(repoElements().every((element) => element.getAttribute("aria-busy") === "true")).toBe(
+      true,
+    );
+    expect(document.querySelector('[data-repo="owner/other"]').hidden).toBe(false);
+
+    setRepoHidden("owner/repo", false);
+    expect(repoElements().every((element) => !element.hidden)).toBe(true);
+    expect(setRepoBusy("owner/repo", true)).toBe(false);
+    expect(
+      repoElements()
+        .flatMap((element) => [...element.querySelectorAll("button")])
+        .every((button) => button.disabled),
+    ).toBe(true);
+    setRepoBusy("owner/repo", false);
+    expect(
+      repoElements()
+        .flatMap((element) => [...element.querySelectorAll("button")])
+        .every((button) => !button.disabled),
+    ).toBe(true);
+    expect(markAllBtn.disabled).toBe(false);
   });
 });

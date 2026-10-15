@@ -10,6 +10,7 @@ import {
   MIN_POLL_INTERVAL_SECONDS,
   MAX_POLL_INTERVAL_SECONDS,
   MESSAGE_TYPES,
+  CONCURRENCY,
 } from "../lib/constants.js";
 import { classifyError } from "../lib/http.js";
 import { buildNotificationUrl } from "../lib/url-builder.js";
@@ -259,13 +260,14 @@ async function handleMessage(message) {
       return await openLatestComment(message.notificationId);
 
     case MESSAGE_TYPES.MARK_AS_READ:
-      return await markAsRead(message.notificationId);
-
     case MESSAGE_TYPES.MARK_AS_DONE:
-      return await markAsDone(message.notificationId);
+      return await markNotification(message.notificationId, message.action);
 
     case MESSAGE_TYPES.MARK_ALL_AS_READ:
       return await markAllAsRead();
+
+    case MESSAGE_TYPES.MARK_REPO_AS_DONE:
+      return await markRepoAsDone(message.owner, message.repo);
 
     case MESSAGE_TYPES.MARK_REPO_AS_READ:
       return await markRepoAsRead(message.owner, message.repo);
@@ -425,12 +427,16 @@ async function handleMessage(message) {
   }
 }
 
+let authGeneration = 0;
+
 async function handleLogin(authMethod = "oauth", token = null) {
+  authGeneration++;
   try {
     if (!token) {
       throw new Error("Token is required");
     }
 
+    await notificationMutationQueue;
     github.token = token;
     await github.fetchUsername();
 
@@ -462,12 +468,14 @@ async function handleLogin(authMethod = "oauth", token = null) {
 }
 
 async function handleLogout() {
+  authGeneration++;
   // Gate the avatar cache BEFORE clearing storage. clearAuthData() bypasses
   // the avatar-cache writeQueue, so a later ensureAvatarsCached() — queued
   // from an in-flight runFetch — would otherwise repopulate the cache with
   // the previous user's avatars after the wipe.
   setAvatarCacheActive(false);
   github.logout();
+  await notificationMutationQueue;
   fetcher.resetHasMore();
   await fetcher.clearCommentCache();
   await stopPolling();
@@ -507,9 +515,7 @@ async function openNotification(notificationId) {
 
   const url = buildNotificationUrl(notification);
   await tabs.create({ url });
-  markAsRead(notificationId).catch((error) => {
-    console.error("Failed to mark as read:", error);
-  });
+  void markNotification(notificationId);
   return { success: true, url };
 }
 
@@ -527,25 +533,26 @@ async function openLatestComment(notificationId) {
   const url = latestCommentUrl ?? buildNotificationUrl(notification);
 
   await tabs.create({ url });
-  markAsRead(notificationId).catch((error) => {
-    console.error("Failed to mark as read:", error);
-  });
+  void markNotification(notificationId);
   return { success: true, url };
 }
 
 // Serialize local removals so concurrent API completions cannot overwrite each other.
 let notificationMutationQueue = Promise.resolve();
 
-function removeStoredNotifications(predicate, { all = false } = {}) {
+function removeStoredNotifications(predicate, { all = false, isCurrent = () => true } = {}) {
   const mutation = notificationMutationQueue.then(async () => {
+    if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
     fetcher.bumpVersion();
     if (all) fetcher.resetHasMore();
 
     const current = await storage.getNotifications();
+    if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
     const removed = current.filter(predicate);
     const removedIds = new Set(removed.map((n) => n.id));
     const updated = current.filter((n) => !removedIds.has(n.id));
     await storage.setNotifications(updated);
+    if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
     await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
     if (all) {
       await storage.setNotificationFilterStats([]);
@@ -561,28 +568,22 @@ function removeStoredNotifications(predicate, { all = false } = {}) {
   return mutation;
 }
 
-async function markAsRead(notificationId) {
+async function markNotification(notificationId, action = MESSAGE_TYPES.MARK_AS_READ) {
+  const isDone = action === MESSAGE_TYPES.MARK_AS_DONE;
   try {
-    await github.markAsRead(notificationId);
+    if (isDone) {
+      const notification = (await storage.getNotifications()).find((n) => n.id === notificationId);
+      if (!notification) return { success: false, error: "Notification not found" };
+      await github.markAsDone(notificationId);
+      github.lastModified = null;
+      github.lastModifiedAt = null;
+    } else {
+      await github.markAsRead(notificationId);
+    }
     await removeStoredNotifications((n) => n.id === notificationId);
     return { success: true };
   } catch (error) {
-    console.error("Failed to mark as read:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-async function markAsDone(notificationId) {
-  try {
-    const notification = (await storage.getNotifications()).find((n) => n.id === notificationId);
-    if (!notification) return { success: false, error: "Notification not found" };
-
-    await github.markAsDone(notificationId);
-    github.lastModified = null;
-    github.lastModifiedAt = null;
-    await removeStoredNotifications((n) => n.id === notificationId);
-    return { success: true };
-  } catch (error) {
+    console.error(`Failed to mark as ${isDone ? "done" : "read"}:`, error);
     return { success: false, error: error.message };
   }
 }
@@ -619,6 +620,88 @@ async function markRepoAsRead(owner, repo) {
     console.error("Failed to mark repo as read:", error);
     return { success: false, error: error.message };
   }
+}
+
+// Share an in-flight repository operation to avoid duplicate DELETE requests.
+const repoDoneOperations = new Map();
+
+function markRepoAsDone(owner, repo) {
+  const key = `${authGeneration}:${owner}/${repo}`;
+  if (repoDoneOperations.has(key)) return repoDoneOperations.get(key);
+  const operation = completeRepoNotifications(owner, repo).finally(() => {
+    repoDoneOperations.delete(key);
+  });
+  repoDoneOperations.set(key, operation);
+  return operation;
+}
+
+async function completeRepoNotifications(owner, repo) {
+  const token = github.token;
+  const generation = authGeneration;
+  const isCurrent = () => !!token && github.token === token && authGeneration === generation;
+  let completedCount = 0;
+  let ids = [];
+  let error;
+  try {
+    if (!isCurrent()) throw new Error("Not authenticated");
+    if (!owner || !repo) throw new Error("Repository is required");
+    const loaded = await storage.getNotifications();
+    ids = [
+      ...new Set(
+        loaded
+          .filter((n) => n.repository?.full_name === `${owner}/${repo}` && n.unread !== false)
+          .map((n) => n.id),
+      ),
+    ];
+    if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+    for (let offset = 0; offset < ids.length; offset += CONCURRENCY.BACKGROUND) {
+      if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+      const batch = ids.slice(offset, offset + CONCURRENCY.BACKGROUND);
+      const results = await Promise.allSettled(batch.map((id) => github.markAsDone(id, isCurrent)));
+      const batchCompleted = [];
+      let stop = false;
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          batchCompleted.push(batch[index]);
+        } else {
+          error ||= result.reason?.message || "Failed to mark repository notifications as done";
+          const status = result.reason?.response?.status;
+          if ([401, 403, 429].includes(status)) stop = true;
+        }
+      });
+      completedCount += batchCompleted.length;
+      if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+      if (batchCompleted.length) {
+        github.lastModified = null;
+        github.lastModifiedAt = null;
+        const completed = new Set(batchCompleted);
+        await removeStoredNotifications((n) => completed.has(n.id), { isCurrent });
+      }
+      if (stop) break;
+    }
+  } catch (cause) {
+    error = cause.message;
+  }
+  let notifications = [];
+  if (isCurrent()) {
+    try {
+      notifications = await storage.getNotifications();
+    } catch (cause) {
+      error ||= cause.message;
+    }
+  }
+  if (!isCurrent() && token) {
+    notifications = [];
+    error = "Authentication changed. Please try again.";
+  }
+  return {
+    success: !error && completedCount === ids.length,
+    notifications,
+    completedCount,
+    totalCount: ids.length,
+    failedCount: ids.length - completedCount,
+    ...(error ? { error } : {}),
+  };
 }
 
 /**

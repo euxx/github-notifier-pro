@@ -18,7 +18,12 @@ import { buildProfileUrl } from "../lib/url-builder.js";
 import { classifyError } from "../lib/http.js";
 import { parseSVG } from "../lib/icons.js";
 import { getAvatarSrc, loadSnapshot as loadAvatarSnapshot } from "../lib/avatar-cache.js";
-import { initRenderer, clearNotificationCache } from "./notification-renderer.js";
+import {
+  initRenderer,
+  clearNotificationCache,
+  setRepoBusy,
+  setRepoHidden,
+} from "./notification-renderer.js";
 import { createFilter } from "./filter.js";
 import { createSync } from "./sync.js";
 import { createSettings } from "./settings.js";
@@ -712,48 +717,93 @@ function removeOverlayFadeOut(elements) {
   }
 }
 
-/**
- * Mark all notifications in a repository as read
- * @param {string} repoFullName - Repository full name (owner/repo)
- */
-async function handleMarkRepoAsRead(repoFullName) {
-  const [owner, repo] = repoFullName.split("/");
+function getNotificationFeedbackContainer() {
+  const filteredList = document.getElementById("notifications-list-filtered");
+  if (filteredList && !filteredList.closest("[hidden]")) return filteredList;
+  const filterView = document.getElementById("filter-view");
+  if (filterView && !filterView.hidden) return filterView.querySelector(".filter-content");
+  return notificationsList;
+}
 
-  // Immediate visual feedback: start animation before API response
+function showMutationError(message) {
+  const error = document.createElement("div");
+  error.className = "error-message";
+  error.setAttribute("role", "alert");
+  error.textContent = message;
+  getNotificationFeedbackContainer().prepend(error);
+  setTimeout(() => error.remove(), 5000);
+}
+
+/** Mark a repository as read or its loaded unread notifications as done. */
+async function handleMarkRepo(repoFullName, messageType) {
+  if (!setRepoBusy(repoFullName, true)) return;
+  const [owner, repo] = repoFullName.split("/");
+  const isDone = messageType === MESSAGE_TYPES.MARK_REPO_AS_DONE;
   const escapedRepo = CSS.escape(repoFullName);
   const repoHeader = document.querySelector(`.repo-group-header[data-repo="${escapedRepo}"]`);
   const items = [...document.querySelectorAll(`.notification-item[data-repo="${escapedRepo}"]`)];
-
   const allElements = repoHeader ? [repoHeader, ...items] : items;
-
   const anim = beginStaggerAnimation(allElements);
+  let cancelled = false;
+  const removal = anim.waitForCompletion().then(() => {
+    if (!cancelled) setRepoHidden(repoFullName, true);
+  });
 
   try {
-    const response = await sendMessage(MESSAGE_TYPES.MARK_REPO_AS_READ, { owner, repo });
+    let response;
+    try {
+      response = await sendMessage(messageType, { owner, repo });
+    } catch (error) {
+      response = { success: false, error: error.message };
+    }
+    if (response.success) await removal;
+    else {
+      cancelled = true;
+      anim.rollback();
+    }
 
-    if (response.success) {
-      // Wait for stagger animation to finish before removing DOM
-      await anim.waitForCompletion();
-
-      // Re-render with updated notifications returned by the background.
-      // Defensive fallback: if payload shape is unexpected, reload full state.
-      let nextNotifications = response.notifications;
-      if (!Array.isArray(nextNotifications)) {
-        console.warn("MARK_REPO_AS_READ returned invalid notifications payload, reloading state");
-        const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
-        nextNotifications = Array.isArray(state.notifications) ? state.notifications : [];
-      }
-
+    // Another repository may have finished since this operation built its response.
+    let nextNotifications = response.notifications;
+    try {
+      const state = await sendMessage(MESSAGE_TYPES.GET_STATE);
+      if (Array.isArray(state.notifications)) nextNotifications = state.notifications;
+    } catch {
+      if (!Array.isArray(nextNotifications)) nextNotifications = await storage.getNotifications();
+    }
+    if (Array.isArray(nextNotifications)) {
       clearNotificationCache();
       filter.renderWithFiltered(nextNotifications, false);
-      if (filter.isShowingFiltered()) filter.renderFilteredInFilterView();
-    } else {
-      anim.rollback();
-      console.error("Failed to mark repo as read:", response.error);
+      if (filter.isShowingFiltered()) await filter.renderFilteredInFilterView();
+    }
+    setRepoHidden(repoFullName, false);
+
+    if (!response.success) {
+      const summary =
+        isDone && response.totalCount > 0
+          ? `Marked ${response.completedCount ?? 0} of ${response.totalCount} notifications as done; ${response.failedCount} not completed. `
+          : "";
+      showMutationError(summary + (response.error || "Failed to update repository notifications"));
     }
   } catch (error) {
+    cancelled = true;
     anim.rollback();
-    console.error("Error marking repo as read:", error);
+    showMutationError(error.message || "Failed to update repository notifications");
+  } finally {
+    cancelled = true;
+    setRepoBusy(repoFullName, false);
+    const visibleList = getNotificationFeedbackContainer();
+    const visibleRepoLinks = [...visibleList.querySelectorAll(".repo-home-link")].filter(
+      (link) => !link.closest("[hidden]"),
+    );
+    const focusTarget =
+      visibleRepoLinks.find(
+        (link) => link.closest(".repo-group-header")?.dataset.repo === repoFullName,
+      ) ||
+      visibleRepoLinks[0] ||
+      (document.getElementById("filter-view")?.hidden === false
+        ? document.getElementById("filter-back-btn")
+        : refreshBtn);
+    focusTarget?.focus({ preventScroll: true });
   }
 }
 
@@ -782,19 +832,10 @@ async function init() {
       lastAnimationDuration = duration;
       lastUserActionTime = Date.now();
     },
-    onMarkRepoAsRead: handleMarkRepoAsRead,
-    onMarkAsReadSuccess: filter.refreshFilteredBadge,
-    onMutationError: (message) => {
-      const error = document.createElement("div");
-      error.className = "error-message";
-      error.setAttribute("role", "alert");
-      error.textContent = message;
-      const filteredList = document.getElementById("notifications-list-filtered");
-      const visibleList =
-        filteredList && !filteredList.closest("[hidden]") ? filteredList : notificationsList;
-      visibleList.prepend(error);
-      setTimeout(() => error.remove(), 5000);
-    },
+    onMarkRepoAsRead: (repo) => handleMarkRepo(repo, MESSAGE_TYPES.MARK_REPO_AS_READ),
+    onMarkRepoAsDone: (repo) => handleMarkRepo(repo, MESSAGE_TYPES.MARK_REPO_AS_DONE),
+    onMarkSuccess: filter.refreshFilteredBadge,
+    onMutationError: showMutationError,
   });
 
   // Settings module owns the system-theme media listener.
@@ -870,7 +911,8 @@ browserStorage.onChanged.addListener((changes, areaName) => {
   if (areaName === "local" && changes.notifications && !mainView.hidden) {
     // Prevent race condition: ignore updates during and shortly after user actions
     const timeSinceUserAction = Date.now() - lastUserActionTime;
-    const hasOngoingAnimations = document.querySelectorAll(".marking-read").length > 0;
+    const hasOngoingAnimations =
+      document.querySelectorAll(".marking-read, .repo-processing").length > 0;
 
     // Use dynamic animation duration to cover both single and bulk operations
     if (hasOngoingAnimations || timeSinceUserAction < lastAnimationDuration) {

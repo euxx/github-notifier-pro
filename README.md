@@ -13,6 +13,7 @@
 - 🔔 Real-time unread count badge and desktop notifications
 - 📋 Issues, PRs, Releases, and all types with rich details
 - ✅ Mark as read per notification, per repository, or all at once
+- ☑️ Mark as done per notification or per repository
 - 🔐 OAuth Device Flow or Personal Access Token authentication
 - ✨ Clean, minimal UI — feature-rich without the clutter
 - 🎨 Light / Dark / System theme with adjustable popup width

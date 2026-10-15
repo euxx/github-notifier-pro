@@ -57,6 +57,7 @@ export function truncateReleaseBody(body, maxLength = 200) {
 let cachedNotifications = null;
 let cachedNotificationsHash = null;
 let cachedRepoOrder = [];
+const busyRepos = new Map();
 
 // Runtime configuration (set via initRenderer)
 let config = {
@@ -66,7 +67,8 @@ let config = {
   sendMessage: async () => {},
   onUserAction: () => {},
   onMarkRepoAsRead: () => {},
-  onMarkAsReadSuccess: () => {},
+  onMarkRepoAsDone: () => {},
+  onMarkSuccess: () => {},
   onMutationError: () => {},
 };
 
@@ -76,6 +78,55 @@ let config = {
  */
 export function initRenderer(options) {
   config = { ...config, ...options };
+}
+
+function createMarkButton({ className, label, icon, title = label }) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.title = title;
+  button.setAttribute("aria-label", label);
+  button.appendChild(getIconSVGElement(icon));
+  return button;
+}
+
+function applyRepoBusy(element, busy) {
+  element.classList.toggle("repo-processing", busy);
+  element.hidden = busy && busyRepos.get(element.dataset.repo) === "hidden";
+  if (busy) element.setAttribute("aria-busy", "true");
+  else element.removeAttribute("aria-busy");
+  for (const button of element.querySelectorAll("button")) {
+    button.disabled = busy || element.classList.contains("marking-read");
+  }
+}
+
+/** Keep a repository locked across main/filtered list re-renders. */
+export function setRepoBusy(repoFullName, busy) {
+  const escaped = CSS.escape(repoFullName);
+  const elements = [...document.querySelectorAll(`[data-repo="${escaped}"]`)];
+  if (
+    busy &&
+    (busyRepos.has(repoFullName) || elements.some((el) => el.classList.contains("marking-read")))
+  ) {
+    return false;
+  }
+  if (busy) busyRepos.set(repoFullName, "animating");
+  else busyRepos.delete(repoFullName);
+  for (const element of elements) applyRepoBusy(element, busy);
+  if (config.markAllBtn) {
+    config.markAllBtn.disabled =
+      busyRepos.size > 0 || !config.notificationsList?.querySelector(".notification-item");
+  }
+  return true;
+}
+
+/** Keep animated rows collapsed across re-renders until their result is ready. */
+export function setRepoHidden(repoFullName, hidden) {
+  if (!busyRepos.has(repoFullName)) return;
+  busyRepos.set(repoFullName, hidden ? "hidden" : "animating");
+  for (const element of document.querySelectorAll(`[data-repo="${CSS.escape(repoFullName)}"]`)) {
+    applyRepoBusy(element, true);
+  }
 }
 
 /**
@@ -138,14 +189,8 @@ export function formatTimeAgo(dateString) {
  * @returns {HTMLElement} Notification list item element
  */
 function createNotificationItem(notif, repoHeader, repoFullName) {
-  const {
-    notificationsList,
-    emptyState,
-    markAllBtn,
-    sendMessage,
-    onUserAction,
-    onMarkAsReadSuccess,
-  } = config;
+  const { notificationsList, emptyState, markAllBtn, sendMessage, onUserAction, onMarkSuccess } =
+    config;
 
   const li = document.createElement("li");
   li.className = "notification-item";
@@ -156,14 +201,16 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   }
 
   function getNotificationOpenTarget(item) {
-    return item?.querySelector(".notification-open-target") || null;
+    const target = item?.querySelector(".notification-open-target");
+    return target && !target.disabled && !target.closest("[hidden]") ? target : null;
   }
 
   function getFocusTargetAfterRemoval() {
     let sibling = li.nextElementSibling;
     while (sibling) {
       if (sibling.matches(".notification-item")) {
-        return getNotificationOpenTarget(sibling);
+        const target = getNotificationOpenTarget(sibling);
+        if (target) return target;
       }
       sibling = sibling.nextElementSibling;
     }
@@ -171,7 +218,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     sibling = li.previousElementSibling;
     while (sibling) {
       if (sibling.matches(".notification-item")) {
-        return getNotificationOpenTarget(sibling);
+        const target = getNotificationOpenTarget(sibling);
+        if (target) return target;
       }
       sibling = sibling.previousElementSibling;
     }
@@ -308,21 +356,18 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   const actionsDiv = document.createElement("div");
   actionsDiv.className = "notification-actions";
 
-  const markReadBtn = document.createElement("button");
-  markReadBtn.type = "button";
-  markReadBtn.className = "btn-mark-read";
-  markReadBtn.title = "Mark as read";
-  markReadBtn.setAttribute("aria-label", "Mark as read");
-  markReadBtn.appendChild(getIconSVGElement("checkmark"));
-
+  const markReadBtn = createMarkButton({
+    className: "btn-mark-read",
+    label: "Mark as read",
+    icon: "checkmark",
+  });
   actionsDiv.appendChild(markReadBtn);
 
-  const markDoneBtn = document.createElement("button");
-  markDoneBtn.type = "button";
-  markDoneBtn.className = "btn-mark-done";
-  markDoneBtn.setAttribute("aria-label", "Mark as done");
-  markDoneBtn.title = "Mark as done";
-  markDoneBtn.appendChild(getIconSVGElement("done"));
+  const markDoneBtn = createMarkButton({
+    className: "btn-mark-done",
+    label: "Mark as done",
+    icon: "done",
+  });
   actionsDiv.appendChild(markDoneBtn);
 
   // Assemble the notification item
@@ -335,6 +380,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     if (
       e.target.closest(".notification-actions") ||
       e.target.closest("a") ||
+      busyRepos.has(repoFullName) ||
       li.classList.contains("marking-read")
     ) {
       return;
@@ -346,7 +392,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   async function markNotification(e, messageType) {
     e.stopPropagation();
 
-    if (li.classList.contains("marking-read")) {
+    if (li.classList.contains("marking-read") || busyRepos.has(repoFullName)) {
       return;
     }
 
@@ -361,8 +407,6 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     // Force reflow so ::after pseudo-element starts at opacity 0
     void li.offsetHeight;
     li.classList.add("fade-out");
-
-    const nextFocusTarget = getFocusTargetAfterRemoval();
 
     // Restore the notification item to its original state on failure
     function restoreItem() {
@@ -384,6 +428,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
         await new Promise(requestAnimationFrame);
 
         // Success: remove notification from DOM
+        const nextFocusTarget = getFocusTargetAfterRemoval();
         li.remove();
 
         // Check if any notifications from this group remain
@@ -409,7 +454,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
         }
 
         nextFocusTarget?.focus({ preventScroll: true });
-        onMarkAsReadSuccess();
+        onMarkSuccess();
       } else {
         // Failure: restore item
         restoreItem();
@@ -424,6 +469,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   markReadBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_READ));
   markDoneBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_DONE));
 
+  if (busyRepos.has(repoFullName)) applyRepoBusy(li, true);
   return li;
 }
 
@@ -509,13 +555,22 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
     repoCountSpan.textContent = String(group.notifications.length);
     repoActionsDiv.appendChild(repoCountSpan);
 
-    const markReadBtn = document.createElement("button");
-    markReadBtn.className = "repo-mark-read-btn";
-    markReadBtn.title = "Mark all notifications in this repository as read";
-    markReadBtn.setAttribute("aria-label", "Mark repository as read");
-    const checkmarkSvg = getIconSVGElement("checkmark");
-    markReadBtn.appendChild(checkmarkSvg);
+    const markReadBtn = createMarkButton({
+      className: "repo-mark-read-btn",
+      label: "Mark repository as read",
+      icon: "checkmark",
+      title: "Mark all notifications in this repository as read",
+    });
     repoActionsDiv.appendChild(markReadBtn);
+
+    const markDoneBtn = createMarkButton({
+      className: "repo-mark-done-btn",
+      label: "Mark repository as done",
+      icon: "done",
+      title:
+        "Mark loaded unread notifications in this repository as done, including filtered notifications",
+    });
+    repoActionsDiv.appendChild(markDoneBtn);
 
     repoHeader.appendChild(repoInfoDiv);
     repoHeader.appendChild(repoActionsDiv);
@@ -526,6 +581,13 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
       config.onMarkRepoAsRead(repoFullName);
     });
 
+    markDoneBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      config.onMarkRepoAsDone(repoFullName);
+    });
+
+    if (busyRepos.has(repoFullName)) applyRepoBusy(repoHeader, true);
     container.appendChild(repoHeader);
     for (const notif of group.notifications) {
       const li = createNotificationItem(notif, repoHeader, repoFullName);
@@ -553,7 +615,7 @@ export function renderNotifications(notifications, shouldResort = true) {
   }
 
   emptyState.hidden = true;
-  markAllBtn.disabled = false;
+  markAllBtn.disabled = busyRepos.size > 0;
 
   const grouped = groupByRepo(notifications);
 

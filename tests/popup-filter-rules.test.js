@@ -40,6 +40,8 @@ vi.mock("../src/lib/theme.js", () => ({
 
 vi.mock("../src/popup/notification-renderer.js", () => ({
   initRenderer: vi.fn(),
+  setRepoBusy: vi.fn(() => true),
+  setRepoHidden: vi.fn(),
   renderNotifications: vi.fn(),
   renderNotificationsInto: vi.fn(),
   groupByRepo: vi.fn().mockReturnValue({}),
@@ -201,6 +203,269 @@ describe("popup filter rules", () => {
     expect(document.querySelector('#notifications-list [role="alert"]')).toBeNull();
     vi.advanceTimersByTime(5000);
     expect(error.isConnected).toBe(false);
+  });
+
+  it.each([
+    ["onMarkRepoAsRead", "markRepoAsRead"],
+    ["onMarkRepoAsDone", "markRepoAsDone"],
+  ])(
+    "collapses %s after the animation while its request is still pending",
+    async (callback, action) => {
+      await loadPopup({ isAuthenticated: true });
+      const { runtime } = await import("../src/lib/chrome-api.js");
+      const { initRenderer, renderNotifications, setRepoHidden, setRepoBusy } =
+        await import("../src/popup/notification-renderer.js");
+      document.getElementById("notifications-list").innerHTML = `
+      <li class="repo-group-header" data-repo="owner/repo"></li>
+      <li class="notification-item" data-repo="owner/repo"></li>
+      <li class="notification-item" data-repo="owner/repo"></li>
+      <li class="notification-item" data-repo="owner/other"></li>`;
+      const items = [...document.querySelectorAll('[data-repo="owner/repo"]')];
+      const other = document.querySelector('[data-repo="owner/other"]');
+      let resolveMutation;
+      runtime.sendMessage.mockImplementation(({ action: message }) =>
+        message === action
+          ? new Promise((resolve) => {
+              resolveMutation = resolve;
+            })
+          : Promise.resolve({ notifications: [] }),
+      );
+      renderNotifications.mockClear();
+      vi.useFakeTimers();
+
+      const operation = initRenderer.mock.calls[0][0][callback]("owner/repo");
+
+      expect(items.every((item) => item.classList.contains("marking-read"))).toBe(true);
+      expect(other.classList.contains("marking-read")).toBe(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(items[0].classList.contains("fade-out")).toBe(true);
+      expect(items[1].classList.contains("fade-out")).toBe(false);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(items[1].classList.contains("fade-out")).toBe(true);
+      expect(items[2].classList.contains("fade-out")).toBe(false);
+      expect(renderNotifications).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(250);
+      expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+      expect(setRepoBusy).not.toHaveBeenCalledWith("owner/repo", false);
+      expect(renderNotifications).not.toHaveBeenCalled();
+      resolveMutation({ success: true, notifications: [] });
+      await operation;
+      expect(renderNotifications).toHaveBeenCalledWith([], false);
+      expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+      expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    },
+  );
+
+  it("finishes the animation before refreshing when repository Done succeeds immediately", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer, renderNotifications, setRepoHidden } =
+      await import("../src/popup/notification-renderer.js");
+    document.getElementById("notifications-list").innerHTML =
+      '<li class="repo-group-header" data-repo="owner/repo"></li>';
+    runtime.sendMessage.mockResolvedValue({ success: true, notifications: [] });
+    renderNotifications.mockClear();
+    vi.useFakeTimers();
+
+    const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
+    await vi.advanceTimersByTimeAsync(199);
+    expect(setRepoHidden).not.toHaveBeenCalled();
+    expect(renderNotifications).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await operation;
+    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(renderNotifications).toHaveBeenCalledWith([], false);
+  });
+
+  it("focuses a visible repository when another pending repository is hidden", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer, renderNotifications } =
+      await import("../src/popup/notification-renderer.js");
+    runtime.sendMessage.mockResolvedValue({ success: true, notifications: [] });
+    renderNotifications.mockImplementationOnce(() => {
+      document.getElementById("notifications-list").innerHTML = `
+        <li class="repo-group-header" data-repo="owner/pending" hidden>
+          <a class="repo-home-link" href="#pending">Pending repository</a>
+        </li>
+        <li class="repo-group-header" data-repo="owner/visible">
+          <a class="repo-home-link" href="#visible">Visible repository</a>
+        </li>`;
+    });
+    vi.useFakeTimers();
+    const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
+    await vi.advanceTimersByTimeAsync(200);
+    await operation;
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-repo="owner/visible"] .repo-home-link'),
+    );
+  });
+
+  it("restores the incomplete result after a slow repository Done partially fails", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer, renderNotifications, setRepoHidden } =
+      await import("../src/popup/notification-renderer.js");
+    const remaining = [{ id: "2", title: "Incomplete notification" }];
+    let resolveMutation;
+    runtime.sendMessage.mockImplementation(({ action }) =>
+      action === "markRepoAsDone"
+        ? new Promise((resolve) => {
+            resolveMutation = resolve;
+          })
+        : Promise.resolve({ notifications: remaining }),
+    );
+    renderNotifications.mockClear();
+    vi.useFakeTimers();
+
+    const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+    expect(renderNotifications).not.toHaveBeenCalled();
+    resolveMutation({
+      success: false,
+      notifications: remaining,
+      completedCount: 1,
+      totalCount: 2,
+      failedCount: 1,
+      error: "HTTP 403",
+    });
+    await operation;
+    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(renderNotifications).toHaveBeenCalledWith(remaining, false);
+    expect(document.querySelector('[role="alert"]').textContent).toContain("1 not completed");
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+
+  it("reloads local results if the worker disconnects after rows have collapsed", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const storage = await import("../src/lib/storage.js");
+    const { initRenderer, renderNotifications, setRepoHidden, setRepoBusy } =
+      await import("../src/popup/notification-renderer.js");
+    const remaining = [{ id: "2", title: "Still unread locally" }];
+    storage.getNotifications.mockResolvedValueOnce(remaining);
+    let rejectMutation;
+    runtime.sendMessage.mockImplementation(({ action }) =>
+      action === "markRepoAsDone"
+        ? new Promise((_resolve, reject) => {
+            rejectMutation = reject;
+          })
+        : Promise.reject(new Error("Worker disconnected")),
+    );
+    vi.useFakeTimers();
+
+    const operation = initRenderer.mock.calls[0][0].onMarkRepoAsDone("owner/repo");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(setRepoHidden).toHaveBeenCalledWith("owner/repo", true);
+    rejectMutation(new Error("Worker disconnected"));
+    await operation;
+    expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
+    expect(setRepoHidden).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(document.querySelector('[role="alert"]').textContent).toBe("Worker disconnected");
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+
+  it("renders the latest state and reports only the incomplete part of repository Done", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer, renderNotifications, setRepoBusy, setRepoHidden } =
+      await import("../src/popup/notification-renderer.js");
+    const { onMarkRepoAsDone } = initRenderer.mock.calls[0][0];
+    const remaining = [{ id: "2", title: "Failed notification" }];
+    document.getElementById("notifications-list").innerHTML = `
+      <li class="repo-group-header" data-repo="owner/repo">
+        <a class="repo-home-link" href="https://github.com/owner/repo">Repository</a>
+        <button class="repo-mark-done-btn" hidden>Done</button>
+      </li>`;
+    runtime.sendMessage.mockImplementation(({ action }) => {
+      if (action === "markRepoAsDone")
+        return Promise.resolve({
+          success: false,
+          completedCount: 1,
+          totalCount: 2,
+          failedCount: 1,
+          notifications: [...remaining, { id: "3", title: "Stale response" }],
+          error: "Request failed: 403",
+        });
+      if (action === "getState") return Promise.resolve({ notifications: remaining });
+      return Promise.resolve({});
+    });
+    vi.useFakeTimers();
+
+    await onMarkRepoAsDone("owner/repo");
+
+    expect(runtime.sendMessage).toHaveBeenCalledWith({
+      action: "markRepoAsDone",
+      owner: "owner",
+      repo: "repo",
+    });
+    expect(renderNotifications).toHaveBeenLastCalledWith(remaining, false);
+    expect(setRepoBusy).toHaveBeenCalledWith("owner/repo", true);
+    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(document.activeElement).toBe(document.querySelector(".repo-home-link"));
+    expect(document.querySelector(".marking-read, .fade-out")).toBeNull();
+    expect(document.querySelector('[role="alert"]').textContent).toContain(
+      "Marked 1 of 2 notifications as done; 1 not completed",
+    );
+    expect(document.querySelector('[role="alert"]').textContent).toContain("403");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(document.querySelector(".marking-read, .fade-out")).toBeNull();
+    expect(setRepoHidden).not.toHaveBeenCalledWith("owner/repo", true);
+  });
+
+  it("keeps repository errors visible if the filtered drawer becomes empty", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer } = await import("../src/popup/notification-renderer.js");
+    const { onMarkRepoAsDone } = initRenderer.mock.calls[0][0];
+    const storage = await import("../src/lib/storage.js");
+    storage.getNotifications.mockResolvedValueOnce([{ id: "1", matchedRules: [0] }]);
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => expect(document.getElementById("filter-view").hidden).toBe(false));
+    document.getElementById("filter-count-badge").click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("filtered-notifications-container").hidden).toBe(false),
+    );
+    runtime.sendMessage.mockImplementation(({ action }) => {
+      if (action === "markRepoAsDone")
+        return Promise.resolve({
+          success: false,
+          notifications: [],
+          completedCount: 1,
+          totalCount: 2,
+          failedCount: 1,
+          error: "Request failed: 403",
+        });
+      return Promise.resolve({ notifications: [] });
+    });
+    vi.useFakeTimers();
+
+    await onMarkRepoAsDone("owner/repo");
+
+    expect(document.getElementById("filtered-notifications-container").hidden).toBe(true);
+    const error = document.querySelector('#filter-view .filter-content [role="alert"]');
+    expect(error.textContent).toContain("1 not completed");
+    expect(error.closest("[hidden]")).toBeNull();
+    expect(document.activeElement).toBe(document.getElementById("filter-back-btn"));
+    vi.advanceTimersByTime(5000);
+  });
+
+  it("unlocks a repository when the worker cannot be reached", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { runtime } = await import("../src/lib/chrome-api.js");
+    const { initRenderer, setRepoBusy } = await import("../src/popup/notification-renderer.js");
+    const { onMarkRepoAsDone } = initRenderer.mock.calls[0][0];
+    runtime.sendMessage.mockRejectedValueOnce(new Error("Worker disconnected"));
+    vi.useFakeTimers();
+
+    await onMarkRepoAsDone("owner/repo");
+
+    expect(setRepoBusy).toHaveBeenLastCalledWith("owner/repo", false);
+    expect(document.querySelector('[role="alert"]').textContent).toBe("Worker disconnected");
+    vi.advanceTimersByTime(5000);
   });
 
   it("shows which saved rule is currently being edited", async () => {

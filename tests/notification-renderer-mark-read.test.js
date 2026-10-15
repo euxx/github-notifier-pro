@@ -38,8 +38,9 @@ vi.mock("../src/lib/avatar-cache.js", () => ({
 }));
 
 const sendMessage = vi.fn();
+const onMarkSuccess = vi.fn();
 
-const { initRenderer, renderNotifications, clearNotificationCache } =
+const { initRenderer, renderNotifications, clearNotificationCache, setRepoBusy, setRepoHidden } =
   await import("../src/popup/notification-renderer.js");
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ describe("mark single notification as read — repo header count", () => {
       emptyState,
       markAllBtn,
       sendMessage,
+      onMarkSuccess,
       onMutationError: vi.fn(),
       onUserAction: vi.fn(),
       onMarkRepoAsRead: vi.fn(),
@@ -115,6 +117,7 @@ describe("mark single notification as read — repo header count", () => {
     expect(repoCountSpan.textContent).toBe("1");
     // Repo header should still be present
     expect(notificationsList.querySelector(".repo-group-header")).not.toBeNull();
+    expect(onMarkSuccess).toHaveBeenCalledOnce();
   });
 
   it("removes repo header when last notification in repo is marked read", async () => {
@@ -169,6 +172,35 @@ describe("mark single notification as read — repo header count", () => {
     expect(document.activeElement).toBe(nextOpenTarget);
   });
 
+  it("skips a repository hidden while a single notification request is pending", async () => {
+    const hiddenNotification = makeNotif(2);
+    hiddenNotification.repository.full_name = "owner/hidden";
+    const visibleNotification = makeNotif(3);
+    visibleNotification.repository.full_name = "owner/visible";
+    renderNotifications([makeNotif(1), hiddenNotification, visibleNotification]);
+    let resolveMutation;
+    sendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+    const button = notificationsList.querySelector('[data-id="1"] .btn-mark-read');
+    button.focus();
+    button.click();
+    setRepoBusy("owner/hidden", true);
+    setRepoHidden("owner/hidden", true);
+    try {
+      resolveMutation({ success: true });
+      await vi.waitFor(() => expect(notificationsList.querySelector('[data-id="1"]')).toBeNull());
+      expect(document.activeElement).toBe(
+        notificationsList.querySelector('[data-id="3"] .notification-open-target'),
+      );
+    } finally {
+      setRepoBusy("owner/hidden", false);
+    }
+  });
+
   it("falls back to the previous notification open target when the last item is removed", async () => {
     renderNotifications([makeNotif(1), makeNotif(2)]);
 
@@ -195,6 +227,7 @@ describe("mark single notification as read — repo header count", () => {
     );
     expect(sendMessage).toHaveBeenCalledExactlyOnceWith("markAsDone", { notificationId: "1" });
     expect(notificationsList.querySelector(".repo-count").textContent).toBe("1");
+    expect(onMarkSuccess).toHaveBeenCalledOnce();
   });
 
   it("restores both actions and reports a failed Done request", async () => {
@@ -208,6 +241,7 @@ describe("mark single notification as read — repo header count", () => {
     expect(button.disabled).toBe(false);
     expect(notificationsList.querySelector(".btn-mark-read").disabled).toBe(false);
     expect(notificationsList.querySelector(".notification-item")).not.toBeNull();
+    expect(onMarkSuccess).not.toHaveBeenCalled();
   });
 
   it("prevents a read operation while Done is in progress", async () => {

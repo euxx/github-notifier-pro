@@ -531,6 +531,9 @@ body.dark-theme .pat-input.input-error {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding-right: 76px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -584,18 +587,22 @@ body.dark-theme .pat-input.input-error {
 /* Repo actions container */
 .repo-actions {
   position: absolute;
-  right: 16px;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-width: 32px;
-  height: 20px;
+  gap: 4px;
+  min-width: 60px;
+  height: 24px;
 }
 
 /* Repo count badge */
 .repo-count {
   position: absolute;
-  right: 1px;
+  right: 6px;
+  pointer-events: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -611,57 +618,33 @@ body.dark-theme .pat-input.input-error {
   transition: opacity 0.15s ease;
 }
 
-.repo-mark-read-btn {
-  position: absolute;
-  right: -2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
+.repo-actions button {
   flex-shrink: 0;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition:
-    opacity 0.15s ease,
-    background-color 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
 }
 
-.repo-mark-read-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-
-.repo-mark-read-btn:active {
+.repo-actions button:active:not(:disabled) {
   transform: scale(0.95);
 }
 
 .repo-group-header:hover .repo-count,
-.repo-group-header:focus-within .repo-count {
+.repo-group-header:focus-within .repo-count,
+.repo-group-header.repo-processing .repo-count {
   opacity: 0;
 }
 
-.repo-group-header:hover .repo-mark-read-btn,
-.repo-group-header:focus-within .repo-mark-read-btn {
+.repo-group-header:hover .repo-actions button,
+.repo-group-header:focus-within .repo-actions button,
+.repo-group-header.repo-processing .repo-actions button {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
-.repo-mark-read-btn:focus-visible {
-  outline: none;
-  color: var(--text-primary);
-  border-color: var(--border-color);
-  box-shadow: 0 0 0 3px var(--action-focus);
+.repo-processing {
+  cursor: progress;
 }
 
 .notification-item {
@@ -1034,8 +1017,8 @@ button.notification-comments--link:focus-visible {
   background: linear-gradient(to right, transparent 0%, var(--bg-hover) 30%);
 }
 
-.btn-mark-read,
-.btn-mark-done {
+.notification-actions button,
+.repo-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1055,15 +1038,15 @@ button.notification-comments--link:focus-visible {
     box-shadow 0.15s ease;
 }
 
-.btn-mark-read:hover:not(:disabled),
-.btn-mark-done:hover:not(:disabled) {
+.notification-actions button:hover:not(:disabled),
+.repo-actions button:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: var(--border-color);
 }
 
-.btn-mark-read:focus-visible:not(:disabled),
-.btn-mark-done:focus-visible:not(:disabled) {
+.notification-actions button:focus-visible:not(:disabled),
+.repo-actions button:focus-visible:not(:disabled) {
   outline: none;
   color: var(--text-primary);
   background: var(--bg-hover);
@@ -1071,8 +1054,8 @@ button.notification-comments--link:focus-visible {
   box-shadow: 0 0 0 3px var(--action-focus);
 }
 
-.btn-mark-read:disabled,
-.btn-mark-done:disabled {
+.notification-actions button:disabled,
+.repo-actions button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -1255,8 +1238,8 @@ body.dark-theme .login-error-msg {
   }
 }
 
-.btn-mark-read svg,
-.btn-mark-done svg {
+.notification-actions svg,
+.repo-actions svg {
   display: block;
   width: 14px;
   height: 14px;

@@ -147,6 +147,7 @@ vi.mock("../src/lib/constants.js", () => ({
     MARK_AS_DONE: "markAsDone",
     MARK_ALL_AS_READ: "markAllAsRead",
     MARK_REPO_AS_READ: "markRepoAsRead",
+    MARK_REPO_AS_DONE: "markRepoAsDone",
     REFRESH: "refresh",
     GET_NOTIFICATION_FILTER: "getNotificationFilter",
     SET_NOTIFICATION_FILTER: "setNotificationFilter",
@@ -754,6 +755,175 @@ describe("service-worker", () => {
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([]);
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "" });
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe("handleMessage - MARK_REPO_AS_DONE", () => {
+    let stored;
+    const request = { action: "markRepoAsDone", owner: "owner", repo: "repo" };
+
+    beforeEach(() => {
+      mockGithub.token = "original-token";
+      mockGithub.isAuthenticated = true;
+      stored = ["1", "2", "3", "4", "5"].map((id) => ({
+        id,
+        unread: true,
+        repository: { full_name: "owner/repo" },
+      }));
+      stored[1].matchedRules = [0];
+      stored.push({ id: "other", repository: { full_name: "other/repo" } });
+      mockStorageFunctions.getNotifications.mockImplementation(async () => structuredClone(stored));
+      mockStorageFunctions.setNotifications.mockImplementation(async (next) => {
+        stored = structuredClone(next);
+      });
+      mockGithub.markAsDone.mockResolvedValue(true);
+    });
+
+    it("processes only the loaded unread snapshot, including filtered items, with limited concurrency", async () => {
+      stored.push({ id: "read", unread: false, repository: { full_name: "owner/repo" } });
+      const resolvers = [];
+      mockGithub.markAsDone.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve)),
+      );
+      const operation = callHandler(request);
+      await vi.waitFor(() => expect(resolvers).toHaveLength(3));
+      expect(mockGithub.getNotifications).not.toHaveBeenCalled();
+      stored.push({ id: "new", unread: true, repository: { full_name: "owner/repo" } });
+      resolvers.slice(0, 3).forEach((resolve) => resolve(true));
+      await vi.waitFor(() => expect(resolvers).toHaveLength(5));
+      expect(stored.map((n) => n.id)).toEqual(["4", "5", "other", "read", "new"]);
+      resolvers.slice(3).forEach((resolve) => resolve(true));
+      expect(await operation).toEqual({
+        success: true,
+        notifications: stored,
+        completedCount: 5,
+        totalCount: 5,
+        failedCount: 0,
+      });
+      expect(stored.map((n) => n.id)).toEqual(["other", "read", "new"]);
+      expect(mockGithub.markAsDone.mock.calls.map(([id]) => id)).toEqual(["1", "2", "3", "4", "5"]);
+      expect(mockGithub.getNotifications).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the repository has no loaded unread notifications", async () => {
+      stored = [{ id: "read", unread: false, repository: { full_name: "owner/repo" } }];
+      expect(await callHandler(request)).toMatchObject({
+        success: true,
+        notifications: stored,
+        completedCount: 0,
+        totalCount: 0,
+        failedCount: 0,
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+    });
+
+    it("retains failed notifications and continues after individual non-auth failures", async () => {
+      mockGithub.markAsDone.mockImplementation(async (id) => {
+        if (id === "2") throw new Error("Request timeout");
+        return true;
+      });
+      const result = await callHandler(request);
+      expect(result).toMatchObject({
+        success: false,
+        completedCount: 4,
+        failedCount: 1,
+      });
+      expect(stored.map((n) => n.id)).toEqual(["2", "other"]);
+    });
+
+    it.each([401, 403, 429])(
+      "stops new batches after HTTP %s and collects in-flight successes",
+      async (status) => {
+        mockGithub.markAsDone.mockImplementation(async (id) => {
+          if (id === "2")
+            throw Object.assign(new Error(`HTTP ${status}`), { response: { status } });
+          return true;
+        });
+        expect(await callHandler(request)).toMatchObject({
+          success: false,
+          completedCount: 2,
+          totalCount: 5,
+          failedCount: 3,
+        });
+        expect(mockGithub.markAsDone).toHaveBeenCalledTimes(3);
+        expect(stored.map((n) => n.id)).toEqual(["2", "4", "5", "other"]);
+      },
+    );
+
+    it("does not delete or mutate local data if reading the loaded snapshot fails", async () => {
+      mockStorageFunctions.getNotifications.mockRejectedValueOnce(new Error("Storage unavailable"));
+      expect(await callHandler(request)).toMatchObject({
+        success: false,
+        notifications: stored,
+        completedCount: 0,
+        error: "Storage unavailable",
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+    });
+
+    it("keeps the remote success count when saving the completed batch fails", async () => {
+      mockStorageFunctions.setNotifications.mockRejectedValueOnce(new Error("Storage unavailable"));
+      expect(await callHandler(request)).toMatchObject({
+        success: false,
+        notifications: stored,
+        completedCount: 3,
+        totalCount: 5,
+        failedCount: 2,
+        error: "Storage unavailable",
+      });
+      expect(mockGithub.markAsDone.mock.calls.map(([id]) => id)).toEqual(["1", "2", "3"]);
+      expect(stored.map((n) => n.id)).toEqual(["1", "2", "3", "4", "5", "other"]);
+    });
+
+    it("does not continue or change the new account's data after an account switch", async () => {
+      mockGithub.markAsDone.mockImplementation(async () => {
+        mockGithub.token = "new-token";
+        stored = [{ id: "1", account: "new" }];
+        return true;
+      });
+      expect(await callHandler(request)).toMatchObject({
+        success: false,
+        error: "Authentication changed. Please try again.",
+      });
+      expect(mockGithub.markAsDone).toHaveBeenCalledTimes(3);
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+      expect(stored).toEqual([{ id: "1", account: "new" }]);
+    });
+
+    it("cancels reading the old snapshot on logout even if the same token is used again", async () => {
+      let finishReading;
+      mockStorageFunctions.getNotifications.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishReading = resolve;
+          }),
+      );
+      const operation = callHandler(request);
+      await callHandler({ action: "logout" });
+      mockGithub.token = "original-token";
+      finishReading(stored);
+      expect(await operation).toMatchObject({
+        success: false,
+        error: "Authentication changed. Please try again.",
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
+    });
+
+    it("shares repeated in-flight operations for the same repository", async () => {
+      let finishReading;
+      mockStorageFunctions.getNotifications.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishReading = resolve;
+          }),
+      );
+      const first = callHandler(request);
+      const second = callHandler(request);
+      finishReading(stored);
+      expect(await first).toEqual(await second);
+      expect(mockGithub.markAsDone).toHaveBeenCalledTimes(5);
     });
   });
 

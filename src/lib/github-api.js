@@ -811,21 +811,23 @@ class GitHubAPI {
   /**
    * Move a notification to GitHub's Done inbox.
    */
-  async markAsDone(threadId) {
+  async markAsDone(threadId, isCurrent = () => true) {
     if (!this.isAuthenticated) throw new Error("Not authenticated");
     if (!/^\d+$/.test(String(threadId))) throw new Error("Invalid notification ID");
 
-    const response = await retryWithStrategy(
-      () =>
-        fetchWithTimeout(
-          `${GITHUB_API_BASE}/notifications/threads/${threadId}`,
-          { method: "DELETE", headers: this.headers },
-          API_TIMEOUTS.DEFAULT,
-        ),
-      RETRY_MUTATION_OPTIONS,
-    );
+    const token = this.token;
+    const headers = { ...this.headers };
+    const response = await retryWithStrategy(() => {
+      if (this.token !== token || !isCurrent())
+        throw new Error("Authentication changed. Please try again.");
+      return fetchWithTimeout(
+        `${GITHUB_API_BASE}/notifications/threads/${threadId}`,
+        { method: "DELETE", headers },
+        API_TIMEOUTS.DEFAULT,
+      );
+    }, RETRY_MUTATION_OPTIONS);
 
-    this.updateRateLimit(response);
+    if (this.token === token) this.updateRateLimit(response);
     if (response.status !== 204) {
       throw new Error(`Failed to mark notification as done (HTTP ${response.status})`);
     }

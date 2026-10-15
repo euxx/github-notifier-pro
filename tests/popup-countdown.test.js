@@ -42,6 +42,8 @@ vi.mock("../src/lib/theme.js", () => ({
 
 vi.mock("../src/popup/notification-renderer.js", () => ({
   initRenderer: vi.fn(),
+  setRepoBusy: vi.fn(() => true),
+  setRepoHidden: vi.fn(),
   renderNotifications: vi.fn(),
   renderNotificationsInto: vi.fn(),
   groupByRepo: vi.fn().mockReturnValue({}),

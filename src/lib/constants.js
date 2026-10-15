@@ -82,6 +82,7 @@ export const MESSAGE_TYPES = {
   MARK_AS_DONE: "markAsDone",
   MARK_ALL_AS_READ: "markAllAsRead",
   MARK_REPO_AS_READ: "markRepoAsRead",
+  MARK_REPO_AS_DONE: "markRepoAsDone",
   REFRESH: "refresh",
   GET_NOTIFICATION_FILTER: "getNotificationFilter",
   SET_NOTIFICATION_FILTER: "setNotificationFilter",
