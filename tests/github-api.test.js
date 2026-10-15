@@ -346,6 +346,54 @@ describe("GitHubAPI", () => {
     });
   });
 
+  describe("markAsDone", () => {
+    it("calls DELETE on the notification thread with the existing authentication and updates rate limits", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+          headers: {
+            "X-RateLimit-Limit": "5000",
+            "X-RateLimit-Remaining": "4998",
+            "X-RateLimit-Reset": "1900000000",
+          },
+        }),
+      );
+      expect(await github.markAsDone("12345")).toBe(true);
+      expect(mockFetch).toHaveBeenCalledExactlyOnceWith(
+        "https://api.github.com/notifications/threads/12345",
+        expect.objectContaining({ method: "DELETE", headers: github.headers }),
+      );
+      expect(github.rateLimit.remaining).toBe(4998);
+    });
+
+    it("does not send a request without authentication", async () => {
+      await expect(github.markAsDone("12345")).rejects.toThrow("Not authenticated");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("rejects IDs that could change the endpoint", async () => {
+      github.token = "test-token";
+      await expect(github.markAsDone("123/subscription")).rejects.toThrow(
+        "Invalid notification ID",
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("surfaces permission errors without retrying", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
+      await expect(github.markAsDone("12345")).rejects.toThrow("403");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("requires the documented successful status", async () => {
+      github.token = "test-token";
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await expect(github.markAsDone("12345")).rejects.toThrow("HTTP 200");
+    });
+  });
+
   describe("markAllAsRead", () => {
     it("should call PUT on notifications endpoint", async () => {
       github.token = "test-token";

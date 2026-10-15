@@ -13,6 +13,7 @@ vi.mock("../src/lib/constants.js", () => ({
   NOTIFICATION_TYPES: { RELEASE: "Release" },
   MESSAGE_TYPES: {
     MARK_AS_READ: "markAsRead",
+    MARK_AS_DONE: "markAsDone",
     OPEN_NOTIFICATION: "openNotification",
   },
   TIME_CONVERSION: { MS_PER_MINUTE: 60000 },
@@ -86,6 +87,7 @@ describe("mark single notification as read — repo header count", () => {
       emptyState,
       markAllBtn,
       sendMessage,
+      onMutationError: vi.fn(),
       onUserAction: vi.fn(),
       onMarkRepoAsRead: vi.fn(),
     });
@@ -183,5 +185,45 @@ describe("mark single notification as read — repo header count", () => {
       '.notification-item[data-id="1"] .notification-open-target',
     );
     expect(document.activeElement).toBe(previousOpenTarget);
+  });
+  it("marks Done without opening the notification and updates group counts", async () => {
+    renderNotifications([makeNotif(1), makeNotif(2)]);
+    sendMessage.mockResolvedValueOnce({ success: true });
+    notificationsList.querySelector('.notification-item[data-id="1"] .btn-mark-done').click();
+    await vi.waitFor(() =>
+      expect(notificationsList.querySelector('[data-id="1"].notification-item')).toBeNull(),
+    );
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith("markAsDone", { notificationId: "1" });
+    expect(notificationsList.querySelector(".repo-count").textContent).toBe("1");
+  });
+
+  it("restores both actions and reports a failed Done request", async () => {
+    const onMutationError = vi.fn();
+    initRenderer({ onMutationError });
+    renderNotifications([makeNotif(1)]);
+    sendMessage.mockResolvedValueOnce({ success: false, error: "Session expired" });
+    const button = notificationsList.querySelector(".btn-mark-done");
+    button.click();
+    await vi.waitFor(() => expect(onMutationError).toHaveBeenCalledWith("Session expired"));
+    expect(button.disabled).toBe(false);
+    expect(notificationsList.querySelector(".btn-mark-read").disabled).toBe(false);
+    expect(notificationsList.querySelector(".notification-item")).not.toBeNull();
+  });
+
+  it("prevents a read operation while Done is in progress", async () => {
+    renderNotifications([makeNotif(1)]);
+    let resolve;
+    sendMessage.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    notificationsList.querySelector(".btn-mark-done").click();
+    notificationsList.querySelector(".btn-mark-read").click();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    resolve({ success: true });
+    await vi.waitFor(() =>
+      expect(notificationsList.querySelector(".notification-item")).toBeNull(),
+    );
   });
 });

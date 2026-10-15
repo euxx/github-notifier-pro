@@ -115,6 +115,7 @@ const mockGithub = {
   getNotificationDetails: vi.fn(),
   getLatestCommentUrl: vi.fn(),
   markAsRead: vi.fn(),
+  markAsDone: vi.fn(),
   markAllAsRead: vi.fn(),
   markRepoAsRead: vi.fn(),
   getRateLimitInfo: vi.fn(() => ({ resetIn: "5 min" })),
@@ -143,6 +144,7 @@ vi.mock("../src/lib/constants.js", () => ({
     OPEN_NOTIFICATION: "openNotification",
     OPEN_LATEST_COMMENT: "openLatestComment",
     MARK_AS_READ: "markAsRead",
+    MARK_AS_DONE: "markAsDone",
     MARK_ALL_AS_READ: "markAllAsRead",
     MARK_REPO_AS_READ: "markRepoAsRead",
     REFRESH: "refresh",
@@ -241,6 +243,7 @@ describe("service-worker", () => {
     vi.clearAllMocks();
 
     // Reset github state
+    mockGithub.markAsDone.mockReset();
     mockGithub.token = null;
     mockGithub.username = null;
     mockGithub.isAuthenticated = false;
@@ -633,6 +636,111 @@ describe("service-worker", () => {
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1+" });
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe("handleMessage - MARK_AS_DONE", () => {
+    beforeEach(() => {
+      mockGithub.isAuthenticated = true;
+      mockStorageFunctions.getNotifications.mockResolvedValue([
+        { id: "123", title: "Test" },
+        { id: "456", title: "Another" },
+      ]);
+    });
+
+    it("uses the API and removes only the completed notification from storage and caches", async () => {
+      currentCommentUrlCache.set("123", { html_url: "https://github.com/owner/repo/issues/1" });
+      mockGithub.markAsDone.mockResolvedValueOnce(true);
+      mockGithub.lastModified = "old";
+      mockGithub.lastModifiedAt = Date.now();
+      expect(await callHandler({ action: "markAsDone", notificationId: "123" })).toEqual({
+        success: true,
+      });
+      expect(mockGithub.markAsDone).toHaveBeenCalledExactlyOnceWith("123");
+      expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+      expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
+        { id: "456", title: "Another" },
+      ]);
+      expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "1" });
+      expect(currentCommentUrlCache.has("123")).toBe(false);
+      expect(mockGithub.lastModified).toBeNull();
+      expect(mockGithub.lastModifiedAt).toBeNull();
+    });
+
+    it("retains notifications and polling state when the API fails", async () => {
+      mockGithub.markAsDone.mockRejectedValueOnce(new Error("HTTP 403"));
+      mockGithub.lastModified = "old";
+      expect(await callHandler({ action: "markAsDone", notificationId: "123" })).toEqual({
+        success: false,
+        error: "HTTP 403",
+      });
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+      expect(mockGithub.lastModified).toBe("old");
+    });
+
+    it.each([
+      ["markAsDone", { notificationId: "456" }, []],
+      ["markAsRead", { notificationId: "456" }, []],
+      ["desktopNotification", { notificationId: "456" }, []],
+      ["markRepoAsRead", { owner: "other", repo: "repo" }, []],
+      ["markAllAsRead", {}, []],
+    ])("preserves both removals when Done overlaps %s", async (action, data, expected) => {
+      let stored = [
+        { id: "123", title: "Test", repository: { full_name: "owner/repo" } },
+        { id: "456", title: "Another", repository: { full_name: "other/repo" } },
+      ];
+      mockStorageFunctions.getNotifications.mockImplementation(async () => structuredClone(stored));
+      mockStorageFunctions.setNotifications.mockImplementation(async (next) => {
+        await Promise.resolve();
+        stored = structuredClone(next);
+      });
+      mockGithub.markAsDone.mockResolvedValue(true);
+      mockGithub.markAsRead.mockResolvedValue(true);
+      mockGithub.markRepoAsRead.mockResolvedValue(true);
+      mockGithub.markAllAsRead.mockResolvedValue(true);
+
+      const results = await Promise.all([
+        callHandler({ action: "markAsDone", notificationId: "123" }),
+        action === "desktopNotification"
+          ? notificationClickHandler(`${NOTIFICATION_ID_PREFIX}${data.notificationId}`).then(
+              () => ({ success: true }),
+            )
+          : callHandler({ action, ...data }),
+      ]);
+
+      expect(results.every((result) => result.success)).toBe(true);
+      expect(stored).toEqual(expected);
+      expect(mockAction.setBadgeText).toHaveBeenLastCalledWith({ text: "" });
+      expect(mockStorageFunctions.setNotificationFilterStats).toHaveBeenLastCalledWith([]);
+    });
+
+    it("continues queued removals after a storage failure", async () => {
+      let stored = [{ id: "123" }, { id: "456" }];
+      mockStorageFunctions.getNotifications.mockImplementation(async () => structuredClone(stored));
+      mockStorageFunctions.setNotifications
+        .mockImplementation(async (next) => {
+          stored = structuredClone(next);
+        })
+        .mockRejectedValueOnce(new Error("Storage unavailable"));
+      mockGithub.markAsDone.mockResolvedValue(true);
+
+      const results = await Promise.all([
+        callHandler({ action: "markAsDone", notificationId: "123" }),
+        callHandler({ action: "markAsDone", notificationId: "456" }),
+      ]);
+      expect(results).toEqual([
+        { success: false, error: "Storage unavailable" },
+        { success: true },
+      ]);
+      expect(stored).toEqual([{ id: "123" }]);
+    });
+
+    it("refuses unknown notifications before calling the API", async () => {
+      expect(await callHandler({ action: "markAsDone", notificationId: "missing" })).toEqual({
+        success: false,
+        error: "Notification not found",
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
     });
   });
 

@@ -261,6 +261,9 @@ async function handleMessage(message) {
     case MESSAGE_TYPES.MARK_AS_READ:
       return await markAsRead(message.notificationId);
 
+    case MESSAGE_TYPES.MARK_AS_DONE:
+      return await markAsDone(message.notificationId);
+
     case MESSAGE_TYPES.MARK_ALL_AS_READ:
       return await markAllAsRead();
 
@@ -530,21 +533,56 @@ async function openLatestComment(notificationId) {
   return { success: true, url };
 }
 
+// Serialize local removals so concurrent API completions cannot overwrite each other.
+let notificationMutationQueue = Promise.resolve();
+
+function removeStoredNotifications(predicate, { all = false } = {}) {
+  const mutation = notificationMutationQueue.then(async () => {
+    fetcher.bumpVersion();
+    if (all) fetcher.resetHasMore();
+
+    const current = await storage.getNotifications();
+    const removed = current.filter(predicate);
+    const removedIds = new Set(removed.map((n) => n.id));
+    const updated = current.filter((n) => !removedIds.has(n.id));
+    await storage.setNotifications(updated);
+    await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
+    if (all) {
+      await storage.setNotificationFilterStats([]);
+      await fetcher.clearCommentCache();
+    } else {
+      await recalcFilterStats(updated);
+      await fetcher.evictCommentEntries([...removedIds]);
+    }
+    return { updated, removed };
+  });
+  // A failed commit must not prevent later notifications from being processed.
+  notificationMutationQueue = mutation.catch(() => {});
+  return mutation;
+}
+
 async function markAsRead(notificationId) {
   try {
     await github.markAsRead(notificationId);
-    fetcher.bumpVersion();
-
-    const notifs = await storage.getNotifications();
-    const updated = notifs.filter((n) => n.id !== notificationId);
-    await storage.setNotifications(updated);
-    await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
-    await recalcFilterStats(updated);
-    await fetcher.evictCommentEntry(notificationId);
-
+    await removeStoredNotifications((n) => n.id === notificationId);
     return { success: true };
   } catch (error) {
     console.error("Failed to mark as read:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function markAsDone(notificationId) {
+  try {
+    const notification = (await storage.getNotifications()).find((n) => n.id === notificationId);
+    if (!notification) return { success: false, error: "Notification not found" };
+
+    await github.markAsDone(notificationId);
+    github.lastModified = null;
+    github.lastModifiedAt = null;
+    await removeStoredNotifications((n) => n.id === notificationId);
+    return { success: true };
+  } catch (error) {
     return { success: false, error: error.message };
   }
 }
@@ -562,14 +600,7 @@ async function recalcFilterStats(notifs) {
 async function markAllAsRead() {
   try {
     await github.markAllAsRead();
-    fetcher.bumpVersion();
-    fetcher.resetHasMore();
-
-    await storage.setNotifications([]);
-    await storage.setNotificationFilterStats([]);
-    await updateBadge(0);
-    await fetcher.clearCommentCache();
-
+    await removeStoredNotifications(() => true, { all: true });
     return { success: true };
   } catch (error) {
     console.error("Failed to mark all as read:", error);
@@ -580,19 +611,9 @@ async function markAllAsRead() {
 async function markRepoAsRead(owner, repo) {
   try {
     await github.markRepoAsRead(owner, repo);
-    fetcher.bumpVersion();
-
-    const notifs = await storage.getNotifications();
-    const updated = notifs.filter((n) => n.repository.full_name !== `${owner}/${repo}`);
-    await storage.setNotifications(updated);
-    await updateBadge(updated.filter(isVisible).length, fetcher.getHasMore());
-    await recalcFilterStats(updated);
-
-    const removedIds = notifs
-      .filter((n) => n.repository.full_name === `${owner}/${repo}`)
-      .map((n) => n.id);
-    await fetcher.evictCommentEntries(removedIds);
-
+    const { updated } = await removeStoredNotifications(
+      (n) => n.repository.full_name === `${owner}/${repo}`,
+    );
     return { success: true, notifications: updated };
   } catch (error) {
     console.error("Failed to mark repo as read:", error);
@@ -619,15 +640,8 @@ notifications.onClicked.addListener(async (notificationId) => {
     }
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
 
-    // Bump fetch version before any async work so an in-flight fetch's
-    // version check fires after our removal lands and discards its writes.
-    fetcher.bumpVersion();
-    const notificationsList = await storage.getNotifications();
-    const notification = notificationsList.find((n) => n.id === githubNotifId);
-
-    const updatedNotifications = notificationsList.filter((n) => n.id !== githubNotifId);
-    await storage.setNotifications(updatedNotifications);
-    await recalcFilterStats(updatedNotifications);
+    const { removed } = await removeStoredNotifications((n) => n.id === githubNotifId);
+    const notification = removed[0];
 
     await safeClearNotification(notificationId);
 
@@ -635,8 +649,6 @@ notifications.onClicked.addListener(async (notificationId) => {
       const url = buildNotificationUrl(notification);
       await tabs.create({ url });
       await github.markAsRead(githubNotifId);
-      await fetcher.evictCommentEntry(githubNotifId);
-      await updateBadge(updatedNotifications.filter(isVisible).length, fetcher.getHasMore());
     }
   } catch (error) {
     console.error("Failed to handle notification click:", error);

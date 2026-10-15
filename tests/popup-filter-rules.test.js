@@ -65,6 +65,7 @@ function setupDOM() {
     <div id="filter-view" hidden>
       <div class="settings-header">
         <button id="filter-back-btn"></button>
+        <button id="filter-count-badge"></button>
         <button id="filter-add-rule-btn" hidden></button>
         <button id="filter-creator-toggle">+ New Rule</button>
       </div>
@@ -82,6 +83,9 @@ function setupDOM() {
           <div id="filter-new-kw-chips"></div>
         </div>
         <div id="filter-rules-list"></div>
+        <div id="filtered-notifications-container" hidden>
+          <ul id="notifications-list-filtered"></ul>
+        </div>
       </div>
     </div>
     <div id="auth-methods"></div>
@@ -105,9 +109,8 @@ function setupDOM() {
     <div id="username"></div>
     <img id="user-avatar" hidden />
     <a id="user-profile-link"></a>
-    <ul id="notifications-list"></ul>
     <div id="empty-state" hidden></div>
-    <div id="notifications-container"></div>
+    <div id="notifications-container"><ul id="notifications-list"></ul></div>
     <span id="settings-username"></span>
     <img id="settings-avatar" />
     <a id="settings-profile-link"></a>
@@ -158,6 +161,46 @@ describe("popup filter rules", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("shows notification mutation errors in the main list when the filter drawer is closed", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { initRenderer } = await import("../src/popup/notification-renderer.js");
+    const { onMutationError } = initRenderer.mock.calls[0][0];
+    vi.useFakeTimers();
+
+    onMutationError("Failed to mark as done");
+
+    const error = document.querySelector('#notifications-list [role="alert"]');
+    expect(error?.textContent).toBe("Failed to mark as done");
+    expect(error.closest("[hidden]")).toBeNull();
+    expect(document.querySelector('#notifications-list-filtered [role="alert"]')).toBeNull();
+    vi.advanceTimersByTime(5000);
+    expect(error.isConnected).toBe(false);
+  });
+
+  it("shows notification mutation errors in the visible filtered list", async () => {
+    await loadPopup({ isAuthenticated: true });
+    const { initRenderer } = await import("../src/popup/notification-renderer.js");
+    const { onMutationError } = initRenderer.mock.calls[0][0];
+
+    document.getElementById("filter-icon-btn").click();
+    await vi.waitFor(() => expect(document.getElementById("filter-view").hidden).toBe(false));
+    document.getElementById("filter-count-badge").click();
+    await vi.waitFor(() =>
+      expect(document.getElementById("filtered-notifications-container").hidden).toBe(false),
+    );
+    expect(document.getElementById("notifications-container").hidden).toBe(true);
+    vi.useFakeTimers();
+
+    onMutationError("Failed to mark as done");
+
+    const error = document.querySelector('#notifications-list-filtered [role="alert"]');
+    expect(error?.textContent).toBe("Failed to mark as done");
+    expect(error.closest("[hidden]")).toBeNull();
+    expect(document.querySelector('#notifications-list [role="alert"]')).toBeNull();
+    vi.advanceTimersByTime(5000);
+    expect(error.isConnected).toBe(false);
   });
 
   it("shows which saved rule is currently being edited", async () => {

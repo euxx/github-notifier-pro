@@ -79,6 +79,7 @@ export const MESSAGE_TYPES = {
   OPEN_NOTIFICATION: "openNotification",
   OPEN_LATEST_COMMENT: "openLatestComment",
   MARK_AS_READ: "markAsRead",
+  MARK_AS_DONE: "markAsDone",
   MARK_ALL_AS_READ: "markAllAsRead",
   MARK_REPO_AS_READ: "markRepoAsRead",
   REFRESH: "refresh",

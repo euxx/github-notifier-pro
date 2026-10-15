@@ -809,6 +809,30 @@ class GitHubAPI {
   }
 
   /**
+   * Move a notification to GitHub's Done inbox.
+   */
+  async markAsDone(threadId) {
+    if (!this.isAuthenticated) throw new Error("Not authenticated");
+    if (!/^\d+$/.test(String(threadId))) throw new Error("Invalid notification ID");
+
+    const response = await retryWithStrategy(
+      () =>
+        fetchWithTimeout(
+          `${GITHUB_API_BASE}/notifications/threads/${threadId}`,
+          { method: "DELETE", headers: this.headers },
+          API_TIMEOUTS.DEFAULT,
+        ),
+      RETRY_MUTATION_OPTIONS,
+    );
+
+    this.updateRateLimit(response);
+    if (response.status !== 204) {
+      throw new Error(`Failed to mark notification as done (HTTP ${response.status})`);
+    }
+    return true;
+  }
+
+  /**
    * Mark all notifications as read
    */
   async markAllAsRead() {

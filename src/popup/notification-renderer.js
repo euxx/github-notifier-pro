@@ -67,6 +67,7 @@ let config = {
   onUserAction: () => {},
   onMarkRepoAsRead: () => {},
   onMarkAsReadSuccess: () => {},
+  onMutationError: () => {},
 };
 
 /**
@@ -308,12 +309,21 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
   actionsDiv.className = "notification-actions";
 
   const markReadBtn = document.createElement("button");
+  markReadBtn.type = "button";
   markReadBtn.className = "btn-mark-read";
-  markReadBtn.dataset.id = String(notif.id);
   markReadBtn.title = "Mark as read";
-  markReadBtn.textContent = "✓";
+  markReadBtn.setAttribute("aria-label", "Mark as read");
+  markReadBtn.appendChild(getIconSVGElement("checkmark"));
 
   actionsDiv.appendChild(markReadBtn);
+
+  const markDoneBtn = document.createElement("button");
+  markDoneBtn.type = "button";
+  markDoneBtn.className = "btn-mark-done";
+  markDoneBtn.setAttribute("aria-label", "Mark as done");
+  markDoneBtn.title = "Mark as done";
+  markDoneBtn.appendChild(getIconSVGElement("done"));
+  actionsDiv.appendChild(markDoneBtn);
 
   // Assemble the notification item
   li.appendChild(iconDiv);
@@ -322,14 +332,18 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
   // Click to open notification
   li.addEventListener("click", async (e) => {
-    if (e.target.closest(".btn-mark-read") || e.target.closest("a")) {
+    if (
+      e.target.closest(".notification-actions") ||
+      e.target.closest("a") ||
+      li.classList.contains("marking-read")
+    ) {
       return;
     }
     await openNotification();
   });
 
-  // Mark as read button with immediate visual feedback
-  markReadBtn.addEventListener("click", async (e) => {
+  // Notification actions share visual feedback and rollback behavior
+  async function markNotification(e, messageType) {
     e.stopPropagation();
 
     if (li.classList.contains("marking-read")) {
@@ -338,7 +352,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
 
     li.classList.add("marking-read");
     markReadBtn.disabled = true;
-    markReadBtn.textContent = "✓";
+    markDoneBtn.disabled = true;
 
     // Track user action
     const animationDuration = ANIMATION_DURATION.FADE_OUT;
@@ -354,7 +368,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     function restoreItem() {
       li.classList.remove("marking-read", "fade-out");
       markReadBtn.disabled = false;
-      markReadBtn.textContent = "✓";
+      markDoneBtn.disabled = false;
 
       li.style.backgroundColor = "rgba(239, 68, 68, 0.1)";
       setTimeout(() => {
@@ -363,7 +377,7 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     }
 
     try {
-      const result = await sendMessage(MESSAGE_TYPES.MARK_AS_READ, { notificationId: notif.id });
+      const result = await sendMessage(messageType, { notificationId: notif.id });
 
       if (result.success) {
         // Ensure at least one frame of the overlay animation is painted
@@ -399,12 +413,16 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
       } else {
         // Failure: restore item
         restoreItem();
+        config.onMutationError(result.error || "Failed to update notification");
       }
     } catch (error) {
-      console.error("Failed to mark as read:", error);
       restoreItem();
+      config.onMutationError(error.message || "Failed to update notification");
     }
-  });
+  }
+
+  markReadBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_READ));
+  markDoneBtn.addEventListener("click", (e) => markNotification(e, MESSAGE_TYPES.MARK_AS_DONE));
 
   return li;
 }

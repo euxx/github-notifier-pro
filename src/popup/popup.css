@@ -63,6 +63,15 @@ body.transitions-enabled * {
     border-color 0.2s ease-out;
 }
 
+/* Keep row highlights and action masks in sync when they become visible. */
+body.transitions-enabled .notification-item {
+  transition: border-color 0.2s ease-out;
+}
+
+body.transitions-enabled .notification-actions {
+  transition: none;
+}
+
 .view {
   display: flex;
   flex-direction: column;
@@ -657,6 +666,7 @@ body.dark-theme .pat-input.input-error {
 
 .notification-item {
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -696,6 +706,7 @@ body.dark-theme .pat-input.input-error {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 3; /* Cover the action buttons during removal. */
   background: var(--bg-primary);
   opacity: 0;
   pointer-events: none;
@@ -717,7 +728,8 @@ body.dark-theme .pat-input.input-error {
   opacity: 1;
 }
 
-.notification-item:hover {
+.notification-item:hover,
+.notification-item:focus-within {
   background: var(--bg-hover);
 }
 
@@ -878,6 +890,7 @@ body.dark-theme .pat-input.input-error {
   text-decoration: none;
   align-items: center;
   border-radius: 999px;
+  margin-right: auto;
 }
 
 .author-profile-link:focus-visible {
@@ -895,7 +908,7 @@ body.dark-theme .pat-input.input-error {
 }
 
 .notification-time {
-  width: 55px; /* Increased width to fit full dates (e.g., "12/31/2026") */
+  width: 60px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -938,6 +951,11 @@ button.notification-comments--link:focus-visible {
   .author-profile-link {
     display: inline-flex;
   }
+
+  /* Keep the avatar clear of both actions even while the time is hidden. */
+  .notification-meta:has(.author-profile-link) {
+    min-width: 84px;
+  }
 }
 
 /* 550px+ : Show time */
@@ -959,6 +977,10 @@ button.notification-comments--link:focus-visible {
   @media (min-width: 500px) {
     .author-profile-link {
       display: inline-flex;
+    }
+
+    .notification-meta:has(.author-profile-link) {
+      min-width: 84px;
     }
   }
 
@@ -982,45 +1004,50 @@ button.notification-comments--link:focus-visible {
 }
 
 .notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   position: absolute;
-  right: 0px;
+  right: 10px;
+  z-index: 2;
   top: 50%;
   transform: translateY(-50%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   background: transparent;
-  padding: 2px 10px;
+  padding: 2px 0 2px 10px;
   border-radius: var(--radius-sm);
-  transition:
-    opacity 0.15s ease,
-    background-color 0.15s ease;
 }
 
-.notification-item:hover .notification-actions {
+/* Preserve the time slot while the actions replace its contents. */
+.notification-item:hover .notification-time,
+.notification-item:focus-within .notification-time {
+  visibility: hidden;
+}
+
+.notification-item:hover .notification-actions,
+.notification-item:focus-within .notification-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   background: linear-gradient(to right, transparent 0%, var(--bg-hover) 30%);
 }
 
-.notification-item:focus-within .notification-actions,
-.notification-actions:has(.btn-mark-read:focus-visible) {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  background: linear-gradient(to right, transparent 0%, var(--bg-hover) 30%);
-}
-
-.btn-mark-read {
-  padding: 4px 8px;
-  font-size: 14px;
+.btn-mark-read,
+.btn-mark-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 24px;
+  padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  min-width: 32px;
   transition:
     color 0.15s ease,
     background-color 0.15s ease,
@@ -1028,13 +1055,15 @@ button.notification-comments--link:focus-visible {
     box-shadow 0.15s ease;
 }
 
-.btn-mark-read:hover:not(:disabled) {
+.btn-mark-read:hover:not(:disabled),
+.btn-mark-done:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--bg-hover);
   border-color: var(--border-color);
 }
 
-.btn-mark-read:focus-visible:not(:disabled) {
+.btn-mark-read:focus-visible:not(:disabled),
+.btn-mark-done:focus-visible:not(:disabled) {
   outline: none;
   color: var(--text-primary);
   background: var(--bg-hover);
@@ -1042,7 +1071,8 @@ button.notification-comments--link:focus-visible {
   box-shadow: 0 0 0 3px var(--action-focus);
 }
 
-.btn-mark-read:disabled {
+.btn-mark-read:disabled,
+.btn-mark-done:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -1223,4 +1253,11 @@ body.dark-theme .login-error-msg {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.btn-mark-read svg,
+.btn-mark-done svg {
+  display: block;
+  width: 14px;
+  height: 14px;
 }

@@ -14,7 +14,7 @@
  *     fetcher doesn't need to import the chrome.action API or BADGE_COLORS
  *
  * Mark-as-read / click flows in the host invalidate in-progress fetches
- * via bumpVersion(). The host also calls evictCommentEntry / clearCommentCache
+ * via bumpVersion(). The host also calls evictCommentEntries / clearCommentCache
  * when a notification leaves storage so the prefetched URL doesn't outlive it.
  */
 
@@ -170,11 +170,6 @@ export function createNotificationFetcher(deps) {
     } catch (err) {
       console.warn("Failed to restore comment URL cache from session storage:", err);
     }
-  }
-
-  async function evictCommentEntry(id) {
-    latestCommentUrlCache.delete(id);
-    await persistCommentCache();
   }
 
   async function evictCommentEntries(ids) {
@@ -552,7 +547,6 @@ export function createNotificationFetcher(deps) {
       hasMoreNotifications = false;
     },
     getCommentUrl,
-    evictCommentEntry,
     evictCommentEntries,
     clearCommentCache,
     persistCommentCache,

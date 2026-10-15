@@ -784,6 +784,17 @@ async function init() {
     },
     onMarkRepoAsRead: handleMarkRepoAsRead,
     onMarkAsReadSuccess: filter.refreshFilteredBadge,
+    onMutationError: (message) => {
+      const error = document.createElement("div");
+      error.className = "error-message";
+      error.setAttribute("role", "alert");
+      error.textContent = message;
+      const filteredList = document.getElementById("notifications-list-filtered");
+      const visibleList =
+        filteredList && !filteredList.closest("[hidden]") ? filteredList : notificationsList;
+      visibleList.prepend(error);
+      setTimeout(() => error.remove(), 5000);
+    },
   });
 
   // Settings module owns the system-theme media listener.
