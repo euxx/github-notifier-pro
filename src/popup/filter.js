@@ -304,7 +304,7 @@ export function createFilter(deps) {
         link.href = buildRepoNotificationsUrl(repo);
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.title = `Open ${repo} notifications`;
+        link.title = `View notifications for ${repo}`;
         link.textContent = repo;
         group.appendChild(link);
 
@@ -313,7 +313,7 @@ export function createFilter(deps) {
           const countEl = document.createElement("span");
           countEl.className = "filter-chip-count";
           countEl.textContent = count;
-          countEl.title = `${count} notification${count === 1 ? "" : "s"} filtered from last refresh`;
+          countEl.title = `${count} notification${count === 1 ? "" : "s"} filtered at last refresh`;
           group.appendChild(countEl);
         }
         chips.appendChild(group);
@@ -344,7 +344,7 @@ export function createFilter(deps) {
           const countEl = document.createElement("span");
           countEl.className = "filter-chip-count";
           countEl.textContent = kwCount;
-          countEl.title = `${kwCount} notification${kwCount === 1 ? "" : "s"} matched "${kw}" from last refresh`;
+          countEl.title = `${kwCount} matching notification${kwCount === 1 ? "" : "s"} at last refresh`;
           group.appendChild(countEl);
         }
         chips.appendChild(group);

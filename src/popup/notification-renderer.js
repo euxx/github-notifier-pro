@@ -83,11 +83,11 @@ export function initRenderer(options) {
   config = { ...config, ...options };
 }
 
-function createMarkButton({ className, label, icon, title = label }) {
+function createMarkButton({ className, label, icon }) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
-  button.title = title;
+  button.title = label;
   button.setAttribute("aria-label", label);
   button.appendChild(getIconSVGElement(icon));
   return button;
@@ -327,8 +327,8 @@ function createNotificationItem(notif, repoHeader, repoFullName) {
     // otherwise hidden.  Below 100 the badge already displays the precise number.
     commentsEl.title =
       notif.comment_count >= 100
-        ? `Go to latest comment (${notif.comment_count} comments)`
-        : "Go to latest comment";
+        ? `Go to the latest comment (${notif.comment_count} comments)`
+        : "Go to the latest comment";
     commentsEl.addEventListener("click", (e) => {
       e.stopPropagation();
       // Fire-and-forget: the service worker handles the API call and opens the tab.
@@ -551,8 +551,8 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
     repoHomeLink.href = repoHomeUrl;
     repoHomeLink.target = "_blank";
     repoHomeLink.rel = "noopener noreferrer";
-    repoHomeLink.title = `Open ${repoFullName} repository`;
-    repoHomeLink.setAttribute("aria-label", `Open ${repoFullName} repository`);
+    repoHomeLink.title = `Open repository: ${repoFullName}`;
+    repoHomeLink.setAttribute("aria-label", `Open repository: ${repoFullName}`);
     const repoIconSvg = getIconSVGElement("repo");
     repoIconSvg.setAttribute("width", "14");
     repoIconSvg.setAttribute("height", "14");
@@ -565,7 +565,7 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
     repoNotificationsLink.href = repoNotificationsUrl;
     repoNotificationsLink.target = "_blank";
     repoNotificationsLink.rel = "noopener noreferrer";
-    repoNotificationsLink.title = `Open ${repoFullName} notifications`;
+    repoNotificationsLink.title = `View notifications for ${repoFullName}`;
     repoNotificationsLink.setAttribute("aria-label", `Open notifications for ${repoFullName}`);
     const repoNameSpan = document.createElement("span");
     repoNameSpan.className = "repo-name";
@@ -582,18 +582,15 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
 
     const markReadBtn = createMarkButton({
       className: "repo-mark-read-btn",
-      label: "Mark repository as read",
+      label: "Mark this repository's notifications as read",
       icon: "checkmark",
-      title: "Mark all notifications in this repository as read",
     });
     repoActionsDiv.appendChild(markReadBtn);
 
     const markDoneBtn = createMarkButton({
       className: "repo-mark-done-btn",
-      label: "Mark repository as done",
+      label: "Mark this repository's notifications as done",
       icon: "done",
-      title:
-        "Mark loaded unread notifications in this repository as done, including filtered notifications",
     });
     repoActionsDiv.appendChild(markDoneBtn);
 

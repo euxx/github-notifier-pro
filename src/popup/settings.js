@@ -139,7 +139,7 @@ export function createSettings(deps) {
     if (permission === "denied") {
       desktopNotificationsToggle.disabled = true;
       desktopNotificationsToggle.parentElement.title =
-        "Browser notification permission denied. Please enable it in browser settings.";
+        "Notifications blocked. Enable them in browser settings.";
       if (desktopNotificationsHint) {
         desktopNotificationsHint.textContent =
           "Permission denied. Please enable notifications in browser settings.";
@@ -147,7 +147,7 @@ export function createSettings(deps) {
       }
     } else if (permission === "unsupported") {
       desktopNotificationsToggle.disabled = true;
-      desktopNotificationsToggle.parentElement.title = "Browser notifications not supported.";
+      desktopNotificationsToggle.parentElement.title = "Desktop notifications are not supported";
       if (desktopNotificationsHint) {
         desktopNotificationsHint.textContent = "Browser notifications are not supported.";
         desktopNotificationsHint.hidden = false;
