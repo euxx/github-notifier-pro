@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.0] - 2026-10-16
+
+### Added
+
+- Mark notifications as done individually, per repository, or all at once from the toolbar
+- Repository and global Done actions process loaded unread notifications, including filtered items, while preserving successful results and leaving failed items available for retry
+
+### Improved
+
+- Unify Read and Done actions with consistent progress feedback, failure recovery, and keyboard focus handling
+- Prevent conflicting bulk actions and keep repository actions locked across notification refreshes
+- Serialize local notification removals to preserve results when multiple actions finish concurrently
+
+### Fixed
+
+- Ignore pending single-notification Read and Done results after logout or a new login, preserving the current session's notifications and badge
+- Show a stop icon for cancelled GitHub Actions workflows
+
 ## [1.4.1] - 2026-05-30
 
 ### Changed
