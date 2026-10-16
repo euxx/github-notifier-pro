@@ -596,6 +596,9 @@ async function runNotificationMutation(operation) {
 }
 
 function markNotification(notificationId, action = MESSAGE_TYPES.MARK_AS_READ) {
+  const generation = authGeneration;
+  const token = github.token;
+  const isCurrent = () => authGeneration === generation && github.token === token;
   return runNotificationMutation(async () => {
     const isDone = action === MESSAGE_TYPES.MARK_AS_DONE;
     try {
@@ -603,14 +606,18 @@ function markNotification(notificationId, action = MESSAGE_TYPES.MARK_AS_READ) {
         const notification = (await storage.getNotifications()).find(
           (n) => n.id === notificationId,
         );
+        if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
         if (!notification) return { success: false, error: "Notification not found" };
-        await github.markAsDone(notificationId);
-        github.lastModified = null;
-        github.lastModifiedAt = null;
+        await github.markAsDone(notificationId, isCurrent);
       } else {
         await github.markAsRead(notificationId);
       }
-      await removeStoredNotifications((n) => n.id === notificationId);
+      if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+      if (isDone) {
+        github.lastModified = null;
+        github.lastModifiedAt = null;
+      }
+      await removeStoredNotifications((n) => n.id === notificationId, { isCurrent });
       return { success: true };
     } catch (error) {
       console.error(`Failed to mark as ${isDone ? "done" : "read"}:`, error);

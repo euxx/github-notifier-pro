@@ -658,7 +658,7 @@ describe("service-worker", () => {
       expect(await callHandler({ action: "markAsDone", notificationId: "123" })).toEqual({
         success: true,
       });
-      expect(mockGithub.markAsDone).toHaveBeenCalledExactlyOnceWith("123");
+      expect(mockGithub.markAsDone).toHaveBeenCalledExactlyOnceWith("123", expect.any(Function));
       expect(mockGithub.markAsRead).not.toHaveBeenCalled();
       expect(mockStorageFunctions.setNotifications).toHaveBeenCalledWith([
         { id: "456", title: "Another" },
@@ -678,6 +678,59 @@ describe("service-worker", () => {
       });
       expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
       expect(mockGithub.lastModified).toBe("old");
+    });
+
+    it.each([
+      ["markAsDone", false],
+      ["markAsDone", true],
+      ["markAsRead", false],
+      ["markAsRead", true],
+    ])(
+      "does not commit a pending %s after logout (same-token login: %s)",
+      async (action, login) => {
+        mockGithub.token = "original-token";
+        let finish;
+        mockGithub[action].mockImplementationOnce(
+          () => new Promise((resolve) => (finish = resolve)),
+        );
+        const operation = callHandler({ action, notificationId: "123" });
+        await vi.waitFor(() => expect(finish).toBeDefined());
+        await callHandler({ action: "logout" });
+        if (login) {
+          mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false, count: 0 });
+          await callHandler({ action: "login", token: "original-token" });
+        }
+        mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", unread: true }]);
+        mockStorageFunctions.setNotifications.mockClear();
+        mockAction.setBadgeText.mockClear();
+        mockGithub.lastModified = "current-session";
+        mockGithub.lastModifiedAt = 123;
+        finish(true);
+        expect(await operation).toEqual({
+          success: false,
+          error: "Authentication changed. Please try again.",
+        });
+        expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+        expect(mockAction.setBadgeText).not.toHaveBeenCalled();
+        expect(mockGithub.lastModified).toBe("current-session");
+        expect(mockGithub.lastModifiedAt).toBe(123);
+      },
+    );
+
+    it("does not send Done after logout while the notification snapshot is loading", async () => {
+      let finishReading;
+      mockStorageFunctions.getNotifications.mockImplementationOnce(
+        () => new Promise((resolve) => (finishReading = resolve)),
+      );
+      const operation = callHandler({ action: "markAsDone", notificationId: "123" });
+      await callHandler({ action: "logout" });
+      finishReading([{ id: "123" }]);
+      expect(await operation).toEqual({
+        success: false,
+        error: "Authentication changed. Please try again.",
+      });
+      expect(mockGithub.markAsDone).not.toHaveBeenCalled();
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
     });
 
     it.each([
