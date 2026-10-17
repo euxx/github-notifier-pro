@@ -582,14 +582,14 @@ export function renderNotificationsInto(container, groupedByRepo, repoOrder) {
 
     const markReadBtn = createMarkButton({
       className: "repo-mark-read-btn",
-      label: "Mark this repository's notifications as read",
+      label: "Mark repo as read",
       icon: "checkmark",
     });
     repoActionsDiv.appendChild(markReadBtn);
 
     const markDoneBtn = createMarkButton({
       className: "repo-mark-done-btn",
-      label: "Mark this repository's notifications as done",
+      label: "Mark repo as done",
       icon: "done",
     });
     repoActionsDiv.appendChild(markDoneBtn);
