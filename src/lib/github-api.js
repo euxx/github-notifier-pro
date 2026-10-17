@@ -514,7 +514,7 @@ class GitHubAPI {
     }
 
     if (!notification.subject.url) {
-      const html_url = buildNotificationUrl(notification);
+      const html_url = buildNotificationUrl({ ...notification, type: subjectType });
 
       switch (subjectType) {
         case NOTIFICATION_TYPES.CHECK_SUITE: {

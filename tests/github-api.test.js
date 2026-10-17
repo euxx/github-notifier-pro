@@ -5,13 +5,6 @@ vi.mock("../src/config/config.js", () => ({
   CLIENT_ID: "test-client-id",
 }));
 
-// Mock url-builder
-vi.mock("../src/lib/url-builder.js", () => ({
-  buildNotificationUrl: vi.fn(
-    (notif) => `https://github.com/${notif.repository?.full_name || "test/repo"}`,
-  ),
-}));
-
 // Import after mocks are set up
 const { github, default: githubDefault } = await import("../src/lib/github-api.js");
 
@@ -536,7 +529,7 @@ describe("GitHubAPI", () => {
       expect(result.state).toBe("open");
     });
 
-    it("should handle CheckSuite notifications", async () => {
+    it("falls back to the Actions page when no workflow run matches a CheckSuite notification", async () => {
       const notification = {
         subject: {
           type: "CheckSuite",
@@ -561,6 +554,7 @@ describe("GitHubAPI", () => {
 
       const result = await github.getNotificationDetails(notification);
 
+      expect(result.html_url).toBe("https://github.com/owner/repo/actions");
       expect(result.conclusion).toBe("success");
       expect(result.status).toBe("completed");
     });
