@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.1] - 2026-10-17
+
+### Improved
+
+- Shorten and clarify popup tooltips
+
+### Fixed
+
+- Protect filter rules on load failure and preserve filtering during detail updates
+- Retry failed notification details and correct workflow fallback links
+- Fix sync toggle error recovery and false conflicts
+
 ## [1.5.0] - 2026-10-16
 
 ### Added
