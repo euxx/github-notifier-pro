@@ -50,6 +50,8 @@ export function createSyncEngine(deps) {
     const localRaw = canonicalizeRules(local);
     const remoteRaw = JSON.stringify(valid);
     if (localRaw === remoteRaw) {
+      await storage.setSyncLastPushedFilter(valid);
+      if (remoteUpdatedAt) await storage.setSyncLastPush(remoteUpdatedAt);
       return { success: true, filter: valid, skipped: true, lastPush: remoteUpdatedAt };
     }
     const [lastPushedRaw, lastPush] = await Promise.all([
@@ -90,6 +92,8 @@ export function createSyncEngine(deps) {
       if (result !== null) {
         const remoteRaw = canonicalizeRules(result.rules);
         if (remoteRaw === filterRaw) {
+          await storage.setSyncLastPushedFilter(filter);
+          if (result.updatedAt) await storage.setSyncLastPush(result.updatedAt);
           return { success: true, skipped: true };
         }
         const lastPush = await storage.getSyncLastPush();

@@ -107,6 +107,44 @@ describe("syncEngine.pushIfEnabled - debounced auto push", () => {
   });
 });
 
+describe("syncEngine - matching rules establish the sync baseline", () => {
+  it.each(["pull", "push"])(
+    "allows the next local edit after a matching %s without a false conflict",
+    async (action) => {
+      const agreed = [{ repos: [], keywords: ["agreed"] }];
+      const edited = [{ repos: [], keywords: ["edited"] }];
+      const updatedAt = "2026-05-14T12:00:00Z";
+      const { storage, github, hook, engine } = build({
+        storageInit: {
+          syncEnabled: true,
+          syncGistId: "gist-id",
+          notificationFilter: agreed,
+          syncLastPushedFilter: JSON.stringify([{ repos: [], keywords: ["old"] }]),
+          syncLastPush: "2026-05-14T10:00:00Z",
+        },
+      });
+      github.getFilterGist.mockResolvedValue({
+        rules: [{ keywords: ["agreed"], repos: [] }],
+        updatedAt,
+      });
+
+      const result =
+        action === "pull" ? await engine.applyRemoteRules("gist-id") : await engine.push();
+
+      expect(result).toMatchObject({ success: true, skipped: true });
+      expect(github.updateFilterGist).not.toHaveBeenCalled();
+      expect(hook).not.toHaveBeenCalled();
+      expect(JSON.parse(storage.state.syncLastPushedFilter)).toEqual(agreed);
+      expect(storage.state.syncLastPush).toBe(updatedAt);
+
+      storage.state.notificationFilter = edited;
+      github.updateFilterGist.mockResolvedValue({ updatedAt: "2026-05-14T13:00:00Z" });
+      expect(await engine.push()).toEqual({ success: true });
+      expect(github.updateFilterGist).toHaveBeenCalledWith("gist-id", edited);
+    },
+  );
+});
+
 describe("syncEngine.push - gist_not_found auto-disable", () => {
   it("clears gist id and disables sync when remote gist is missing", async () => {
     const { storage, github, engine } = build({
