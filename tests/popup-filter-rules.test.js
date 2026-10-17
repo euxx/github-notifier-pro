@@ -170,6 +170,58 @@ describe("popup filter rules", () => {
     vi.useRealTimers();
   });
 
+  it.each(["rejected", "error response", "missing rules"])(
+    "blocks saving after a %s filter load and preserves existing rules on retry",
+    async (failure) => {
+      await loadPopup();
+      const { runtime } = await import("../src/lib/chrome-api.js");
+      if (failure === "rejected") {
+        runtime.sendMessage.mockRejectedValueOnce(new Error("Storage unavailable"));
+      } else {
+        runtime.sendMessage.mockResolvedValueOnce(
+          failure === "error response" ? { error: "Storage unavailable" } : {},
+        );
+      }
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        document.getElementById("filter-icon-btn").click();
+        await flushTasks();
+
+        const input = document.getElementById("filter-new-kw-input");
+        document.getElementById("filter-creator-toggle").click();
+        input.value = "security";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        document.getElementById("filter-add-rule-btn").click();
+        await flushTasks();
+
+        expect(
+          runtime.sendMessage.mock.calls.filter(([m]) => m.action === "setNotificationFilter"),
+        ).toHaveLength(0);
+        expect(document.getElementById("filter-error").hidden).toBe(false);
+        expect(document.getElementById("filter-creator-toggle").disabled).toBe(true);
+
+        document.getElementById("filter-back-btn").click();
+        await flushTasks();
+        document.getElementById("filter-icon-btn").click();
+        await flushTasks();
+        expect(document.getElementById("filter-creator-toggle").disabled).toBe(false);
+        expect(document.getElementById("filter-error").hidden).toBe(true);
+        document.getElementById("filter-creator-toggle").click();
+        input.value = "security";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        document.getElementById("filter-add-rule-btn").click();
+        await flushTasks();
+
+        expect(runtime.sendMessage).toHaveBeenCalledWith({
+          action: "setNotificationFilter",
+          filter: [...RULES, { repos: [], keywords: ["security"] }],
+        });
+      } finally {
+        errorSpy.mockRestore();
+      }
+    },
+  );
+
   it.each([
     ["mark-all-btn", "markAllAsRead"],
     ["mark-all-done-btn", "markAllAsDone"],

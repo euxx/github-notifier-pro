@@ -62,6 +62,7 @@ export function createFilter(deps) {
 
   // ─── State ────────────────────────────────────────────────────────────
   let currentFilterRules = [];
+  let filterRulesLoaded = false;
   let currentFilterStats = [];
   const newRule = { repos: [], keywords: [] };
   const pendingNewRuleChipEdits = { repo: null, kw: null };
@@ -272,7 +273,7 @@ export function createFilter(deps) {
         '<svg viewBox="0 0 16 16" width="24" height="24"><path fill="currentColor" d="M.75 3h14.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1 0-1.5ZM3 7.75A.75.75 0 0 1 3.75 7h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 7.75Zm3 4a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>';
       empty.appendChild(parseSVG(svgMarkup));
       const text = document.createElement("p");
-      text.textContent = "No rules yet";
+      text.textContent = filterRulesLoaded ? "No rules yet" : "Rules unavailable";
       empty.appendChild(text);
       filterRulesList.appendChild(empty);
       syncFilterOverlayHeight();
@@ -398,7 +399,7 @@ export function createFilter(deps) {
   function updateFilterCreatorSaveState() {
     if (!filterAddRuleBtn) return;
     const hasKeywords = newRule.keywords.length > 0 || Boolean(filterNewKwInput?.value.trim());
-    filterAddRuleBtn.disabled = !hasKeywords;
+    filterAddRuleBtn.disabled = !filterRulesLoaded || !hasKeywords;
   }
 
   function updateFilterCreatorLabel() {
@@ -548,6 +549,7 @@ export function createFilter(deps) {
 
   // ─── Filter persistence + indicators ──────────────────────────────────
   async function saveFilterRules(rules) {
+    if (!filterRulesLoaded) return false;
     try {
       const result = await sendMessage(MESSAGE_TYPES.SET_NOTIFICATION_FILTER, { filter: rules });
       if (result?.error) throw new Error(result.error);
@@ -637,15 +639,21 @@ export function createFilter(deps) {
 
   // ─── View open / close ────────────────────────────────────────────────
   async function show() {
-    let loadError = false;
+    filterRulesLoaded = false;
+    if (filterCreatorToggle) filterCreatorToggle.disabled = true;
+    updateFilterCreatorSaveState();
     try {
       const result = await sendMessage(MESSAGE_TYPES.GET_NOTIFICATION_FILTER);
-      currentFilterRules = Array.isArray(result?.filter) ? result.filter : [];
+      if (result?.error || !Array.isArray(result?.filter)) {
+        throw new Error(result?.error || "Invalid filter rules response");
+      }
+      currentFilterRules = result.filter;
+      filterRulesLoaded = true;
     } catch (err) {
       console.error("Failed to load notification filter:", err);
       currentFilterRules = [];
-      loadError = true;
     }
+    if (filterCreatorToggle) filterCreatorToggle.disabled = !filterRulesLoaded;
 
     try {
       currentFilterStats = await storage.getNotificationFilterStats();
@@ -658,8 +666,8 @@ export function createFilter(deps) {
     if (filterView) filterView.hidden = false;
 
     if (filterErrorEl) {
-      if (loadError) {
-        filterErrorEl.textContent = "Failed to load filter rules.";
+      if (!filterRulesLoaded) {
+        filterErrorEl.textContent = "Failed to load rules. Reopen filters to try again.";
         filterErrorEl.hidden = false;
       } else {
         filterErrorEl.hidden = true;
