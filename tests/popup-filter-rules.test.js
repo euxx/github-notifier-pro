@@ -1287,3 +1287,61 @@ describe("popup filter rules", () => {
     });
   });
 });
+
+describe("popup sync disable", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    document.body.innerHTML = `
+      <input id="filter-sync-toggle" type="checkbox" checked />
+      <div id="filter-sync-actions"></div>
+      <p id="filter-sync-status" hidden></p>
+    `;
+  });
+
+  it.each(["rejected", "error response"])(
+    "restores enabled sync after a %s disable request",
+    async (failure) => {
+      let finish;
+      const sendMessage = vi.fn(
+        () =>
+          new Promise((resolve, reject) => {
+            finish = failure === "rejected" ? () => reject(new Error("Offline")) : resolve;
+          }),
+      );
+      const { createSync } = await import("../src/popup/sync.js");
+      createSync({ sendMessage, storage: {}, onPulledFilter: vi.fn() });
+      const toggle = document.getElementById("filter-sync-toggle");
+      toggle.click();
+      const disabledWhilePending = toggle.disabled;
+      finish({ error: "Storage unavailable" });
+      await flushTasks();
+
+      expect(sendMessage).toHaveBeenCalledWith("syncDisable");
+      expect(disabledWhilePending).toBe(true);
+      expect(toggle.disabled).toBe(false);
+      expect(toggle.checked).toBe(true);
+      expect(document.getElementById("filter-sync-actions").hidden).toBe(false);
+      expect(document.getElementById("filter-sync-status").hidden).toBe(false);
+    },
+  );
+
+  it("hides sync actions only after disabling succeeds", async () => {
+    let finish;
+    const sendMessage = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    const { createSync } = await import("../src/popup/sync.js");
+    createSync({ sendMessage, storage: {}, onPulledFilter: vi.fn() });
+    const toggle = document.getElementById("filter-sync-toggle");
+    toggle.click();
+    const disabledWhilePending = toggle.disabled;
+    expect(document.getElementById("filter-sync-actions").hidden).toBe(false);
+    finish({ success: true });
+    await flushTasks();
+
+    expect(disabledWhilePending).toBe(true);
+    expect(toggle.disabled).toBe(false);
+    expect(toggle.checked).toBe(false);
+    expect(document.getElementById("filter-sync-actions").hidden).toBe(true);
+    expect(document.getElementById("filter-sync-status").hidden).toBe(true);
+  });
+});

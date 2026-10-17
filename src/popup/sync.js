@@ -172,10 +172,17 @@ export function createSync(deps) {
         syncToggle.disabled = false;
       }
     } else {
+      syncToggle.disabled = true;
       try {
-        await sendMessage(MESSAGE_TYPES.SYNC_DISABLE);
-      } catch {}
-      if (syncActions) syncActions.hidden = true;
+        const result = await sendMessage(MESSAGE_TYPES.SYNC_DISABLE);
+        if (!result?.success) throw new Error("Failed to disable sync");
+        if (syncActions) syncActions.hidden = true;
+      } catch {
+        syncToggle.checked = true;
+        showSyncStatus("Failed to disable sync. Please try again.", true);
+      } finally {
+        syncToggle.disabled = false;
+      }
     }
   }
 
