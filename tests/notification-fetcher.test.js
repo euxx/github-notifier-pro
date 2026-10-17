@@ -570,6 +570,7 @@ describe("fetcher.runFetch race-condition guards", () => {
       hasMore: false,
     });
     storage.getNotifications
+      .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")]) // retry check
       .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")]) // existingIds snapshot
       .mockResolvedValueOnce([makeStoredNotif("B")]); // safeBasic re-read (A removed)
 
@@ -591,6 +592,7 @@ describe("fetcher.runFetch race-condition guards", () => {
       hasMore: false,
     });
     storage.getNotifications
+      .mockResolvedValueOnce([makeStoredNotif("A")]) // retry check
       .mockResolvedValueOnce([makeStoredNotif("A")])
       .mockResolvedValueOnce([makeStoredNotif("A")]);
 
@@ -611,6 +613,7 @@ describe("fetcher.runFetch race-condition guards", () => {
 
     let releaseSafeBasicRead;
     storage.getNotifications
+      .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")]) // retry check
       .mockResolvedValueOnce([makeStoredNotif("A"), makeStoredNotif("B")]) // existingIds
       .mockImplementationOnce(
         () =>
@@ -658,6 +661,94 @@ describe("fetcher.runFetch race-condition guards", () => {
     expect(github.getNotificationDetails).toHaveBeenCalled();
     const [, forceRefresh] = github.getNotificationDetails.mock.calls[0];
     expect(forceRefresh).toBe(true);
+  });
+});
+
+describe("fetcher.runFetch detail recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSession.set.mockResolvedValue(undefined);
+    mockSession.get.mockResolvedValue({});
+  });
+
+  it("retries failed details with unchanged updated_at and preserves successful cached details", async () => {
+    const { storage, github, fetcher } = build();
+    const items = [makeRawNotif("failed"), makeRawNotif("cached")];
+    github.getNotifications.mockResolvedValue({ items, hasMore: false });
+    github.getNotificationDetails
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ state: "closed", number: 2 })
+      .mockResolvedValueOnce({ state: "closed", number: 1 });
+
+    await fetcher.runFetch();
+    expect(storage.state.notifications[0].detailsFailed).toBe(true);
+
+    await fetcher.runFetch();
+
+    expect(storage.state.notifications[0]).toMatchObject({ state: "closed", number: 1 });
+    expect(storage.state.notifications[0]).not.toHaveProperty("detailsFailed");
+    expect(storage.state.notifications[1]).toMatchObject({ state: "closed", number: 2 });
+    expect(github.getNotificationDetails.mock.calls.map(([n]) => n.id)).toEqual([
+      "failed",
+      "cached",
+      "failed",
+    ]);
+    expect(github.getNotificationDetails).toHaveBeenLastCalledWith(items[0], true);
+
+    await fetcher.runFetch();
+    expect(github.getNotificationDetails).toHaveBeenCalledTimes(3);
+  });
+
+  it("bypasses conditional polling until stored failed details recover", async () => {
+    const { storage, github, fetcher } = build({
+      storageInit: {
+        notifications: [makeStoredNotif("failed", { detailsFailed: true, state: "open" })],
+      },
+    });
+    github.lastModified = "unchanged";
+    const conditionalHeaders = [];
+    github.getNotifications.mockImplementation(async () => {
+      conditionalHeaders.push(github.lastModified);
+      if (github.lastModified) return null;
+      github.lastModified = "unchanged";
+      return { items: [makeRawNotif("failed")], hasMore: false };
+    });
+    github.getNotificationDetails
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValue({ state: "closed" });
+
+    await fetcher.runFetch();
+    expect(storage.state.notifications[0].detailsFailed).toBe(true);
+    expect(conditionalHeaders).toEqual([null]);
+
+    await fetcher.runFetch();
+
+    expect(storage.state.notifications[0].state).toBe("closed");
+    expect(storage.state.notifications[0]).not.toHaveProperty("detailsFailed");
+    expect(conditionalHeaders).toEqual([null, null]);
+
+    await fetcher.runFetch();
+    expect(conditionalHeaders).toEqual([null, null, "unchanged"]);
+    expect(github.getNotificationDetails).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps conditional polling when a failed notification was removed", async () => {
+    const { storage, github, fetcher } = build();
+    github.getNotifications.mockImplementation(async () => {
+      if (github.lastModified) return null;
+      github.lastModified = "unchanged";
+      return { items: [makeRawNotif("removed")], hasMore: false };
+    });
+    github.getNotificationDetails.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await fetcher.runFetch();
+    expect(storage.state.notifications[0].detailsFailed).toBe(true);
+
+    storage.state.notifications = [];
+    await fetcher.runFetch();
+
+    expect(github.lastModified).toBe("unchanged");
+    expect(github.getNotificationDetails).toHaveBeenCalledTimes(1);
+    expect(storage.state.notifications).toEqual([]);
   });
 });
 

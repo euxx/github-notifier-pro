@@ -234,6 +234,7 @@ export function createNotificationFetcher(deps) {
       try {
         const details = await github.getNotificationDetails(notification, forceRefresh);
         updateNotificationDetails(detailedNotifications[index], details, notification.subject.type);
+        delete detailedNotifications[index].detailsFailed;
         // Side effect kept inside the fetcher: any author seen during a
         // detail fetch should populate the in-memory LRU.
         const authorData = details.user || details.author;
@@ -324,6 +325,11 @@ export function createNotificationFetcher(deps) {
     console.log(`Starting notification fetch #${currentFetchVersion}`);
 
     const notificationFilter = await storage.getNotificationFilter();
+    const storedNotifications = await storage.getNotifications();
+    if (storedNotifications.some((n) => n.detailsFailed)) {
+      // A 304 would skip retrying details even after a transient failure clears.
+      github.lastModified = null;
+    }
     const previousPollInterval = github.pollInterval;
 
     const result = await github.getNotifications();
@@ -430,7 +436,8 @@ export function createNotificationFetcher(deps) {
     for (let index = 0; index < notifications.length; index++) {
       const n = notifications[index];
       const existing = existingMap.get(n.id);
-      const needsUpdate = !existing || existing.updated_at !== n.updated_at;
+      const needsUpdate =
+        !existing || existing.detailsFailed || existing.updated_at !== n.updated_at;
       if (needsUpdate) {
         notificationsNeedingDetails.push({ notification: n, index });
       }
