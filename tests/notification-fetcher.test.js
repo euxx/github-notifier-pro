@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { CONCURRENCY } from "../src/lib/constants.js";
+import { applyRulesWithStats } from "../src/lib/filter-rules.js";
 
 // chrome-api.session backs persistCommentCache / restoreCommentCache.
 const mockSession = {
@@ -662,6 +664,60 @@ describe("fetcher.runFetch race-condition guards", () => {
     const [, forceRefresh] = github.getNotificationDetails.mock.calls[0];
     expect(forceRefresh).toBe(true);
   });
+});
+
+describe("fetcher.runFetch filter changes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSession.set.mockResolvedValue(undefined);
+    mockSession.get.mockResolvedValue({});
+  });
+
+  it.each([
+    ["priority", false],
+    ["priority", true],
+    ["background", false],
+    ["background", true],
+  ])(
+    "preserves changed filters during %s details (initially filtered: %s)",
+    async (phase, hidden) => {
+      const rules = [{ repos: [], keywords: ["Issue"] }];
+      const { storage, github, onBadgeUpdate, fetcher } = build({
+        storageInit: { notificationFilter: hidden ? rules : [] },
+      });
+      const count = phase === "priority" ? 1 : CONCURRENCY.VISIBLE_COUNT + 1;
+      const items = Array.from({ length: count }, (_, i) => makeRawNotif(String(i)));
+      github.getNotifications.mockResolvedValue({ items, hasMore: false });
+      let finishDetails;
+      github.getNotificationDetails.mockImplementation((n) =>
+        n.id === String(count - 1)
+          ? new Promise((resolve) => {
+              finishDetails = resolve;
+            })
+          : Promise.resolve({ state: "closed" }),
+      );
+      const pending = fetcher.runFetch();
+      await vi.waitFor(() => expect(finishDetails).toBeTypeOf("function"));
+
+      storage.state.notificationFilter = hidden ? [] : rules;
+      const current = applyRulesWithStats(
+        storage.state.notifications,
+        storage.state.notificationFilter,
+      );
+      storage.state.notifications = current.notifications;
+      storage.state.notificationFilterStats = current.stats;
+      finishDetails({ state: "closed" });
+      await pending;
+      await vi.waitFor(() => {
+        expect(storage.state.notifications.at(-1).state).toBe("closed");
+      });
+
+      expect(
+        storage.state.notifications.every((n) => n.matchedRules.length === (hidden ? 0 : 1)),
+      ).toBe(true);
+      expect(onBadgeUpdate).toHaveBeenLastCalledWith(hidden ? count : 0, false);
+    },
+  );
 });
 
 describe("fetcher.runFetch detail recovery", () => {

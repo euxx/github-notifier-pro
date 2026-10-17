@@ -254,16 +254,14 @@ export function createNotificationFetcher(deps) {
   }
 
   function filterToCurrentlyStored(detailedNotifications, currentStoredNotifications) {
-    const currentStoredIds = new Set(currentStoredNotifications.map((n) => n.id));
-    return detailedNotifications.filter((n) => currentStoredIds.has(n.id));
+    const currentStored = new Map(currentStoredNotifications.map((n) => [n.id, n]));
+    // Detail responses must preserve filter changes made while they were in flight.
+    return detailedNotifications
+      .filter((n) => currentStored.has(n.id))
+      .map((n) => ({ ...n, matchedRules: currentStored.get(n.id).matchedRules }));
   }
 
-  async function mergeAndSaveIfCurrent(
-    fetchVersion,
-    notifications,
-    label,
-    notificationFilter = null,
-  ) {
+  async function mergeAndSaveIfCurrent(fetchVersion, notifications, label) {
     if (fetchVersion < notificationFetchVersion) {
       console.log(`Fetch #${fetchVersion} superseded before ${label}, skipping`);
       return false;
@@ -273,11 +271,7 @@ export function createNotificationFetcher(deps) {
       console.log(`Fetch #${fetchVersion} superseded during ${label} storage read, skipping`);
       return false;
     }
-    let safe = filterToCurrentlyStored(notifications, currentStored);
-    if (notificationFilter) {
-      const { notifications: annotated } = applyRulesWithStats(safe, notificationFilter);
-      safe = annotated;
-    }
+    const safe = filterToCurrentlyStored(notifications, currentStored);
     await storage.setNotifications(safe);
     return safe.filter(isVisible).length;
   }
@@ -469,7 +463,6 @@ export function createNotificationFetcher(deps) {
         currentFetchVersion,
         detailedNotifications,
         "priority save",
-        notificationFilter,
       );
       prioritySaved = priorityCount !== false;
       if (prioritySaved) {
@@ -512,7 +505,6 @@ export function createNotificationFetcher(deps) {
             currentFetchVersion,
             detailedNotifications,
             "background save",
-            notificationFilter,
           );
           if (savedCount !== false) {
             await onBadgeUpdate(savedCount, hasMoreNotifications);
