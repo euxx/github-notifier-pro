@@ -12,7 +12,7 @@ import { storage as browserStorage } from "./chrome-api.js";
 const STORAGE_KEYS = {
   TOKEN: "token",
   USERNAME: "username",
-  USER_INFO: "userInfo", // {login, avatar_url, html_url}
+  USER_INFO: "userInfo", // {id, login, avatar_url, html_url}
   AUTH_METHOD: "authMethod", // 'oauth' or 'pat'
   NOTIFICATIONS: "notifications",
   LAST_CHECK: "lastCheck",

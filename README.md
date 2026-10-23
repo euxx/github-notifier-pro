@@ -28,8 +28,6 @@
 1. **OAuth (recommended)** — Click "Sign in with GitHub", enter the code on GitHub
 2. **Personal Access Token** — Generate a token with `repo` and `notifications` scopes at [GitHub Settings](https://github.com/settings/tokens)
 
-Use **Mark as done** on a notification, repository, or the toolbar to move notifications to GitHub's Done inbox. Repository and all-at-once Done actions process the unread notifications loaded when the action starts, including those hidden by filters. Failed items remain available for retry.
-
 ## Development
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for installation, building, and setup.

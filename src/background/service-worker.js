@@ -13,7 +13,7 @@ import {
   CONCURRENCY,
 } from "../lib/constants.js";
 import { classifyError } from "../lib/http.js";
-import { buildNotificationUrl } from "../lib/url-builder.js";
+import { addNotificationReferrer, buildNotificationUrl } from "../lib/url-builder.js";
 import { ensureAvatarsCached, setActive as setAvatarCacheActive } from "../lib/avatar-cache.js";
 import {
   applyRulesWithStats,
@@ -123,6 +123,7 @@ async function doInitialize() {
   const token = await storage.getToken();
   if (token) {
     github.token = token;
+    void restoreUserInfo(token, authGeneration);
     setAvatarCacheActive(true);
     const username = await storage.getUsername();
     if (username) {
@@ -257,7 +258,7 @@ async function handleMessage(message) {
       return await openNotification(message.notificationId);
 
     case MESSAGE_TYPES.OPEN_LATEST_COMMENT:
-      return await openLatestComment(message.notificationId);
+      return await openNotification(message.notificationId, true);
 
     case MESSAGE_TYPES.MARK_AS_READ:
     case MESSAGE_TYPES.MARK_AS_DONE:
@@ -509,34 +510,63 @@ async function getState() {
   };
 }
 
-async function openNotification(notificationId) {
-  const notifs = await storage.getNotifications();
-  const notification = notifs.find((n) => n.id === notificationId);
-  if (!notification) {
-    throw new Error("Notification not found");
-  }
+async function restoreUserInfo(token, generation) {
+  const isCurrent = () => github.token === token && authGeneration === generation;
+  try {
+    const userInfo = await storage.getUserInfo();
+    if (!isCurrent()) return;
+    github.userInfo = userInfo;
+    if (userInfo?.id) return;
 
-  const url = buildNotificationUrl(notification);
-  await tabs.create({ url });
-  void markNotification(notificationId);
-  return { success: true, url };
+    // Upgrade old profiles in the background without delaying navigation or polling.
+    await github.fetchUsername();
+    // Logout waits for queued writes before clearing authentication storage.
+    const mutation = notificationMutationQueue.then(async () => {
+      if (isCurrent() && github.userInfo?.id) await storage.setUserInfo(github.userInfo);
+    });
+    notificationMutationQueue = mutation.catch(() => {});
+    await mutation;
+  } catch (error) {
+    console.warn("Failed to load notification referrer user", error);
+  }
 }
 
-async function openLatestComment(notificationId) {
+async function openNotificationTab(
+  notification,
+  isCurrent,
+  url = buildNotificationUrl(notification),
+) {
+  let userInfo;
+  try {
+    userInfo = await storage.getUserInfo();
+  } catch (error) {
+    console.warn("Failed to load notification referrer user", error);
+  }
+  if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+  url = addNotificationReferrer(url, notification.id, userInfo?.id);
+  await tabs.create({ url });
+  if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
+  return url;
+}
+
+async function openNotification(notificationId, latestComment = false) {
+  const generation = authGeneration;
+  const token = github.token;
+  const isCurrent = () => authGeneration === generation && github.token === token;
   const notifs = await storage.getNotifications();
   const notification = notifs.find((n) => n.id === notificationId);
+  if (!isCurrent()) throw new Error("Authentication changed. Please try again.");
   if (!notification) {
     throw new Error("Notification not found");
   }
 
-  let latestCommentUrl = fetcher.getCommentUrl(notificationId, notification.updated_at);
-  if (!latestCommentUrl) {
-    latestCommentUrl = await github.getLatestCommentUrl(notification);
+  let latestCommentUrl;
+  if (latestComment) {
+    latestCommentUrl = fetcher.getCommentUrl(notificationId, notification.updated_at);
+    if (!latestCommentUrl) latestCommentUrl = await github.getLatestCommentUrl(notification);
   }
-  const url = latestCommentUrl ?? buildNotificationUrl(notification);
-
-  await tabs.create({ url });
-  void markNotification(notificationId);
+  const url = await openNotificationTab(notification, isCurrent, latestCommentUrl ?? undefined);
+  if (isCurrent()) void markNotification(notificationId);
   return { success: true, url };
 }
 
@@ -771,14 +801,17 @@ notifications.onClicked.addListener(async (notificationId) => {
       return;
     }
     const githubNotifId = notificationId.slice(NOTIFICATION_ID_PREFIX.length);
+    const generation = authGeneration;
+    const token = github.token;
+    const isCurrent = () => authGeneration === generation && github.token === token;
 
     const notification = (await storage.getNotifications()).find((n) => n.id === githubNotifId);
     await safeClearNotification(notificationId);
     if (notification) {
-      const url = buildNotificationUrl(notification);
-      await tabs.create({ url });
+      await openNotificationTab(notification, isCurrent);
       await runNotificationMutation(async () => {
-        await removeStoredNotifications((n) => n.id === githubNotifId);
+        await removeStoredNotifications((n) => n.id === githubNotifId, { isCurrent });
+        if (!isCurrent()) return;
         await github.markAsRead(githubNotifId);
       });
     }

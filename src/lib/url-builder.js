@@ -139,6 +139,25 @@ function buildDependabotUrl(fullName) {
 }
 
 /**
+ * Preserve notification context when opening a GitHub page.
+ * GitHub still accepts this legacy referrer format; it is not a documented API.
+ */
+export function addNotificationReferrer(url, notificationId, userId) {
+  if (!/^\d+$/.test(notificationId) || !/^\d+$/.test(userId)) return url;
+
+  const target = new URL(url);
+  if (target.origin !== GITHUB_SITE_BASE || target.searchParams.has("notification_referrer_id")) {
+    return url;
+  }
+
+  target.searchParams.set(
+    "notification_referrer_id",
+    btoa(`018:NotificationThread${notificationId}:${userId}`),
+  );
+  return target.href;
+}
+
+/**
  * Build GitHub notifications URL filtered to a single repository
  * @param {string|null|undefined} fullName - Repository full name (owner/repo)
  * @returns {string|null} Notifications URL or null if fullName is falsy

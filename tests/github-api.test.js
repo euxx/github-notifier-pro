@@ -154,6 +154,7 @@ describe("GitHubAPI", () => {
         ok: true,
         json: () =>
           Promise.resolve({
+            id: 456,
             login: "testuser",
             avatar_url: "https://avatar.url",
             html_url: "https://github.com/testuser",
@@ -168,6 +169,23 @@ describe("GitHubAPI", () => {
       expect(github.token).toBe("ghp_testtoken");
       expect(github.username).toBe("testuser");
       expect(github.userInfo.login).toBe("testuser");
+      expect(github.userInfo.id).toBe(456);
+    });
+
+    it("does not restore a user profile after logout during a request", async () => {
+      let resolveResponse;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => (resolveResponse = resolve)));
+      github.token = "ghp_testtoken";
+      const request = github.fetchUsername();
+      github.logout();
+      resolveResponse({
+        ok: true,
+        json: async () => ({ id: 456, login: "testuser" }),
+        headers: { get: () => null },
+      });
+      await request;
+      expect(github.userInfo).toBeNull();
+      expect(github.username).toBeNull();
     });
 
     it("should throw error when PAT login without token", async () => {

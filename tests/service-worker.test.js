@@ -133,6 +133,7 @@ vi.mock("../src/lib/github-api.js", () => ({
 
 // Mock constants
 vi.mock("../src/lib/constants.js", () => ({
+  GITHUB_SITE_BASE: "https://github.com",
   ALARM_NAME: "check-notifications",
   MIN_POLL_INTERVAL_SECONDS: 60,
   MAX_POLL_INTERVAL_SECONDS: 600,
@@ -196,7 +197,8 @@ vi.mock("../src/lib/http.js", () => ({
 }));
 
 // Mock url-builder
-vi.mock("../src/lib/url-builder.js", () => ({
+vi.mock("../src/lib/url-builder.js", async (importOriginal) => ({
+  ...(await importOriginal()),
   buildNotificationUrl: vi.fn(
     (notif) => notif.html_url || `https://github.com/${notif.repository?.full_name || "test/repo"}`,
   ),
@@ -248,11 +250,14 @@ describe("service-worker", () => {
     mockGithub.markAsDone.mockReset();
     mockGithub.token = null;
     mockGithub.username = null;
+    mockGithub.userInfo = null;
     mockGithub.isAuthenticated = false;
+    mockGithub.fetchUsername.mockReset();
 
     // Setup default storage responses
     mockStorageFunctions.getToken.mockResolvedValue(null);
     mockStorageFunctions.getUsername.mockResolvedValue(null);
+    mockStorageFunctions.getUserInfo.mockResolvedValue(null);
     mockStorageFunctions.getNotifications.mockResolvedValue([]);
     mockStorageFunctions.getEnableDesktopNotifications.mockResolvedValue(false);
     mockStorageFunctions.getNotificationFilter.mockResolvedValue([]);
@@ -317,6 +322,101 @@ describe("service-worker", () => {
 
       expect(mockAction.setBadgeText).toHaveBeenCalledWith({ text: "?" });
       expect(mockAction.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: "#6B7280" });
+    });
+
+    it("restores a cached user ID without fetching the user profile", async () => {
+      const initialize = mockRuntime.onStartup.addListener.mock.calls.at(-1)[0];
+      await initialize();
+      const userInfo = { id: 456, login: "testuser" };
+      mockStorageFunctions.getToken.mockResolvedValue("ghp_test");
+      mockStorageFunctions.getUserInfo.mockResolvedValue(userInfo);
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false });
+
+      await initialize();
+      expect(mockGithub.userInfo).toEqual(userInfo);
+      expect(mockGithub.fetchUsername).not.toHaveBeenCalled();
+    });
+
+    it("upgrades an old profile without blocking polling or navigation", async () => {
+      const initialize = mockRuntime.onStartup.addListener.mock.calls.at(-1)[0];
+      await initialize();
+      const url = "https://github.com/owner/repo/issues/1";
+      const userInfo = { id: 456, login: "testuser" };
+      mockStorageFunctions.getToken.mockResolvedValue("ghp_test");
+      mockStorageFunctions.getUserInfo.mockResolvedValue({ login: "testuser" });
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", html_url: url }]);
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false });
+      mockGithub.isAuthenticated = true;
+      let finishFetch;
+      mockGithub.fetchUsername.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFetch = () => {
+              mockGithub.userInfo = userInfo;
+              resolve(userInfo.login);
+            };
+          }),
+      );
+      const starting = initialize();
+      await vi.waitFor(() => expect(mockGithub.fetchUsername).toHaveBeenCalled());
+      try {
+        expect(await callHandler({ action: "openNotification", notificationId: "123" })).toEqual({
+          success: true,
+          url,
+        });
+        expect(mockGithub.getNotifications).toHaveBeenCalled();
+      } finally {
+        finishFetch();
+        await starting;
+      }
+      await vi.waitFor(() =>
+        expect(mockStorageFunctions.setUserInfo).toHaveBeenCalledWith(userInfo),
+      );
+      mockStorageFunctions.getUserInfo.mockResolvedValue(userInfo);
+      await callHandler({ action: "openNotification", notificationId: "123" });
+      expect(
+        new URL(mockTabs.create.mock.calls.at(-1)[0].url).searchParams.has(
+          "notification_referrer_id",
+        ),
+      ).toBe(true);
+      expect(mockGithub.fetchUsername).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not persist a background profile upgrade after logout", async () => {
+      const initialize = mockRuntime.onStartup.addListener.mock.calls.at(-1)[0];
+      await initialize();
+      mockStorageFunctions.getToken.mockResolvedValue("ghp_test");
+      mockStorageFunctions.getUserInfo.mockResolvedValue({ login: "testuser" });
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false });
+      let finishFetch;
+      mockGithub.fetchUsername.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFetch = resolve;
+          }),
+      );
+      await initialize();
+      expect(mockGithub.fetchUsername).toHaveBeenCalled();
+      await callHandler({ action: "logout" });
+      mockGithub.userInfo = { id: 456, login: "testuser" };
+      finishFetch("testuser");
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockStorageFunctions.setUserInfo).not.toHaveBeenCalled();
+    });
+
+    it("continues polling when a background profile upgrade fails", async () => {
+      const initialize = mockRuntime.onStartup.addListener.mock.calls.at(-1)[0];
+      await initialize();
+      mockStorageFunctions.getToken.mockResolvedValue("ghp_test");
+      mockStorageFunctions.getUserInfo.mockResolvedValue({ login: "testuser" });
+      mockGithub.isAuthenticated = true;
+      mockGithub.getNotifications.mockResolvedValue({ items: [], hasMore: false });
+      mockGithub.fetchUsername.mockRejectedValueOnce(new Error("Offline"));
+
+      await initialize();
+      expect(mockGithub.getNotifications).toHaveBeenCalled();
+      expect(mockStorageFunctions.setUserInfo).not.toHaveBeenCalled();
     });
   });
 
@@ -412,6 +512,103 @@ describe("service-worker", () => {
   });
 
   describe("handleMessage - OPEN_NOTIFICATION", () => {
+    it.each(["openNotification", "openLatestComment", "desktop"])(
+      "includes notification context when opening via %s",
+      async (action) => {
+        const notification = {
+          id: "123",
+          html_url: "https://github.com/owner/repo/issues/1",
+        };
+        mockStorageFunctions.getNotifications.mockResolvedValue([notification]);
+        mockStorageFunctions.getUserInfo.mockResolvedValue({ id: 456, login: "testuser" });
+        if (action === "openLatestComment") {
+          mockGithub.getLatestCommentUrl.mockResolvedValueOnce(
+            "https://github.com/owner/repo/issues/1#issuecomment-2",
+          );
+        }
+
+        if (action === "desktop") {
+          await notificationClickHandler(`${NOTIFICATION_ID_PREFIX}123`);
+        } else {
+          await callHandler({ action, notificationId: "123" });
+        }
+
+        const target = new URL(mockTabs.create.mock.calls[0][0].url);
+        expect(atob(target.searchParams.get("notification_referrer_id"))).toBe(
+          "018:NotificationThread123:456",
+        );
+        expect(target.hash).toBe(action === "openLatestComment" ? "#issuecomment-2" : "");
+        expect(mockGithub.fetchUsername).not.toHaveBeenCalled();
+      },
+    );
+
+    it("opens immediately without fetching a missing user ID", async () => {
+      const url = "https://github.com/owner/repo/issues/1";
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", html_url: url }]);
+      mockStorageFunctions.getUserInfo.mockResolvedValue({ login: "testuser" });
+      mockGithub.isAuthenticated = true;
+      let finishFetch;
+      mockGithub.fetchUsername.mockImplementationOnce(
+        () => new Promise((resolve) => (finishFetch = resolve)),
+      );
+      const opening = callHandler({ action: "openNotification", notificationId: "123" });
+      try {
+        await vi.waitFor(() => expect(mockTabs.create).toHaveBeenCalledWith({ url }), {
+          timeout: 100,
+        });
+        expect(mockGithub.fetchUsername).not.toHaveBeenCalled();
+      } finally {
+        finishFetch?.("testuser");
+        await opening;
+      }
+    });
+
+    it("still opens the original URL when reading the cached profile fails", async () => {
+      const url = "https://github.com/owner/repo/issues/1";
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", html_url: url }]);
+      mockStorageFunctions.getUserInfo.mockRejectedValueOnce(new Error("Storage unavailable"));
+      const result = await callHandler({ action: "openNotification", notificationId: "123" });
+      expect(result).toEqual({ success: true, url });
+      expect(mockTabs.create).toHaveBeenCalledWith({ url });
+    });
+
+    it.each([
+      ["openNotification", "profile"],
+      ["openLatestComment", "profile"],
+      ["desktop", "profile"],
+      ["openNotification", "tab"],
+      ["openLatestComment", "tab"],
+      ["desktop", "tab"],
+    ])("stops %s after logout while awaiting %s", async (action, phase) => {
+      const url = "https://github.com/owner/repo/issues/1";
+      mockStorageFunctions.getNotifications.mockResolvedValue([{ id: "123", html_url: url }]);
+      if (action === "openLatestComment")
+        mockGithub.getLatestCommentUrl.mockResolvedValueOnce(null);
+      let finish;
+      const pending = new Promise((resolve) => (finish = resolve));
+      if (phase === "profile") {
+        mockStorageFunctions.getUserInfo.mockReturnValueOnce(pending);
+      } else {
+        mockTabs.create.mockReturnValueOnce(pending);
+      }
+      const opening =
+        action === "desktop"
+          ? notificationClickHandler(NOTIFICATION_ID_PREFIX + "123")
+          : callHandler({ action, notificationId: "123" });
+      await vi.waitFor(() =>
+        expect(
+          phase === "profile" ? mockStorageFunctions.getUserInfo : mockTabs.create,
+        ).toHaveBeenCalled(),
+      );
+      await callHandler({ action: "logout" });
+      finish(phase === "profile" ? { id: 456, login: "testuser" } : { id: 1 });
+      await opening;
+
+      expect(mockGithub.markAsRead).not.toHaveBeenCalled();
+      expect(mockStorageFunctions.setNotifications).not.toHaveBeenCalled();
+      expect(mockTabs.create).toHaveBeenCalledTimes(phase === "profile" ? 0 : 1);
+    });
+
     it("should open notification URL in new tab", async () => {
       mockStorageFunctions.getNotifications.mockResolvedValue([
         {

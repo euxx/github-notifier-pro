@@ -310,6 +310,7 @@ class GitHubAPI {
    * Fetch current user's username
    */
   async fetchUsername() {
+    const token = this.token;
     const response = await fetchWithTimeout(
       `${GITHUB_API_BASE}/user`,
       {
@@ -322,8 +323,10 @@ class GitHubAPI {
 
     if (response.ok) {
       const data = await response.json();
+      if (this.token !== token) return null;
       this.username = data.login;
       this.userInfo = {
+        id: data.id,
         login: data.login,
         avatar_url: data.avatar_url,
         html_url: data.html_url,

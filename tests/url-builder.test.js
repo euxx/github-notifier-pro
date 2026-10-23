@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addNotificationReferrer,
   buildNotificationUrl,
   buildProfileUrl,
   buildRepoNotificationsUrl,
@@ -7,6 +8,48 @@ import {
 } from "../src/lib/url-builder.js";
 
 const GITHUB_BASE = "https://github.com";
+
+describe("addNotificationReferrer", () => {
+  it("uses the legacy format verified against GitHub", () => {
+    expect(
+      addNotificationReferrer("https://github.com/euxx/gpt/pull/107", "26331594402", 16488865),
+    ).toBe(
+      "https://github.com/euxx/gpt/pull/107?notification_referrer_id=MDE4Ok5vdGlmaWNhdGlvblRocmVhZDI2MzMxNTk0NDAyOjE2NDg4ODY1",
+    );
+  });
+
+  it("preserves query parameters and comment anchors", () => {
+    const result = new URL(
+      addNotificationReferrer(
+        "https://github.com/owner/repo/pull/1?diff=split#issuecomment-2",
+        "123",
+        456,
+      ),
+    );
+    expect(result.searchParams.get("diff")).toBe("split");
+    expect(result.hash).toBe("#issuecomment-2");
+    expect(atob(result.searchParams.get("notification_referrer_id"))).toBe(
+      "018:NotificationThread123:456",
+    );
+  });
+
+  it.each([
+    [undefined, 456],
+    ["123", undefined],
+    ["123", null],
+    ["invalid", 456],
+  ])("leaves the URL unchanged without usable IDs (%s, %s)", (notificationId, userId) => {
+    const url = "https://github.com/owner/repo/issues/1";
+    expect(addNotificationReferrer(url, notificationId, userId)).toBe(url);
+  });
+
+  it.each([
+    "https://example.com/owner/repo/issues/1",
+    "https://github.com/owner/repo/issues/1?notification_referrer_id=NT_existing#issuecomment-2",
+  ])("preserves external URLs and existing notification context: %s", (url) => {
+    expect(addNotificationReferrer(url, "123", 456)).toBe(url);
+  });
+});
 
 describe("buildNotificationUrl", () => {
   describe("when html_url is present", () => {
